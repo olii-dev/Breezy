@@ -1,0 +1,56 @@
+{
+  "source": "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/BreezyWidget/BreezyWidgetLiveActivity.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Hello %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 31
+        }
+      },
+      {
+        "comment": "",
+        "key": "Leading",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 41
+        }
+      },
+      {
+        "comment": "",
+        "key": "Trailing",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 44
+        }
+      },
+      {
+        "comment": "",
+        "key": "Bottom %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 47
+        }
+      },
+      {
+        "comment": "",
+        "key": "L",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 51
+        }
+      },
+      {
+        "comment": "",
+        "key": "T %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 53
+        }
+      }
+    ]
+  },
+  "version": 1
+}

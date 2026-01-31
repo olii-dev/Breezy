@@ -1,0 +1,12 @@
+{
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/BackgroundRefreshManager.swift" : {
+    "abi-baseline-json" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_Watch_Watch_App.abi.json",
+    "const-values" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary.swiftconstvalues",
+    "dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary.d",
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary.dia",
+    "objc-header" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_Watch_Watch_App-Swift.h",
+    "swiftdoc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_Watch_Watch_App.swiftdoc",
+    "swiftmodule" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_Watch_Watch_App.swiftmodule",
+    "swiftsourceinfo" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphonesimulator/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_Watch_Watch_App.swiftsourceinfo"
+  }
+}

@@ -1,0 +1,8 @@
+Target dependency graph (4 targets)
+Target 'Breezy' in project 'Breezy'
+➜ Explicit dependency on target 'BreezyWidgetExtension' in project 'Breezy'
+➜ Explicit dependency on target 'Breezy Watch Watch App' in project 'Breezy'
+Target 'Breezy Watch Watch App' in project 'Breezy'
+➜ Explicit dependency on target 'BreezyWatchWidgetExtensionExtension' in project 'Breezy'
+Target 'BreezyWatchWidgetExtensionExtension' in project 'Breezy' (no dependencies)
+Target 'BreezyWidgetExtension' in project 'Breezy' (no dependencies)

@@ -1,0 +1,24 @@
+{
+  "source": "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/BreezyWatchComplication.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Breezy Weather",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 591
+        }
+      },
+      {
+        "comment": "",
+        "key": "Current weather conditions on your watch face.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 592
+        }
+      }
+    ]
+  },
+  "version": 1
+}

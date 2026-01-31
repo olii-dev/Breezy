@@ -6,14 +6,162 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		860EE43B2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 in Resources */ = {isa = PBXBuildFile; fileRef = 860EE43A2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 */; };
+		860EE43C2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 in Resources */ = {isa = PBXBuildFile; fileRef = 860EE43A2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 */; };
+		860EE43D2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 in Resources */ = {isa = PBXBuildFile; fileRef = 860EE43A2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 */; };
+		8613FBD82EED447D007683C4 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F10892EB64FD5006223C3 /* WidgetKit.framework */; };
+		8613FBD92EED447D007683C4 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F108B2EB64FD5006223C3 /* SwiftUI.framework */; };
+		8613FBE62EED447E007683C4 /* BreezyWatchWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		866F108A2EB64FD5006223C3 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F10892EB64FD5006223C3 /* WidgetKit.framework */; };
+		866F108C2EB64FD5006223C3 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F108B2EB64FD5006223C3 /* SwiftUI.framework */; };
+		866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8613FBE42EED447E007683C4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 86030DB12EB4259C0022BB5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8613FBD62EED447D007683C4;
+			remoteInfo = BreezyWatchWidgetExtensionExtension;
+		};
+		866F10992EB64FD6006223C3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 86030DB12EB4259C0022BB5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 866F10862EB64FD5006223C3;
+			remoteInfo = BreezyWidgetExtension;
+		};
+		86A8057F2EEAED9D0019EAD7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 86030DB12EB4259C0022BB5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 86A805762EEAED9B0019EAD7;
+			remoteInfo = "Breezy Watch Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8613FBE72EED447E007683C4 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8613FBE62EED447E007683C4 /* BreezyWatchWidgetExtensionExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		866F10A02EB64FD6006223C3 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		86A805852EEAED9D0019EAD7 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		86030DB92EB4259C0022BB5C /* Breezy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Breezy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		860EE43A2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 */ = {isa = PBXFileReference; lastKnownFileType = text; path = AuthKey_S2G2GKHY52.p8; sourceTree = "<group>"; };
+		8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BreezyWatchWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8613FBEF2EED4545007683C4 /* BreezyWatchWidgetExtensionExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BreezyWatchWidgetExtensionExtension.entitlements; sourceTree = "<group>"; };
+		866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BreezyWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		866F10892EB64FD5006223C3 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		866F108B2EB64FD5006223C3 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		866F10A42EB65A62006223C3 /* BreezyWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BreezyWidgetExtension.entitlements; sourceTree = "<group>"; };
+		866F10A62EB65A63006223C3 /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
+		86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Breezy Watch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		86030DCA2EB429C90022BB5C /* Exceptions for "Breezy" folder in "Breezy" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 86030DB82EB4259C0022BB5C /* Breezy */;
+		};
+		8613FBEB2EED447E007683C4 /* Exceptions for "BreezyWatchWidgetExtension" folder in "BreezyWatchWidgetExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8613FBD62EED447D007683C4 /* BreezyWatchWidgetExtensionExtension */;
+		};
+		8613FBEC2EED4502007683C4 /* Exceptions for "Breezy Watch Watch App" folder in "Breezy Watch Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BreezyWatchComplication.swift,
+			);
+			target = 86A805762EEAED9B0019EAD7 /* Breezy Watch Watch App */;
+		};
+		8613FBEE2EED4505007683C4 /* Exceptions for "Breezy Watch Watch App" folder in "BreezyWatchWidgetExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BreezyWatchComplication.swift,
+			);
+			target = 8613FBD62EED447D007683C4 /* BreezyWatchWidgetExtensionExtension */;
+		};
+		866F109F2EB64FD6006223C3 /* Exceptions for "BreezyWidget" folder in "BreezyWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 866F10862EB64FD5006223C3 /* BreezyWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		86030DBB2EB4259C0022BB5C /* Breezy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				86030DCA2EB429C90022BB5C /* Exceptions for "Breezy" folder in "Breezy" target */,
+			);
 			path = Breezy;
+			sourceTree = "<group>";
+		};
+		8613FBDA2EED447D007683C4 /* BreezyWatchWidgetExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8613FBEB2EED447E007683C4 /* Exceptions for "BreezyWatchWidgetExtension" folder in "BreezyWatchWidgetExtensionExtension" target */,
+			);
+			path = BreezyWatchWidgetExtension;
+			sourceTree = "<group>";
+		};
+		866F108D2EB64FD5006223C3 /* BreezyWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				866F109F2EB64FD6006223C3 /* Exceptions for "BreezyWidget" folder in "BreezyWidgetExtension" target */,
+			);
+			path = BreezyWidget;
+			sourceTree = "<group>";
+		};
+		86A805782EEAED9B0019EAD7 /* Breezy Watch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8613FBEC2EED4502007683C4 /* Exceptions for "Breezy Watch Watch App" folder in "Breezy Watch Watch App" target */,
+				8613FBEE2EED4505007683C4 /* Exceptions for "Breezy Watch Watch App" folder in "BreezyWatchWidgetExtensionExtension" target */,
+			);
+			path = "Breezy Watch Watch App";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -26,13 +174,45 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8613FBD42EED447D007683C4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8613FBD92EED447D007683C4 /* SwiftUI.framework in Frameworks */,
+				8613FBD82EED447D007683C4 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		866F10842EB64FD5006223C3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				866F108C2EB64FD5006223C3 /* SwiftUI.framework in Frameworks */,
+				866F108A2EB64FD5006223C3 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		86A805742EEAED9B0019EAD7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		86030DB02EB4259C0022BB5C = {
 			isa = PBXGroup;
 			children = (
+				8613FBEF2EED4545007683C4 /* BreezyWatchWidgetExtensionExtension.entitlements */,
+				860EE43A2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 */,
+				866F10A42EB65A62006223C3 /* BreezyWidgetExtension.entitlements */,
 				86030DBB2EB4259C0022BB5C /* Breezy */,
+				866F108D2EB64FD5006223C3 /* BreezyWidget */,
+				86A805782EEAED9B0019EAD7 /* Breezy Watch Watch App */,
+				8613FBDA2EED447D007683C4 /* BreezyWatchWidgetExtension */,
+				866F10882EB64FD5006223C3 /* Frameworks */,
 				86030DBA2EB4259C0022BB5C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +221,21 @@
 			isa = PBXGroup;
 			children = (
 				86030DB92EB4259C0022BB5C /* Breezy.app */,
+				866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */,
+				86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */,
+				8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		866F10882EB64FD5006223C3 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				866F10892EB64FD5006223C3 /* WidgetKit.framework */,
+				866F108B2EB64FD5006223C3 /* SwiftUI.framework */,
+				866F10A62EB65A63006223C3 /* ActivityKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -55,10 +248,14 @@
 				86030DB52EB4259C0022BB5C /* Sources */,
 				86030DB62EB4259C0022BB5C /* Frameworks */,
 				86030DB72EB4259C0022BB5C /* Resources */,
+				866F10A02EB64FD6006223C3 /* Embed Foundation Extensions */,
+				86A805852EEAED9D0019EAD7 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				866F109A2EB64FD6006223C3 /* PBXTargetDependency */,
+				86A805802EEAED9D0019EAD7 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				86030DBB2EB4259C0022BB5C /* Breezy */,
@@ -68,6 +265,74 @@
 			);
 			productName = Breezy;
 			productReference = 86030DB92EB4259C0022BB5C /* Breezy.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8613FBD62EED447D007683C4 /* BreezyWatchWidgetExtensionExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8613FBEA2EED447E007683C4 /* Build configuration list for PBXNativeTarget "BreezyWatchWidgetExtensionExtension" */;
+			buildPhases = (
+				8613FBD32EED447D007683C4 /* Sources */,
+				8613FBD42EED447D007683C4 /* Frameworks */,
+				8613FBD52EED447D007683C4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8613FBDA2EED447D007683C4 /* BreezyWatchWidgetExtension */,
+			);
+			name = BreezyWatchWidgetExtensionExtension;
+			packageProductDependencies = (
+			);
+			productName = BreezyWatchWidgetExtensionExtension;
+			productReference = 8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		866F10862EB64FD5006223C3 /* BreezyWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 866F109C2EB64FD6006223C3 /* Build configuration list for PBXNativeTarget "BreezyWidgetExtension" */;
+			buildPhases = (
+				866F10832EB64FD5006223C3 /* Sources */,
+				866F10842EB64FD5006223C3 /* Frameworks */,
+				866F10852EB64FD5006223C3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				866F108D2EB64FD5006223C3 /* BreezyWidget */,
+			);
+			name = BreezyWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = BreezyWidgetExtension;
+			productReference = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		86A805762EEAED9B0019EAD7 /* Breezy Watch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 86A805822EEAED9D0019EAD7 /* Build configuration list for PBXNativeTarget "Breezy Watch Watch App" */;
+			buildPhases = (
+				86A805732EEAED9B0019EAD7 /* Sources */,
+				86A805742EEAED9B0019EAD7 /* Frameworks */,
+				86A805752EEAED9B0019EAD7 /* Resources */,
+				8613FBE72EED447E007683C4 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8613FBE52EED447E007683C4 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				86A805782EEAED9B0019EAD7 /* Breezy Watch Watch App */,
+			);
+			name = "Breezy Watch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "Breezy Watch Watch App";
+			productReference = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -81,6 +346,15 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					86030DB82EB4259C0022BB5C = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					8613FBD62EED447D007683C4 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					866F10862EB64FD5006223C3 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					86A805762EEAED9B0019EAD7 = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
@@ -100,6 +374,9 @@
 			projectRoot = "";
 			targets = (
 				86030DB82EB4259C0022BB5C /* Breezy */,
+				866F10862EB64FD5006223C3 /* BreezyWidgetExtension */,
+				86A805762EEAED9B0019EAD7 /* Breezy Watch Watch App */,
+				8613FBD62EED447D007683C4 /* BreezyWatchWidgetExtensionExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -109,6 +386,30 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				860EE43C2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8613FBD52EED447D007683C4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		866F10852EB64FD5006223C3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				860EE43B2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		86A805752EEAED9B0019EAD7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				860EE43D2EEBCEE20017EFCA /* AuthKey_S2G2GKHY52.p8 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -122,7 +423,46 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8613FBD32EED447D007683C4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		866F10832EB64FD5006223C3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		86A805732EEAED9B0019EAD7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8613FBE52EED447E007683C4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8613FBD62EED447D007683C4 /* BreezyWatchWidgetExtensionExtension */;
+			targetProxy = 8613FBE42EED447E007683C4 /* PBXContainerItemProxy */;
+		};
+		866F109A2EB64FD6006223C3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 866F10862EB64FD5006223C3 /* BreezyWidgetExtension */;
+			targetProxy = 866F10992EB64FD6006223C3 /* PBXContainerItemProxy */;
+		};
+		86A805802EEAED9D0019EAD7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 86A805762EEAED9B0019EAD7 /* Breezy Watch Watch App */;
+			targetProxy = 86A8057F2EEAED9D0019EAD7 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		86030DC42EB4259D0022BB5C /* Debug */ = {
@@ -130,6 +470,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -194,6 +535,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -251,30 +593,40 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Breezy/Breezy.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = VHQYTVV3M4;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Breezy/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Breezy;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.weather";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Breezy needs your location to fetch your weather.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = olimebberson.Breezy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -283,30 +635,282 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Breezy/Breezy.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = VHQYTVV3M4;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Breezy/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Breezy;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.weather";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Breezy needs your location to fetch your weather.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = olimebberson.Breezy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		8613FBE82EED447E007683C4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BreezyWatchWidgetExtensionExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BreezyWatchWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BreezyWatchWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather.watchkitapp.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		8613FBE92EED447E007683C4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BreezyWatchWidgetExtensionExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BreezyWatchWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BreezyWatchWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather.watchkitapp.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		866F109D2EB64FD6006223C3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = BreezyWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BreezyWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BreezyWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "$(inherited)";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"-framework",
+					ActivityKit,
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"-framework",
+					ActivityKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,4";
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		866F109E2EB64FD6006223C3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = BreezyWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BreezyWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BreezyWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "$(inherited)";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"-framework",
+					ActivityKit,
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"-framework",
+					ActivityKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,4";
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		86A805832EEAED9D0019EAD7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "Breezy Watch Watch App/Breezy Watch Watch App.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Breezy;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Breezy needs your location to show weather for your area.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.breezy.weather;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		86A805842EEAED9D0019EAD7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "Breezy Watch Watch App/Breezy Watch Watch App.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZVYZ759YYL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Breezy;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Breezy needs your location to show weather for your area.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.breezy.weather;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
 		};
@@ -327,6 +931,33 @@
 			buildConfigurations = (
 				86030DC72EB4259D0022BB5C /* Debug */,
 				86030DC82EB4259D0022BB5C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8613FBEA2EED447E007683C4 /* Build configuration list for PBXNativeTarget "BreezyWatchWidgetExtensionExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8613FBE82EED447E007683C4 /* Debug */,
+				8613FBE92EED447E007683C4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		866F109C2EB64FD6006223C3 /* Build configuration list for PBXNativeTarget "BreezyWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				866F109D2EB64FD6006223C3 /* Debug */,
+				866F109E2EB64FD6006223C3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		86A805822EEAED9D0019EAD7 /* Build configuration list for PBXNativeTarget "Breezy Watch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				86A805832EEAED9D0019EAD7 /* Debug */,
+				86A805842EEAED9D0019EAD7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

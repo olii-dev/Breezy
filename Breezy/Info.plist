@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSWidgetWantsLocation</key>
+	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Breezy needs your location to update weather widgets in the background as you travel.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Breezy needs your location to provide accurate weather forecasts and alerts for your area.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict/>
+	</array>
+</dict>
+</plist>

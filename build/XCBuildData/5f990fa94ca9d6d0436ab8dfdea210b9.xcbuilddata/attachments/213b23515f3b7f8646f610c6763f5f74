@@ -1,0 +1,266 @@
+{
+  "" : {
+    "const-values" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Breezy-primary.swiftconstvalues",
+    "dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Breezy-primary.d",
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Breezy-primary.dia",
+    "emit-module-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Breezy-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Breezy-primary-emit-module.dia",
+    "pch" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Breezy-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Breezy-primary.swiftdeps"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/BreezyApp.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/BreezyApp.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/BreezyApp.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/BreezyApp.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Item.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Item.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Item.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/Item.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/AppSettings.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AppSettings.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AppSettings.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AppSettings.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/DailyForecast.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DailyForecast.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DailyForecast.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DailyForecast.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/HourlyForecast.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/HourlyForecast.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/HourlyForecast.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/HourlyForecast.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/LocationData.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationData.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationData.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationData.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/NotificationSettings.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/NotificationSettings.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/NotificationSettings.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/NotificationSettings.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/WeatherInfo.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherInfo.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherInfo.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherInfo.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/WeatherMetrics.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherMetrics.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherMetrics.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherMetrics.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/WeatherSection.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherSection.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherSection.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherSection.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Models/WidgetWeatherData.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WidgetWeatherData.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WidgetWeatherData.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WidgetWeatherData.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Services/BackgroundTaskManager.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/BackgroundTaskManager.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/BackgroundTaskManager.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/BackgroundTaskManager.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Services/LocationHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Services/LocationSearchService.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationSearchService.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationSearchService.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationSearchService.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Services/NotificationManager.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/NotificationManager.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/NotificationManager.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/NotificationManager.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Services/RadarService.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarService.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarService.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarService.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Stores/FavouritesStore.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FavouritesStore.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FavouritesStore.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FavouritesStore.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Stores/RecentlyViewedStore.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RecentlyViewedStore.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RecentlyViewedStore.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RecentlyViewedStore.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Stores/WeatherCache.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherCache.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherCache.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherCache.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Stores/WidgetDataStore.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WidgetDataStore.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WidgetDataStore.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WidgetDataStore.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/AirQualityHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AirQualityHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AirQualityHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AirQualityHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/CityDatabase.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/CityDatabase.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/CityDatabase.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/CityDatabase.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/CloudStorage.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/CloudStorage.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/CloudStorage.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/CloudStorage.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/DateFormatterHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DateFormatterHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DateFormatterHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DateFormatterHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/DesignSystem.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DesignSystem.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DesignSystem.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DesignSystem.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/LiveActivityManager.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LiveActivityManager.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LiveActivityManager.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LiveActivityManager.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/MoonPhaseHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/MoonPhaseHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/MoonPhaseHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/MoonPhaseHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/UVIndexHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/UVIndexHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/UVIndexHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/UVIndexHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/WatchSessionManager.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WatchSessionManager.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WatchSessionManager.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WatchSessionManager.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/WeatherConditionConverter.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherConditionConverter.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherConditionConverter.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherConditionConverter.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/WeatherIconHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherIconHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherIconHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherIconHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/WeatherTheme.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherTheme.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherTheme.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherTheme.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Utilities/WindDirectionHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WindDirectionHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WindDirectionHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WindDirectionHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/ViewModels/WeatherViewModel.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherViewModel.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherViewModel.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherViewModel.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/AnimatedWeatherIcon.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AnimatedWeatherIcon.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AnimatedWeatherIcon.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/AnimatedWeatherIcon.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/ContentView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/DailyForecastDetailView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DailyForecastDetailView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DailyForecastDetailView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/DailyForecastDetailView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/FloatingParticles.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FloatingParticles.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FloatingParticles.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FloatingParticles.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/FullScreenRadarView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FullScreenRadarView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FullScreenRadarView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/FullScreenRadarView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/LoadingSkeletonView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LoadingSkeletonView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LoadingSkeletonView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LoadingSkeletonView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/LocationPickerView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationPickerView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationPickerView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/LocationPickerView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/OnboardingView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/OnboardingView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/OnboardingView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/OnboardingView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/QuickStatPill.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/QuickStatPill.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/QuickStatPill.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/QuickStatPill.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/RadarCardView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarCardView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarCardView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarCardView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/RadarLayerMenuView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarLayerMenuView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarLayerMenuView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarLayerMenuView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/RadarLegendView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarLegendView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarLegendView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarLegendView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/RadarTimelineView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarTimelineView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarTimelineView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/RadarTimelineView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/SettingsView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/SettingsView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/WeatherIcon3D.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherIcon3D.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherIcon3D.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherIcon3D.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy/Views/WeatherMetricsView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherMetricsView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherMetricsView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/WeatherMetricsView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-iphoneos/Breezy.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

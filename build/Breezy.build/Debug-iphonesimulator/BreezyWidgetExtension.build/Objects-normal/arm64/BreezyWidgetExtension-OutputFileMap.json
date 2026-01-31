@@ -1,0 +1,49 @@
+{
+  "" : {
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetExtension-primary.dia",
+    "emit-module-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetExtension-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetExtension-primary-emit-module.dia",
+    "pch" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetExtension-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetExtension-primary.swiftdeps"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/BreezyWidget/BreezyWidget.swift" : {
+    "const-values" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget.swiftconstvalues",
+    "dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget.d",
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget.dia",
+    "index-unit-output-path" : "/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget.o",
+    "swift-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget.swiftdeps",
+    "swiftmodule" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidget~partial.swiftmodule"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/BreezyWidget/BreezyWidgetControl.swift" : {
+    "const-values" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl.swiftconstvalues",
+    "dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl.d",
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl.dia",
+    "index-unit-output-path" : "/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl.o",
+    "swift-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl.swiftdeps",
+    "swiftmodule" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetControl~partial.swiftmodule"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/BreezyWidget/BreezyWidgetLiveActivity.swift" : {
+    "const-values" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity.swiftconstvalues",
+    "dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity.d",
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity.dia",
+    "index-unit-output-path" : "/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity.o",
+    "swift-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity.swiftdeps",
+    "swiftmodule" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/BreezyWidgetLiveActivity~partial.swiftmodule"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Debug-iphonesimulator/BreezyWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "" : {
+    "const-values" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary.swiftconstvalues",
+    "dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary.d",
+    "diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary.dia",
+    "emit-module-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary-emit-module.dia",
+    "pch" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy Watch Watch App-primary.swiftdeps"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/BackgroundRefreshManager.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/BackgroundRefreshManager.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/BackgroundRefreshManager.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/BackgroundRefreshManager.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/Breezy_WatchApp.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_WatchApp.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_WatchApp.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/Breezy_WatchApp.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/ComplicationController.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/ComplicationController.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/ComplicationController.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/ComplicationController.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/ContentView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/LocationData.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/LocationData.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/LocationData.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/LocationData.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/SettingsView.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/SettingsView.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/WatchComponents.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchComponents.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchComponents.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchComponents.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/WatchLocationHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchLocationHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchLocationHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchLocationHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/WatchSessionManager.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchSessionManager.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchSessionManager.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchSessionManager.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/WatchSharedModels.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchSharedModels.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchSharedModels.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchSharedModels.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/WatchWeatherHelpers.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchWeatherHelpers.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchWeatherHelpers.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchWeatherHelpers.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/WatchWeatherViewModel.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchWeatherViewModel.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchWeatherViewModel.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WatchWeatherViewModel.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/Breezy Watch Watch App/WeatherThemeHelper.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WeatherThemeHelper.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WeatherThemeHelper.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/WeatherThemeHelper.o"
+  },
+  "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/olimebberson/Documents/Miscellaneous/iPhone Apps/Breezy/build/Breezy.build/Release-watchos/Breezy Watch Watch App.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}
