@@ -7,7 +7,7 @@
 
 import SwiftUI
 import MapKit
-import WatchKit
+// import WatchKit
 
 struct WatchCitySearchView: View {
     @EnvironmentObject var viewModel: WatchWeatherViewModel
@@ -147,7 +147,7 @@ struct WatchCitySearchView: View {
             }
         }
         .navigationTitle("Add City")
-        .onChange(of: query) { newValue in
+        .onChange(of: query) { _, newValue in
             searchResults.search(query: newValue)
         }
     }

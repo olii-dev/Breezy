@@ -14,6 +14,8 @@ import WeatherKit
 class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
     static let shared = WatchSessionManager()
     
+    private let locationHelper = LocationHelper()
+    
     private let session: WCSession? = WCSession.isSupported() ? WCSession.default : nil
     
     // Callback to trigger sync when session is ready
@@ -158,18 +160,33 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
             Task {
                 // 1. Determine Location
                 var targetLocation: CLLocation?
+                var targetCity: String = "Unknown Location"
                 
                 if let lat = message["latitude"] as? Double, let lon = message["longitude"] as? Double {
-                    targetLocation = CLLocation(latitude: lat, longitude: lon)
+                    let loc = CLLocation(latitude: lat, longitude: lon)
+                    targetLocation = loc
+                    // Attempt reverse geocoding for city name if provided coords
+                    if let placemarks = try? await CLGeocoder().reverseGeocodeLocation(loc),
+                       let city = placemarks.first?.locality {
+                        targetCity = city
+                    }
                 } else {
-                    // Fallback to saved location or current location manager
-                    // This is a bit tricky since we're in a utility class.
-                    // For now, let's reply with error if no coords provided, forcing Watch to use its own GPS.
-                    // Or keep it simple: Hybrid mode assumes Watch HAS a location (from GPS) and just wants the DATA download to happen on Phone.
+                    // Fallback: Use Phone's Location
+                    print("📱 PHONE: Watch sent no coords. Requesting local location...")
+                    do {
+                        let locationData = try await self.locationHelper.requestLocationAndGetData()
+                        targetLocation = CLLocation(latitude: locationData.latitude, longitude: locationData.longitude)
+                        targetCity = locationData.city
+                        print("📱 PHONE: Using Phone Location: \(locationData.city)")
+                    } catch {
+                        print("❌ PHONE: Failed to get local location: \(error.localizedDescription)")
+                        replyHandler(["error": "Phone location unavailable: \(error.localizedDescription)"])
+                        return
+                    }
                 }
                 
                 guard let location = targetLocation else {
-                    replyHandler(["error": "No coordinates provided"])
+                    replyHandler(["error": "No coordinates provided and fallback failed"])
                     return
                 }
                 
@@ -188,6 +205,8 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                     
                     // Units (Send raw values, Watch handles conversion/display based on its prefs)
                     // Actually, easier to send standardized values (Celsius/Metric) and let Watch convert.
+                    
+                    reply["city"] = targetCity // Send City Name
                     
                     reply["temp_c"] = current.temperature.converted(to: .celsius).value
                     reply["feels_c"] = current.apparentTemperature.converted(to: .celsius).value
@@ -217,6 +236,22 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                         ]
                     }
                     reply["hourly"] = hourlyData
+                    
+                    // Daily (Next 10 days)
+                    let dailyData = weather.dailyForecast.prefix(10).map { d -> [String: Any] in
+                        return [
+                            "time": d.date.timeIntervalSince1970,
+                            "low_c": d.lowTemperature.converted(to: .celsius).value,
+                            "high_c": d.highTemperature.converted(to: .celsius).value,
+                            "condition": d.condition.description,
+                            "rainChance": d.precipitationChance,
+                            "uv": d.uvIndex.value,
+                            "wind_mps": d.wind.speed.converted(to: .metersPerSecond).value,
+                            "sunrise": d.sun.sunrise?.timeIntervalSince1970 ?? 0,
+                            "sunset": d.sun.sunset?.timeIntervalSince1970 ?? 0
+                        ]
+                    }
+                    reply["daily"] = dailyData
                     
                     print("📱 PHONE: Sending weather reply to Watch.")
                     replyHandler(reply)

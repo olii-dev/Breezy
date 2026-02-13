@@ -73,13 +73,13 @@ struct ContentView: View {
                 await viewModel.loadWeather()
             }
         }
-        .onChange(of: scenePhase, perform: { newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task {
                     await viewModel.loadWeather()
                 }
             }
-        })
+        }
     }
 }
 
@@ -212,7 +212,7 @@ struct DailyForecastView: View {
         
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("7-DAY OUTLOOK")
+                Text("10-DAY OUTLOOK")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(theme.textColor.opacity(0.8))
                     .padding(.top, 4)

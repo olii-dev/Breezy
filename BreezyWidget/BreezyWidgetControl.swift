@@ -9,6 +9,9 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
+
+#if os(iOS)
+@available(iOS 18.0, macOS 15.0, *)
 struct BreezyWidgetControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(
@@ -28,6 +31,7 @@ struct BreezyWidgetControl: ControlWidget {
     }
 }
 
+@available(iOS 18.0, macOS 15.0, *)
 extension BreezyWidgetControl {
     struct Provider: ControlValueProvider {
         var previewValue: Bool {
@@ -41,6 +45,7 @@ extension BreezyWidgetControl {
     }
 }
 
+@available(iOS 18.0, macOS 15.0, *)
 struct StartTimerIntent: SetValueIntent {
     static let title: LocalizedStringResource = "Start a timer"
 
@@ -52,3 +57,5 @@ struct StartTimerIntent: SetValueIntent {
         return .result()
     }
 }
+#endif
+

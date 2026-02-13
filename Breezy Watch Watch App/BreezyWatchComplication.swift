@@ -25,7 +25,7 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
     func requestLocation() async throws -> CLLocation {
         // OPTIMIZATION: Check if we have a recent location cached by the system
         if let lastLocation = manager.location,
-           lastLocation.timestamp.timeIntervalSinceNow > -300 { // 5 mins
+           lastLocation.timestamp.timeIntervalSinceNow > -60 { // 1 min
             print("⌚️ Watch Widget: Using recent system location (Age: \(Int(-lastLocation.timestamp.timeIntervalSinceNow))s)")
             return lastLocation
         }
@@ -39,8 +39,8 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
             self.continuation = cont
             manager.requestLocation()
             
-            // Timeout safety
-            DispatchQueue.global().asyncAfter(deadline: .now() + 5) { [weak self] in
+            // Timeout safety - Increased to 10s for Watch
+            DispatchQueue.global().asyncAfter(deadline: .now() + 10) { [weak self] in
                 guard let self = self, self.continuation != nil else { return }
                 self.continuation?.resume(throwing: NSError(domain: "WatchWidgetLocation", code: 2, userInfo: [NSLocalizedDescriptionKey: "Timeout"]))
                 self.continuation = nil
@@ -48,14 +48,14 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
         }
     }
     
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    @objc func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         if let location = locations.first, let cont = continuation {
             cont.resume(returning: location)
             continuation = nil
         }
     }
     
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    @objc func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         if let cont = continuation {
             cont.resume(throwing: error)
             continuation = nil
@@ -81,6 +81,7 @@ struct WatchComplicationProvider: TimelineProvider {
                 hourlyForecast: [],
                 uvIndex: 5,
                 windSpeed: "12 mph",
+                windDirectionDegrees: 180,
                 rainChance: "0%",
                 humidity: "45%",
                 pressure: "1013 hPa"
@@ -98,20 +99,16 @@ struct WatchComplicationProvider: TimelineProvider {
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchWeatherEntry>) -> Void) {
-        // 1. Load cached data
+        // 1. Load cached data (Synchronous)
         let cachedData = loadCachedWeatherData()
         
         // 2. Prepare for active fetch
         let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
-        let lat = defaults?.double(forKey: "WatchLastLatitude") ?? defaults?.double(forKey: "LastLatitude")
-        let lon = defaults?.double(forKey: "WatchLastLongitude") ?? defaults?.double(forKey: "LastLongitude")
         
-        // Helper inside getTimeline
+        // Helper to create entries
         func createEntries(from data: WatchWeatherData) -> [WatchWeatherEntry] {
             var ent: [WatchWeatherEntry] = []
             let now = Date()
-            
-            // "Now" entry
             ent.append(WatchWeatherEntry(date: now, weather: data))
             
             // Future entries from hourly forecast (next 4 hours)
@@ -132,8 +129,9 @@ struct WatchComplicationProvider: TimelineProvider {
                             highTemp: data.highTemp,
                             lowTemp: data.lowTemp,
                             hourlyForecast: data.hourlyForecast,
-                            uvIndex: data.uvIndex, // Keep daily/current stats for now
+                            uvIndex: data.uvIndex,
                             windSpeed: data.windSpeed,
+                            windDirectionDegrees: data.windDirectionDegrees,
                             rainChance: data.rainChance,
                             humidity: data.humidity,
                             pressure: data.pressure
@@ -145,33 +143,54 @@ struct WatchComplicationProvider: TimelineProvider {
             return ent
         }
     
-        // 3. Attempt Active Fetch
-        
-        // Define simple coord struct
-        struct Coord { let lat: Double; let lon: Double }
-        
-        let shouldFollowGPS = defaults?.bool(forKey: "Breezy.shouldFollowGPS") ?? false
-        
+        // 3. Async Work
         Task {
+            // Define simple coord struct
+            struct Coord { let lat: Double; let lon: Double; let name: String? }
+            
+            // Local Stub for SavedLocation to avoid target membership issues
+            struct LocalSavedLocation: Decodable {
+                let id: UUID
+                let name: String
+                let latitude: Double
+                let longitude: Double
+            }
+            
             var targetLocation: Coord? = nil
             
-            // Try GPS if enabled
-            if shouldFollowGPS {
-                do {
-                    let loc = try await WatchWidgetLocationManager.shared.requestLocation()
-                    targetLocation = Coord(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude)
-                    // Update cache
-                    defaults?.set(loc.coordinate.latitude, forKey: "WatchLastLatitude")
-                    defaults?.set(loc.coordinate.longitude, forKey: "WatchLastLongitude")
-                } catch {
-                     print("⌚️ Watch GPS failed: \(error). Using cache.")
+            // A. Check for manual selection (Saved Location)
+            if let idStr = defaults?.string(forKey: "WatchSelectedLocationID"),
+               let savedData = defaults?.data(forKey: "WatchSavedLocations"),
+               let savedLocs = try? JSONDecoder().decode([LocalSavedLocation].self, from: savedData),
+               let match = savedLocs.first(where: { $0.id.uuidString == idStr }) {
+                
+                print("⌚️ Watch Widget: Using selected location: \(match.name)")
+                targetLocation = Coord(lat: match.latitude, lon: match.longitude, name: match.name)
+            }
+            
+            // B. If no manual selection, use GPS (Default to TRUE if not set)
+            if targetLocation == nil {
+                let shouldFollowGPS = defaults?.bool(forKey: "Breezy.shouldFollowGPS") ?? true
+                
+                if shouldFollowGPS {
+                    do {
+                        let loc = try await WatchWidgetLocationManager.shared.requestLocation()
+                        targetLocation = Coord(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude, name: nil)
+                        // Update cache
+                        defaults?.set(loc.coordinate.latitude, forKey: "WatchLastLatitude")
+                        defaults?.set(loc.coordinate.longitude, forKey: "WatchLastLongitude")
+                    } catch {
+                         print("⌚️ Watch GPS failed: \(error). Using cache.")
+                    }
                 }
             }
             
-            // Fallback to cache
+            // Fallback to cache for coords
             if targetLocation == nil {
+                let lat = defaults?.double(forKey: "WatchLastLatitude") ?? defaults?.double(forKey: "LastLatitude")
+                let lon = defaults?.double(forKey: "WatchLastLongitude") ?? defaults?.double(forKey: "LastLongitude")
                 if let lat = lat, let lon = lon, lat != 0, lon != 0 {
-                    targetLocation = Coord(lat: lat, lon: lon)
+                    targetLocation = Coord(lat: lat, lon: lon, name: nil)
                 }
             }
             
@@ -187,82 +206,91 @@ struct WatchComplicationProvider: TimelineProvider {
             }
             
             // 4. Fetch Fresh Data using the target coords
-            Task {
-                do {
-                    // Fetch fresh data
-                    let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
-                    let weather = try await WeatherService.shared.weather(for: location)
+            do {
+                // Fetch fresh data
+                let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
+                let weather = try await WeatherService.shared.weather(for: location)
+                
+                // Parse Data
+                let tempUnitStr = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
+                let isFahrenheit = tempUnitStr == "Fahrenheit"
+                
+                // Current
+                let currentTempVal = isFahrenheit ? weather.currentWeather.temperature.converted(to: .fahrenheit).value : weather.currentWeather.temperature.converted(to: .celsius).value
+                let tempStr = String(format: "%.0f°", currentTempVal)
+                let cond = weather.currentWeather.condition.description
+                
+                // High/Low
+                let daily = weather.dailyForecast.first
+                let highVal = isFahrenheit ? daily?.highTemperature.converted(to: .fahrenheit).value : daily?.highTemperature.converted(to: .celsius).value
+                let lowVal = isFahrenheit ? daily?.lowTemperature.converted(to: .fahrenheit).value : daily?.lowTemperature.converted(to: .celsius).value
+                
+                let highStr = highVal.map { String(format: "%.0f°", $0) }
+                let lowStr = lowVal.map { String(format: "%.0f°", $0) }
+                
+                // Hourly
+                var hourlyItems: [WatchHourlyForecast] = []
+                let next12 = weather.hourlyForecast.filter { $0.date >= Date() }.prefix(12)
+                for h in next12 {
+                    let hVal = isFahrenheit ? h.temperature.converted(to: .fahrenheit).value : h.temperature.converted(to: .celsius).value
+                    let hStr = String(format: "%.0f°", hVal)
+                    let timeStr = Calendar.current.component(.hour, from: h.date) > 12 ? "\(Calendar.current.component(.hour, from: h.date) - 12)PM" : "\(Calendar.current.component(.hour, from: h.date))AM"
                     
-                    // Parse Data
-                    let tempUnitStr = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
-                    let isFahrenheit = tempUnitStr == "Fahrenheit"
-                    
-                    // Current
-                    let currentTempVal = isFahrenheit ? weather.currentWeather.temperature.converted(to: .fahrenheit).value : weather.currentWeather.temperature.converted(to: .celsius).value
-                    let tempStr = String(format: "%.0f°", currentTempVal)
-                    let cond = weather.currentWeather.condition.description
-                    
-                    // High/Low
-                    let daily = weather.dailyForecast.first
-                    let highVal = isFahrenheit ? daily?.highTemperature.converted(to: .fahrenheit).value : daily?.highTemperature.converted(to: .celsius).value
-                    let lowVal = isFahrenheit ? daily?.lowTemperature.converted(to: .fahrenheit).value : daily?.lowTemperature.converted(to: .celsius).value
-                    
-                    let highStr = highVal.map { String(format: "%.0f°", $0) }
-                    let lowStr = lowVal.map { String(format: "%.0f°", $0) }
-                    
-                    // Hourly
-                    var hourlyItems: [WatchHourlyForecast] = []
-                    let next12 = weather.hourlyForecast.filter { $0.date >= Date() }.prefix(12)
-                    for h in next12 {
-                        let hVal = isFahrenheit ? h.temperature.converted(to: .fahrenheit).value : h.temperature.converted(to: .celsius).value
-                        let hStr = String(format: "%.0f°", hVal)
-                        let timeStr = Calendar.current.component(.hour, from: h.date) > 12 ? "\(Calendar.current.component(.hour, from: h.date) - 12)PM" : "\(Calendar.current.component(.hour, from: h.date))AM"
-                        
-                        hourlyItems.append(WatchHourlyForecast(
-                            time: timeStr,
-                            temperature: hStr,
-                            emoji: "☀️", // Placeholder
-                            condition: h.condition.description
-                        ))
+                    hourlyItems.append(WatchHourlyForecast(
+                        time: timeStr,
+                        temperature: hStr,
+                        emoji: "☀️", // Placeholder
+                        condition: h.condition.description
+                    ))
+                }
+                
+                
+                // Final City Name Determination
+                var finalCity: String
+                
+                if let manualName = coords.name {
+                    // User manually selected a city -> Use that name
+                    finalCity = manualName
+                } else {
+                    // GPS -> Reverse Geocode or Cache
+                    var geocodedCity = cachedData?.city
+                    if let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
+                       let city = placemarks.first?.locality {
+                        geocodedCity = city
                     }
-                    
-                    // Reverse Geocode
-                    var finalCity = cachedData?.city ?? "My Location"
-                    let geocoder = CLGeocoder()
-                    if let placemarks = try? await geocoder.reverseGeocodeLocation(location),
-                       let place = placemarks.first {
-                        finalCity = place.locality ?? place.name ?? finalCity
-                    }
-                    
-                    let freshData = WatchWeatherData(
-                        city: finalCity,
-                        temperature: tempStr,
-                        condition: cond,
-                        emoji: "🌡️",
-                        highTemp: highStr,
-                        lowTemp: lowStr,
-                        hourlyForecast: hourlyItems,
-                        uvIndex: weather.currentWeather.uvIndex.value,
-                        windSpeed: "\(Int(weather.currentWeather.wind.speed.value)) \(isFahrenheit ? "mph" : "km/h")",
-                        rainChance: "\(Int(weather.dailyForecast.first?.precipitationChance ?? 0 * 100))%",
-                        humidity: "\(Int(weather.currentWeather.humidity * 100))%",
-                        pressure: nil
-                    )
-                    
-                    print("⌚️ Watch Complication: Fetched FRESH data!")
-                    let entries = createEntries(from: freshData)
+                    finalCity = geocodedCity ?? "My Location"
+                }
+
+                
+                let freshData = WatchWeatherData(
+                    city: finalCity,
+                    temperature: tempStr,
+                    condition: cond,
+                    emoji: "🌡️",
+                    highTemp: highStr,
+                    lowTemp: lowStr,
+                    hourlyForecast: hourlyItems,
+                    uvIndex: Int(weather.currentWeather.uvIndex.value),
+                    windSpeed: "\(Int(weather.currentWeather.wind.speed.value)) \(isFahrenheit ? "mph" : "km/h")",
+                    windDirectionDegrees: weather.currentWeather.wind.direction.converted(to: .degrees).value,
+                    rainChance: "\(Int((weather.dailyForecast.first?.precipitationChance ?? 0) * 100))%",
+                    humidity: "\(Int(weather.currentWeather.humidity * 100))%",
+                    pressure: nil
+                )
+                
+                print("⌚️ Watch Complication: Fetched FRESH data!")
+                let entries = createEntries(from: freshData)
+                let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60)))
+                completion(timeline)
+                
+            } catch {
+                print("⌚️ Watch Complication: Fetch failed (\(error)). Using cache.")
+                if let data = cachedData {
+                    let entries = createEntries(from: data)
                     let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60)))
                     completion(timeline)
-                    
-                } catch {
-                    print("⌚️ Watch Complication: Fetch failed (\(error)). Using cache.")
-                    if let data = cachedData {
-                        let entries = createEntries(from: data)
-                        let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60)))
-                        completion(timeline)
-                    } else {
-                        completion(Timeline(entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(15 * 60))))
-                    }
+                } else {
+                    completion(Timeline(entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(15 * 60))))
                 }
             }
         }
@@ -296,6 +324,7 @@ struct WatchComplicationProvider: TimelineProvider {
                 hourlyForecast: hourlyForecast,
                 uvIndex: decoded.uvIndex,
                 windSpeed: decoded.windSpeed,
+                windDirectionDegrees: nil, // Not in shared yet
                 rainChance: decoded.rainChance,
                 humidity: nil, // Shared metrics might be missing humidity
                 pressure: decoded.pressure
@@ -318,6 +347,7 @@ struct WatchComplicationProvider: TimelineProvider {
                 hourlyForecast: [],
                 uvIndex: nil,
                 windSpeed: nil,
+                windDirectionDegrees: nil,
                 rainChance: nil,
                 humidity: nil,
                 pressure: nil
@@ -349,6 +379,7 @@ struct WatchWeatherData {
     // New Metrics
     let uvIndex: Int?
     let windSpeed: String?
+    let windDirectionDegrees: Double?
     let rainChance: String?
     let humidity: String?
     let pressure: String?
@@ -828,14 +859,24 @@ struct AccessoryCircularWindView: View {
     let entry: WatchWeatherEntry
     
     var body: some View {
-        VStack(spacing: 0) {
-            Image(systemName: "wind")
-                .font(.system(size: 14))
-            Text(entry.weather.windSpeed ?? "--")
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+        let rawStr = entry.weather.windSpeed ?? "0"
+        let speedVal = Double(rawStr.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
+        
+        Gauge(value: speedVal, in: 0...50) {
+            if let degrees = entry.weather.windDirectionDegrees {
+                Image(systemName: "arrow.up")
+                    .rotationEffect(.degrees(degrees + 180)) // Point IN direction of flow
+                    .font(.system(size: 12, weight: .bold))
+            } else {
+                Image(systemName: "wind")
+                    .font(.system(size: 14))
+            }
+        } currentValueLabel: {
+            Text("\(Int(speedVal))")
+                 .font(.system(size: 12, weight: .bold, design: .rounded))
         }
+        .gaugeStyle(.accessoryCircular)
+        .tint(.cyan)
         .containerBackground(for: .widget) { Color.clear }
     }
 }

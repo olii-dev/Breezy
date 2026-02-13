@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 struct IconGalleryView: View {
@@ -39,6 +40,7 @@ struct IconGalleryView: View {
                                 isSelected: iconManager.currentIcon == icon,
                                 textColor: theme.textColor
                             ) {
+                                HapticsManager.shared.impact(style: .light)
                                 Task { @MainActor in
                                     await iconManager.setIcon(icon)
                                 }
@@ -74,7 +76,10 @@ struct IconCard: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button {
+            HapticsManager.shared.impact(style: .medium)
+            action()
+        } label: {
             VStack(spacing: 12) {
                 // Icon preview with glassmorphic container
                 ZStack {
@@ -129,7 +134,17 @@ struct IconCard: View {
                     .foregroundColor(textColor)
             }
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(PlainButtonStyle()) // Changed from PressedButtonStyle to PlainButtonStyle
+        .contentShape(Rectangle())
+    }
+}
+
+struct PressedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
@@ -138,3 +153,4 @@ struct IconCard: View {
         IconGalleryView(viewModel: WeatherViewModel())
     }
 }
+#endif

@@ -1,0 +1,5 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -workspace Breezy.xcodeproj/project.xcworkspace -scheme "Breezy Watch Watch App" -destination "generic/platform=watchOS Simulator" clean build
+
+2026-02-12 20:32:50.471 xcodebuild[14123:2883908] Writing error result bundle to /var/folders/lt/fw287cp96ng4tsv4tw7xfnwh0000gn/T/ResultBundle_2026-12-02_20-32-0050.xcresult
+xcodebuild: error: The workspace named "Breezy" does not contain a scheme named "Breezy Watch Watch App". The "-list" option can be used to find the names of the schemes in the workspace.

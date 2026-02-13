@@ -68,9 +68,7 @@ struct FeelsLikeWidget: View {
         if let humidity = weather.metrics?.humidity, humidity > 70 {
             reasons.append("high humidity")
         }
-        if let wind = weather.metrics?.windSpeed {
-            // "15 km/h" -> check if wind is high? Hard to parse safely.
-        }
+        // if let wind = weather.metrics?.windSpeed { ... } unused
         
         if reasons.isEmpty {
             return "Similar to actual temperature."

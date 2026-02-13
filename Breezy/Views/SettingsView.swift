@@ -7,11 +7,13 @@
 
 import SwiftUI
 import UserNotifications
+import WeatherKit
 
 struct SettingsView: View {
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
+    @State private var showResetConfirmation = false
     
     var body: some View {
         NavigationStack {
@@ -33,6 +35,14 @@ struct SettingsView: View {
                                 color: .pink,
                                 textColor: theme.textColor,
                                 destination: DesignStudioView(viewModel: viewModel)
+                            )
+                            
+                            SettingsNavCard(
+                                title: "Widget Studio",
+                                icon: "hammer.fill",
+                                color: .purple,
+                                textColor: theme.textColor,
+                                destination: WidgetBuilderView(viewModel: viewModel)
                             )
                         }
                         .padding(.horizontal, DesignSystem.spacingM)
@@ -72,16 +82,40 @@ struct SettingsView: View {
                             .padding(.horizontal, DesignSystem.spacingM)
                             
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Version 1.0")
+                                Text("Version 0.1")
                                     .font(.caption)
                                     .foregroundColor(theme.textColor.opacity(0.7))
-                                Text("Weather data provided by Weather")
-                                    .font(.caption)
-                                    .foregroundColor(theme.textColor.opacity(0.5))
-                                Link("Data sources and legal", destination: URL(string: "https://weather-data.apple.com/legal-attribution")!)
-                                    .font(.caption)
-                                    .foregroundColor(theme.textColor.opacity(0.8))
-                                    .underline()
+                                
+                                if let attribution = viewModel.attribution {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        AsyncImage(url: attribution.combinedMarkDarkURL) { image in
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fit)
+                                                .frame(height: 12)
+                                        } placeholder: {
+                                            ProgressView()
+                                                .scaleEffect(0.5)
+                                        }
+                                        
+                                        Link("Data Sources", destination: attribution.legalPageURL)
+                                            .font(.caption2)
+                                            .foregroundColor(theme.textColor.opacity(0.8))
+                                            .underline()
+                                    }
+                                } else {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Weather data provided by Apple Weather")
+                                            .font(.caption2)
+                                            .foregroundColor(theme.textColor.opacity(0.5))
+                                        
+                                        Link("Data sources and legal", destination: URL(string: "https://developer.apple.com/weatherkit/data-source-attribution/")!)
+                                            .font(.caption2)
+                                            .foregroundColor(theme.textColor.opacity(0.8))
+                                            .underline()
+                                    }
+                                }
+                                
                                 Text("No data is sent to third parties by this app. Your data is secure and will never be shared.")
                                     .font(.caption)
                                     .foregroundColor(theme.textColor.opacity(0.5))
@@ -96,7 +130,7 @@ struct SettingsView: View {
                         
                         // Reset
                         Button {
-                            resetDefaults()
+                            showResetConfirmation = true
                         } label: {
                             HStack {
                                 Image(systemName: "arrow.counterclockwise")
@@ -137,6 +171,14 @@ struct SettingsView: View {
                 }
             }
             .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
+            .alert("Reset All Settings?", isPresented: $showResetConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Reset Everything", role: .destructive) {
+                    resetDefaults()
+                }
+            } message: {
+                Text("This will reset your units, cache settings, and clear all saved locations. This action cannot be undone.")
+            }
         }
     }
     
@@ -195,41 +237,7 @@ struct SettingsNavCard<Destination: View>: View {
     }
 }
 
-struct SettingsToggleRow: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let textColor: Color
-    @Binding var isOn: Bool
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.2))
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(color)
-            }
-            
-            Text(title)
-                .font(.body.weight(.medium))
-                .foregroundColor(textColor)
-            
-            Spacer()
-            
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(color)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                .fill(.ultraThinMaterial.opacity(0.4))
-        )
-    }
-}
+
 
 // MARK: - General Settings
 
@@ -934,7 +942,7 @@ struct DesignStudioView: View {
             let theme = viewModel.currentTheme(colorScheme: colorScheme)
             AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
             
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: DesignSystem.spacingXL) {
                     
                     // 1. Style Section (Theme & Icons)
@@ -1049,6 +1057,7 @@ struct DesignStudioView: View {
                             }
                             .padding(.horizontal, 4)
                         }
+                        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
                     }
                     
                     // 3. Dashboard Info
@@ -1078,28 +1087,14 @@ struct DesignStudioView: View {
                     
                 }
                 .padding(DesignSystem.spacingM)
+                .frame(width: UIScreen.main.bounds.width)
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }
         .navigationTitle("Design Studio")
         .navigationBarTitleDisplayMode(.large)
     }
 }
 
-struct StudioHeader: View {
-    let title: String
-    let icon: String
-    let theme: WeatherTheme
-    
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .foregroundColor(theme.textColor.opacity(0.7))
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundColor(theme.textColor.opacity(0.6))
-        }
-        .padding(.leading, 4)
-    }
-}
 
 

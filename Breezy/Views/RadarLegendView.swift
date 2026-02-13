@@ -17,7 +17,7 @@ struct RadarLegendView: View {
             LinearGradient(
                 stops: layer.legendGradient.map { item in
                     Gradient.Stop(
-                        color: Color(hex: item.color) ?? .clear,
+                        color: Color(hex: item.color),
                         location: normalizedPosition(for: item.value)
                     )
                 },

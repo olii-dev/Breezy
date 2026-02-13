@@ -36,23 +36,23 @@ class MoonPhaseHelper {
     static func icon(for phase: String) -> String {
         switch phase {
         case "New Moon":
-            return "moon"
+            return "moonphase.new.moon"
         case "Waxing Crescent":
-            return "moon.lefthalf.fill"
+            return "moonphase.waxing.crescent"
         case "First Quarter":
-            return "moon.lefthalf.fill"
+            return "moonphase.first.quarter"
         case "Waxing Gibbous":
-            return "moon.fill"
+            return "moonphase.waxing.gibbous"
         case "Full Moon":
-            return "moon.fill"
+            return "moonphase.full.moon"
         case "Waning Gibbous":
-            return "moon.fill"
+            return "moonphase.waning.gibbous"
         case "Last Quarter":
-            return "moon.righthalf.fill"
+            return "moonphase.last.quarter"
         case "Waning Crescent":
-            return "moon.righthalf.fill"
+            return "moonphase.waning.crescent"
         default:
-            return "moon"
+            return "moonphase.waxing.crescent" // Safe fallback
         }
     }
     

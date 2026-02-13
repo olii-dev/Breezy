@@ -79,7 +79,7 @@ struct RadarLayerMenuView: View {
                                         let colors = layer.legendGradient
                                         let colorIndex = min((index * colors.count) / 5, colors.count - 1)
                                         Rectangle()
-                                            .fill(Color(hex: colors[colorIndex].color) ?? .clear)
+                                            .fill(Color(hex: colors[colorIndex].color))
                                             .frame(width: 8, height: 40)
                                     }
                                 }

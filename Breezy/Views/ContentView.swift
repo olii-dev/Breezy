@@ -38,6 +38,7 @@ struct ContentView: View {
                         viewModel.performStartupIfNeeded(locationHelper: locationHelper)
                     }
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
+                    // Set initial colors without animation
                     gradientColors = [theme.topColor, theme.bottomColor]
                 }
                 .fullScreenCover(isPresented: $showingOnboarding) {
@@ -77,29 +78,41 @@ struct ContentView: View {
                 }
                 .onChange(of: viewModel.weather) { oldValue, newValue in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    gradientColors = [theme.topColor, theme.bottomColor]
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        gradientColors = [theme.topColor, theme.bottomColor]
+                    }
                 }
                 .onChange(of: colorScheme) { oldValue, newValue in
                     // Instant background repaint on theme switch
                     let theme = viewModel.currentTheme(colorScheme: newValue)
-                    gradientColors = [theme.topColor, theme.bottomColor]
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        gradientColors = [theme.topColor, theme.bottomColor]
+                    }
                 }
                 // Also listen to explicit theme settings triggers
                 .onChange(of: viewModel.themeMode) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    gradientColors = [theme.topColor, theme.bottomColor]
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        gradientColors = [theme.topColor, theme.bottomColor]
+                    }
                 }
                 .onChange(of: viewModel.selectedPresetThemeName) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    gradientColors = [theme.topColor, theme.bottomColor]
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        gradientColors = [theme.topColor, theme.bottomColor]
+                    }
                 }
                 .onChange(of: viewModel.customTheme.id) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    gradientColors = [theme.topColor, theme.bottomColor]
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        gradientColors = [theme.topColor, theme.bottomColor]
+                    }
                 }
                 .onChange(of: viewModel.appearanceMode) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    gradientColors = [theme.topColor, theme.bottomColor]
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        gradientColors = [theme.topColor, theme.bottomColor]
+                    }
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
@@ -213,7 +226,6 @@ struct ContentView: View {
             PastelGradientBackground(
                 colors: gradientColors.isEmpty ? [theme.topColor, theme.bottomColor] : gradientColors
             )
-            .animation(.easeInOut(duration: 1.0), value: gradientColors)
             
             // Floating ambient particles
             FloatingParticles()
@@ -224,10 +236,10 @@ struct ContentView: View {
                         .frame(height: DesignSystem.spacingS)
 
                     if let locErr = locationHelper.locationError {
-                        Text(locErr)
-                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.9))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                        EmptyStateView(state: .error(locErr)) {
+                            showingLocationPicker = true
+                        }
+                        .padding(.top, 40)
                     }
 
                     if let weather = viewModel.weather {
@@ -252,9 +264,14 @@ struct ContentView: View {
                                     renderWidget(widget, weather: weather)
                                 }
                             )
+                            .contentShape(Rectangle()) // Ensure entire area is valid for drag
                             .onDrag {
                                 self.draggingWidget = widget
                                 return NSItemProvider(object: widget.id.uuidString as NSString)
+                            } preview: {
+                                renderWidget(widget, weather: weather)
+                                    .frame(width: 300) // Fixed width for preview to avoid layout glitches
+                                    .contentShape(Rectangle())
                             }
                             .onDrop(of: [.text], delegate: WidgetDropDelegate(item: widget, list: $dashboardWidgets, draggingItem: $draggingWidget, onSave: saveDashboard))
                         }
@@ -262,14 +279,19 @@ struct ContentView: View {
                     } else if viewModel.isLoading {
                         WeatherLoadingSkeleton()
                     } else if let error = viewModel.error {
-                        Text(error)
-                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.9))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                        EmptyStateView(state: .error(error)) {
+                            Task {
+                                if let loc = viewModel.currentLocation {
+                                    await viewModel.fetchWeather(for: loc, isManualRefresh: true)
+                                }
+                            }
+                        }
+                        .padding(.top, 40)
                     } else {
-                        Text("Select a location")
-                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
-                            .italic()
+                        EmptyStateView(state: .noLocation) {
+                             showingLocationPicker = true
+                        }
+                        .padding(.top, 40)
                     }
                     
                     Spacer()
@@ -277,6 +299,7 @@ struct ContentView: View {
                 }
             }
             .refreshable {
+                HapticsManager.shared.impact(style: .medium)
                 if viewModel.shouldFollowGPS {
                     // Re-acquire GPS location on pull-to-refresh
                     if let location = try? await locationHelper.requestLocationAndGetData() {
@@ -288,8 +311,8 @@ struct ContentView: View {
             }
         }
         .simultaneousGesture(
-            LongPressGesture(minimumDuration: 2.0)
-                .onChanged { _ in
+            LongPressGesture(minimumDuration: 1.5, maximumDistance: 50)
+                .onEnded { _ in
                     if !isEditMode {
                         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                         withAnimation(.spring()) {
@@ -338,7 +361,7 @@ struct ContentView: View {
     private func saveDashboard() {
         if let encoded = try? JSONEncoder().encode(dashboardWidgets) {
             CloudStorage.shared.set(encoded, forKey: "Breezy.DashboardWidgets")
-            NotificationCenter.default.post(name: WeatherSection.sectionOrderChanged, object: nil)
+            // Removed redundant notification post to prevent reload loops
         }
     }
     
@@ -369,8 +392,38 @@ struct ContentView: View {
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .windSummary:
-            WindSummaryWidget(weather: weather, viewModel: viewModel)
+            if widget.config?["style"] == "rose", let metrics = weather.metrics {
+               // Extract speed (remove " km/h" etc)
+                let speedString = metrics.windSpeed?.components(separatedBy: CharacterSet.decimalDigits.inverted).joined() ?? "0"
+                let speed = Double(speedString) ?? 0
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Wind Rose", systemImage: "wind")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                    
+                    WindRoseView(
+                        speed: speed,
+                        direction: metrics.windDirectionCardinal ?? "N",
+                        degree: metrics.windDirection ?? 0,
+                        color: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                    )
+                    .padding(.bottom, 16)
+                    .padding(.horizontal)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
                 .padding(.horizontal, DesignSystem.spacingM)
+            } else {
+                WindSummaryWidget(weather: weather, viewModel: viewModel)
+                    .padding(.horizontal, DesignSystem.spacingM)
+            }
                 
         case .radar:
             RadarCardView(viewModel: viewModel)
@@ -383,6 +436,122 @@ struct ContentView: View {
         case .feelsLike:
             FeelsLikeWidget(weather: weather, viewModel: viewModel)
                 .padding(.horizontal, DesignSystem.spacingM)
+                
+        case .sunPath:
+            if let sunrise = weather.metrics?.sunrise, let sunset = weather.metrics?.sunset, 
+               let sunriseDate = DateFormatterHelper.parseTime(sunrise, timeZone: TimeZone(identifier: weather.timezone) ?? .current),
+               let sunsetDate = DateFormatterHelper.parseTime(sunset, timeZone: TimeZone(identifier: weather.timezone) ?? .current) {
+                
+                VStack(alignment: .leading, spacing: 0) {
+                    Label("Sun Path", systemImage: "sun.max.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                    
+                    SunPathView(
+                        sunrise: sunriseDate,
+                        sunset: sunsetDate,
+                        currentTime: Date(),
+                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                    )
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.horizontal)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                .padding(.horizontal, DesignSystem.spacingM)
+            }
+            
+        case .moonPhase:
+            if let today = weather.dailyForecast.first, let phase = today.moonPhase {
+                VStack(alignment: .leading, spacing: 0) {
+                    Label("Moon Phase", systemImage: "moon.stars.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        
+                    HStack(spacing: 24) {
+                        MoonPhaseView2(
+                            phase: phase,
+                            size: 70,
+                            color: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                        )
+                        
+                        Divider()
+                            .frame(height: 60)
+                            .background(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.2))
+                        
+                        VStack(alignment: .leading, spacing: 14) {
+                            if let rise = today.moonrise {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Text("Moonrise").font(.caption2).opacity(0.7)
+                                        Text(rise).font(.subheadline.bold())
+                                    }
+                                }
+                            }
+                            if let set = today.moonset {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.down.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Text("Moonset").font(.caption2).opacity(0.7)
+                                        Text(set).font(.subheadline.bold())
+                                    }
+                                }
+                            }
+                        }
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                        
+                        Spacer()
+                    }
+                    .padding(20)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                .padding(.horizontal, DesignSystem.spacingM)
+            }
+
+            
+        case .uvIndexCurve:
+            if let hourly = weather.allHourlyData {
+                VStack(alignment: .leading, spacing: 0) {
+                    Label("UV Index", systemImage: "aqi.medium")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+
+                    UVIndexCurveView(
+                        hourlyForecast: hourly,
+                        currentUV: weather.metrics?.uvIndex ?? 0,
+                        colorScheme: colorScheme
+                    )
+                    .padding(.bottom, 16)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                .padding(.horizontal, DesignSystem.spacingM)
+            }
         }
     }
 }
@@ -1094,7 +1263,7 @@ struct NewHourlyCardView: View {
                 .onAppear {
                     scrollToCurrentHour(proxy: proxy)
                 }
-                .onChange(of: hourlyData.count) { _ in
+                .onChange(of: hourlyData.count) { _, _ in
                     scrollToCurrentHour(proxy: proxy)
                 }
             }
@@ -1148,6 +1317,8 @@ struct SimpleDailyRow: View {
             Text(day.dayName)
                 .font(.body.weight(.medium))
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(width: 90, alignment: .leading)
             
             // Icon
@@ -1348,46 +1519,16 @@ struct WindSummaryWidget: View {
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
             
             if let metrics = weather.metrics {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 20) {
-                        VStack(alignment: .leading) {
-                            Text(metrics.windSpeed ?? "--")
-                                .font(.title3.weight(.bold))
-                            Text("Speed")
-                                .font(.caption2)
-                                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                        }
-                        
-                        if let direction = metrics.windDirectionCardinal {
-                            VStack(alignment: .leading) {
-                                Text(direction)
-                                    .font(.title3.weight(.bold))
-                                Text("Direction")
-                                    .font(.caption2)
-                                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                            }
-                        }
-                    }
-                    
-                    HStack(spacing: 20) {
-                        VStack(alignment: .leading) {
-                            Text(metrics.uvIndex != nil ? "\(metrics.uvIndex!)" : "--")
-                                .font(.title3.weight(.bold))
-                            Text("UV Index")
-                                .font(.caption2)
-                                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                        }
-                        
-                        VStack(alignment: .leading) {
-                            Text(metrics.humidity != nil ? "\(metrics.humidity!)%" : "--")
-                                .font(.title3.weight(.bold))
-                            Text("Humidity")
-                                .font(.caption2)
-                                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                        }
-                    }
-                }
-                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                let speedString = metrics.windSpeed?.components(separatedBy: CharacterSet.decimalDigits.inverted).joined() ?? "0"
+                let speed = Double(speedString) ?? 0
+                
+                WindRoseView(
+                    speed: speed,
+                    direction: metrics.windDirectionCardinal ?? "N",
+                    degree: metrics.windDirection ?? 0,
+                    color: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                )
+                .padding(.vertical, 8)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1547,6 +1688,9 @@ struct WidgetGalleryView: View {
         case .radar: return "Live weather radar with precipitation overlay"
         case .uvIndex: return "Current UV Index and safety advice"
         case .feelsLike: return "Real Feel temperature analysis"
+        case .sunPath: return "Sun position, sunrise, and sunset times"
+        case .moonPhase: return "Current moon phase and illumination"
+        case .uvIndexCurve: return "Daily UV intensity chart"
         }
     }
 }
@@ -1566,6 +1710,29 @@ struct WidgetConfigView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        // Wind Widget Specific Config
+                        if widget.type == .windSummary {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Visual Style")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "summary" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Summary").tag("summary")
+                                    Text("Wind Rose").tag("rose")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
                         Text("Select which metrics to display in this Deep Details card.")
                             .font(.subheadline)
                             .foregroundColor(theme.textColor.opacity(0.7))

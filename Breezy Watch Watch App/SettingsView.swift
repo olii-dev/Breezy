@@ -261,7 +261,7 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                     .padding(.horizontal, 4)
                     
-                    Text("Breezy v1.0")
+                    Text("Breezy v0.1")
                         .font(.system(size: 10, design: .rounded))
                         .foregroundColor(theme.textColor.opacity(0.5))
                         .padding(.bottom, 8)

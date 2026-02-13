@@ -263,43 +263,69 @@ class WatchWeatherViewModel: ObservableObject {
         checkLocationAuthorization()
         
         do {
-            // Determine Location
+            // Determine Location & Fetch Strategy
             let location: (latitude: Double, longitude: Double, city: String)
+            var weatherData: WatchWeatherData? = nil
+            var usedPhone = false
             
             if let selectedID = selectedLocationID,
                let saved = savedLocations.first(where: { $0.id == selectedID }) {
+                // MANUAL SELECTION: Use specific coords
                 location = (saved.latitude, saved.longitude, saved.name)
-            } else {
-                // Use GPS
-                let gpsData = try await locationHelper.requestLocationAndGetData()
-                location = (gpsData.latitude, gpsData.longitude, gpsData.city)
-                checkLocationAuthorization()
-            }
-            
-            let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
-            
-            // HYBRID STRATEGY: Try fetching from iPhone first (saves battery)
-            var weatherData: (current: CurrentWeather?, daily: Forecast<DayWeather>?, hourly: Forecast<HourWeather>?) = (nil, nil, nil)
-            var usedPhone = false
-            
-            // Helper to parsing phone response would go here, but for simplicity we'll try to reconstruct objects or parse manually.
-            // Actually, reconstructing WeatherKit objects is hard.
-            // BETTER APPROACH: The `requestWeatherData` returns a dictionary. We can't easily CAST it to WeatherKit types.
-            // We have to parse that dictionary into our `WatchWeatherData` struct DIRECTLY if it comes from the phone.
-            
-            do {
-                if let phoneData = try await WatchSessionManager.shared.requestWeatherData(for: clLocation.coordinate) {
-                    print("⌚️ Watch: Successfully received data from iPhone!")
-                    // Parse Phone Data directly to WatchWeatherData
-                    let parsedData = parsePhoneData(phoneData, city: location.city)
-                    self.weather = parsedData
-                    usedPhone = true
+                
+                // Try to fetch from phone using these coords (saves watch battery/data)
+                do {
+                    if let phoneData = try await WatchSessionManager.shared.requestWeatherData(for: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)) {
+                        print("⌚️ Watch: Received manual location data from iPhone!")
+                        weatherData = parsePhoneData(phoneData, city: location.city)
+                        usedPhone = true
+                    }
+                } catch {
+                     print("⌚️ Watch: Phone unreachable for manual loc. Falling back to local.")
                 }
-            } catch {
-                print("⌚️ Watch: Phone unreachable/error (\(error)). Falling back to local fetch.")
+                
+            } else {
+                // AUTO / GPS: Try to follow iPhone first
+                print("⌚️ Watch: Attempting to follow iPhone location...")
+                
+                do {
+                    // Request with NIL coords -> Asks iPhone for ITS current location
+                    if let phoneData = try await WatchSessionManager.shared.requestWeatherData(for: nil) {
+                        // Phone responded! Extract City & Coords if possible (we only get city name in reply usually)
+                        // The reply has "city", but maybe not exact coords.
+                        // We use the city name from phone. Coords might be missing, but we have weather data.
+                        
+                        let city = phoneData["city"] as? String ?? "Current Location"
+                        print("⌚️ Watch: Following iPhone at \(city)!")
+                        
+                        weatherData = parsePhoneData(phoneData, city: city)
+                        usedPhone = true
+                        
+                        // We might not have exact coords to save to cache, but that's okay for display.
+                        // To keep cache valid, we can use 0,0 or try to parse if phone sent them (it doesn't currently).
+                        // Let's assume 0,0 for now as we have the data.
+                        location = (0, 0, city) 
+                    } else {
+                         throw NSError(domain: "Watch", code: 1, userInfo: [NSLocalizedDescriptionKey: "Phone returned nil"])
+                    }
+                } catch {
+                    print("⌚️ Watch: Phone unreachable (\(error)). Falling back to Watch GPS.")
+                    
+                    // Fallback: Watch GPS
+                    let gpsData = try await locationHelper.requestLocationAndGetData()
+                    location = (gpsData.latitude, gpsData.longitude, gpsData.city)
+                    checkLocationAuthorization()
+                }
             }
             
-            if !usedPhone {
+            // If we successfully got data from phone, use it
+            if let data = weatherData {
+                self.weather = data
+            } else {
+                 // Fallback: Fetch from WeatherKit directly (using the determined location)
+                 // If we are here, 'location' is set (either from Manual or GPS fallback)
+                 let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
+             
                 print("⌚️ Watch: Fetching from WeatherKit (Independent Mode)")
                 // Fallback: Fetch weather from WeatherKit directly
                 let weather = try await weatherService.weather(for: clLocation)
@@ -348,6 +374,7 @@ class WatchWeatherViewModel: ObservableObject {
                     dailyForecast: parseDailyForecast(from: daily, hourlyForecast: allHourlyForecasts),
                     windSpeed: metrics.windSpeed,
                     windDirection: metrics.windDirection,
+                    windDirectionDegrees: metrics.windDirectionDegrees,
                     uvIndex: metrics.uvIndex,
                     rainChance: metrics.rainChance,
                     humidity: metrics.humidity,
@@ -361,6 +388,7 @@ class WatchWeatherViewModel: ObservableObject {
                 
                 self.weather = watchData
             }
+
             
             // Cache data (Shared logic for both paths)
             if let w = self.weather, let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
@@ -639,6 +667,7 @@ class WatchWeatherViewModel: ObservableObject {
         return WatchWeatherMetrics(
             windSpeed: windSpeed,
             windDirection: windCardinal,
+            windDirectionDegrees: windDirectionDegrees,
             uvIndex: uvIndex,
             rainChance: rainChance,
             humidity: humidity,
@@ -766,24 +795,103 @@ class WatchWeatherViewModel: ObservableObject {
         // (Enhancement: Phone should send full 7-day list)
         
         var dailyDisplay: [WatchDailyForecast] = []
-        // We'll leave it empty for now or populate if we send more data.
-        // The view might depend on it. Let's send a dummy "Today"
-        dailyDisplay.append(WatchDailyForecast(
-            dayName: "Today",
-            iconName: iconName,
-            emoji: emoji,
-            lowTemp: lowStr,
-            highTemp: highStr,
-            lowValue: (data["low_c"] as? Double) ?? 0,
-            highValue: (data["high_c"] as? Double) ?? 0,
-            condition: condition,
-            precipitationChance: rainChance,
-            maxWindSpeed: windStr,
-            uvIndex: "\(uvIndex)",
-            sunrise: sunrise,
-            sunset: sunset,
-            hourlyForecast: hourlyDisplay
-        ))
+        
+        if let dailyRaw = data["daily"] as? [[String: Any]] {
+            let calendar = Calendar.current
+            for d in dailyRaw {
+                guard let ts = d["time"] as? TimeInterval,
+                      let minC = d["low_c"] as? Double,
+                      let maxC = d["high_c"] as? Double,
+                      let cond = d["condition"] as? String else { continue }
+                
+                let date = Date(timeIntervalSince1970: ts)
+                let isToday = calendar.isDateInToday(date)
+                
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "EEE"
+                let dayName = isToday ? "Today" : dateFormatter.string(from: date)
+                
+                let emoji = WatchWeatherIconHelper.emoji(for: cond)
+                let iconName = WatchWeatherIconHelper.minimalistIcon(for: cond)
+                
+                // Format Temps
+                let lowStr: String
+                let highStr: String
+                let lowVal: Double
+                let highVal: Double
+                
+                if temperatureUnit == .fahrenheit {
+                    let minF = (minC * 9/5) + 32
+                    let maxF = (maxC * 9/5) + 32
+                    lowStr = String(format: "%.0f°", minF)
+                    highStr = String(format: "%.0f°", maxF)
+                    lowVal = minF
+                    highVal = maxF
+                } else {
+                    lowStr = String(format: "%.0f°", minC)
+                    highStr = String(format: "%.0f°", maxC)
+                    lowVal = minC
+                    highVal = maxC
+                }
+                
+                let rainVal = (d["rainChance"] as? Double ?? 0) * 100
+                let rainStr = String(format: "%.0f%%", rainVal)
+                
+                let uvStr = String(format: "%d", Int(d["uv"] as? Double ?? 0))
+                
+                let windMps = (d["wind_mps"] as? Double) ?? 0
+                let windStr: String
+                if windSpeedUnit == .milesPerHour {
+                     windStr = String(format: "%.0f mph", windMps * 2.23694)
+                } else if windSpeedUnit == .kilometersPerHour {
+                     windStr = String(format: "%.0f km/h", windMps * 3.6)
+                } else {
+                     windStr = String(format: "%.0f m/s", windMps)
+                }
+                
+                let riseTs = d["sunrise"] as? TimeInterval ?? 0
+                let setTs = d["sunset"] as? TimeInterval ?? 0
+                let riseStr = riseTs > 0 ? WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: riseTs)) : "--"
+                let setStr = setTs > 0 ? WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: setTs)) : "--"
+                
+                dailyDisplay.append(WatchDailyForecast(
+                    dayName: dayName,
+                    iconName: iconName,
+                    emoji: emoji,
+                    lowTemp: lowStr,
+                    highTemp: highStr,
+                    lowValue: lowVal,
+                    highValue: highVal,
+                    condition: cond,
+                    precipitationChance: rainStr,
+                    maxWindSpeed: windStr,
+                    uvIndex: uvStr,
+                    sunrise: riseStr,
+                    sunset: setStr,
+                    hourlyForecast: [] // We don't have hourly for future days in simple payload
+                ))
+            }
+        }
+        
+        // Fallback if empty (Old Phone App version)
+        if dailyDisplay.isEmpty {
+            dailyDisplay.append(WatchDailyForecast(
+                dayName: "Today",
+                iconName: iconName,
+                emoji: emoji,
+                lowTemp: lowStr,
+                highTemp: highStr,
+                lowValue: (data["low_c"] as? Double) ?? 0,
+                highValue: (data["high_c"] as? Double) ?? 0,
+                condition: condition,
+                precipitationChance: rainChance,
+                maxWindSpeed: windStr,
+                uvIndex: "\(uvIndex)",
+                sunrise: sunrise,
+                sunset: sunset,
+                hourlyForecast: hourlyDisplay
+            ))
+        }
         
         return WatchWeatherData(
             city: city,
@@ -798,6 +906,7 @@ class WatchWeatherViewModel: ObservableObject {
             dailyForecast: dailyDisplay,
             windSpeed: windStr,
             windDirection: nil, // Not sent in simple payload
+            windDirectionDegrees: nil,
             uvIndex: uvIndex,
             rainChance: rainChance,
             humidity: humidity,
@@ -849,6 +958,7 @@ class WatchWeatherViewModel: ObservableObject {
 struct WatchWeatherMetrics {
     let windSpeed: String?
     let windDirection: String?
+    let windDirectionDegrees: Double?
     let uvIndex: Int?
     let rainChance: String?
     let humidity: Int?
@@ -891,6 +1001,7 @@ struct WatchWeatherData {
     let dailyForecast: [WatchDailyForecast]
     let windSpeed: String?
     let windDirection: String?
+    let windDirectionDegrees: Double?
     let uvIndex: Int?
     let rainChance: String?
     let humidity: Int?

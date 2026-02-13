@@ -1,0 +1,3 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -workspace Breezy.xcodeproj/project.xcworkspace -scheme Breezy -destination "generic/platform=iOS Simulator" clean build
+

@@ -49,342 +49,29 @@ struct DailyForecastDetailView: View {
             ScrollView {
                 VStack(spacing: DesignSystem.spacingL) {
                     // MARK: - Hero Section
-                    VStack(spacing: DesignSystem.spacingM) {
-                        // Large icon
-                        if viewModel.useMinimalistIcons {
-                            AnimatedWeatherIcon(
-                                systemName: viewModel.weatherIcon(for: day.condition),
-                                size: 100,
-                                condition: day.condition
-                            )
-                            .padding(.bottom, DesignSystem.spacingXS)
-                        } else {
-                            Text(day.emoji)
-                                .font(.system(size: 80))
-                                .padding(.bottom, DesignSystem.spacingXS)
-                        }
-                        
-                        // Condition
-                        Text(day.condition)
-                            .font(.title2.weight(.medium))
-                            .foregroundColor(theme.textColor)
-                        
-                        // Temperature range
-                        HStack(spacing: DesignSystem.spacingM) {
-                            VStack(spacing: 4) {
-                                Text("High")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundColor(theme.textColor.opacity(0.7))
-                                Text(day.highTemp)
-                                    .font(.title.weight(.bold))
-                                    .foregroundColor(theme.textColor)
-                            }
-                            
-                            Rectangle()
-                                .fill(theme.textColor.opacity(0.3))
-                                .frame(width: 1, height: 40)
-                            
-                            VStack(spacing: 4) {
-                                Text("Low")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundColor(theme.textColor.opacity(0.7))
-                                Text(day.lowTemp)
-                                    .font(.title.weight(.semibold))
-                                    .foregroundColor(theme.textColor.opacity(0.9))
-                            }
-                        }
-                        
-                        // Quick Stats - Rain, Wind, UV Index
-                        HStack(spacing: DesignSystem.spacingS) {
-                            if let rain = day.chanceOfRain {
-                                QuickStatPill(
-                                    icon: "cloud.rain.fill",
-                                    emoji: "🌧️",
-                                    label: "Rain",
-                                    value: rain,
-                                    useEmoji: !viewModel.useMinimalistIcons,
-                                    textColor: theme.textColor
-                                )
-                            }
-                            if let wind = day.windSpeed {
-                                QuickStatPill(
-                                    icon: "wind",
-                                    emoji: "💨",
-                                    label: "Wind",
-                                    value: wind,
-                                    useEmoji: !viewModel.useMinimalistIcons,
-                                    textColor: theme.textColor
-                                )
-                            }
-                            if let uv = maxUVIndex {
-                                QuickStatPill(
-                                    icon: "sun.max.fill",
-                                    emoji: "☀️",
-                                    label: "UV Index",
-                                    value: "\(uv)",
-                                    useEmoji: !viewModel.useMinimalistIcons,
-                                    textColor: theme.textColor
-                                )
-                            }
-                        }
-                        .padding(.horizontal, DesignSystem.spacingL)
-                    }
-                    .padding(.top, DesignSystem.spacingXL)
-                    .padding(.horizontal, DesignSystem.spacingM)
+                    heroSection(theme: theme)
+                    
+                    // MARK: - Quick Stats
+                    quickStatsSection(theme: theme)
+                        .padding(.horizontal, DesignSystem.spacingM)
+
                     
                     // Hourly Forecast Chart — uses resolvedChartHours computed property
                     if !resolvedChartHours.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Hourly Temperatures")
-                                .font(.title3.weight(.semibold))
-                                .foregroundColor(theme.textColor)
-                                .padding(.horizontal)
-                                .accessibilityAddTraits(.isHeader)
-                            
-                            ZStack {
-                                RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                                    .fill(.ultraThinMaterial.opacity(0.35))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                                            .stroke(theme.textColor.opacity(0.18), lineWidth: 0.5)
-                                    )
-                                    .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
-                                    .frame(height: 200)
-                                    .padding(.horizontal, 12)
-                                
-                                let nowHour = Calendar.current.component(.hour, from: Date())
-
-                                Chart(resolvedChartHours) { (hour: HourlyForecast) in
-                                    // Subtle area fill
-                                    AreaMark(
-                                        x: .value("Time", hour.hourValue),
-                                        y: .value("Temperature", hour.temperatureRaw)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [theme.textColor.opacity(0.15), Color.clear]),
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                                    
-                                    // Main temperature line
-                                    LineMark(
-                                        x: .value("Time", hour.hourValue),
-                                        y: .value("Temperature", hour.temperatureRaw)
-                                    )
-                                    .interpolationMethod(.catmullRom)
-                                    .foregroundStyle(theme.textColor)
-                                    .lineStyle(StrokeStyle(lineWidth: 2.5))
-                                    
-                                    // No inline temperature labels here — show hours along the bottom instead
-
-                                    // Show a visible dot for selected hour; show 'Now' dot only when this view is for today
-                                    if hour.hourValue == selectedHourValue || (day.dayName == "Today" && hour.hourValue == nowHour) {
-                                        PointMark(
-                                            x: .value("Time", hour.hourValue),
-                                            y: .value("Temperature", hour.temperatureRaw)
-                                        )
-                                        .symbolSize(hour.hourValue == selectedHourValue ? 100 : 60)
-                                        .foregroundStyle(hour.hourValue == selectedHourValue ? Color.yellow : theme.textColor)
-                                    }
-
-                                    // Yellow vertical 'Now' marker — only show for the actual today
-                                    if day.dayName == "Today" {
-                                        RuleMark(x: .value("Now", nowHour))
-                                            .foregroundStyle(Color.yellow.opacity(0.9))
-                                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4,6]))
-                                            .annotation(position: .top, alignment: .center) {
-                                                        // Show 'Now' label plus the current temperature again (user request)
-                                                        if let current = resolvedChartHours.first(where: { $0.hourValue == nowHour }) {
-                                                            VStack(spacing: 2) {
-                                                                Text("Now")
-                                                                    .font(.caption2.weight(.semibold))
-                                                                    .foregroundColor(.yellow)
-                                                                Text(viewModel.formattedTemperature(current.temperatureRaw))
-                                                                    .font(.caption2)
-                                                                    .foregroundColor(.yellow)
-                                                            }
-                                                        } else if let currentTempStr = viewModel.weather?.temperature {
-                                                            VStack(spacing: 2) {
-                                                                Text("Now")
-                                                                    .font(.caption2.weight(.semibold))
-                                                                    .foregroundColor(.yellow)
-                                                                Text(currentTempStr)
-                                                                    .font(.caption2)
-                                                                    .foregroundColor(.yellow)
-                                                            }
-                                                        }
-                                            }
-                                    }
-                                }
-                                .chartXAxis {
-                                    // Force ticks every 3 hours (12 AM, 3 AM, 6 AM, ...) so labels are predictable and evenly spaced
-                                    AxisMarks(values: .stride(by: .hour, count: 3)) { value in
-                                        AxisValueLabel {
-                                            if let hourInt = value.as(Int.self), hourInt >= 0 && hourInt < 24 {
-                                                let hourLabel = hourInt == 0 ? "12 AM" : hourInt < 12 ? "\(hourInt) AM" : hourInt == 12 ? "12 PM" : "\(hourInt - 12) PM"
-                                                Text(hourLabel)
-                                                    .font(.system(size: 11))
-                                                    .foregroundColor(theme.textColor.opacity(0.7))
-                                            }
-                                        }
-                                    }
-                                }
-                                .chartYAxis(.hidden)
-                                // Match the rounded rectangle height so axis labels render inside the card
-                                .frame(height: 200)
-                                .padding(.horizontal, 12)
-                                .accessibilityElement(children: .combine)
-                                .accessibilityLabel("Hourly temperature chart")
-
-                                // Overlay for handling drag gestures and displaying tooltip
-                                .overlay {
-                                    GeometryReader { g in
-                                        // Clear rectangle to capture gestures
-                                        Rectangle()
-                                            .fill(Color.clear)
-                                            .contentShape(Rectangle())
-                                            .gesture(
-                                                DragGesture(minimumDistance: 0)
-                                                                .onChanged { value in
-                                                                    isDragging = true
-                                                                    let localX = value.location.x - 12 // account for chart horizontal padding
-                                                                    let width = max(1, g.size.width - 24) // subtract padding both sides
-                                                                    let ratio = min(max(localX / width, 0), 1)
-                                                                    let idx = Int(round(ratio * CGFloat(max(resolvedChartHours.count - 1, 0))))
-                                                                    if resolvedChartHours.indices.contains(idx) {
-                                                                        selectedHourValue = resolvedChartHours[idx].hourValue
-                                                                        dragX = value.location.x
-                                                                    }
-                                                                }
-                                                    .onEnded { _ in
-                                                        isDragging = false
-                                                        // clear selection when user stops dragging
-                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                                            selectedHourValue = nil
-                                                            dragX = nil
-                                                        }
-                                                    }
-                                            )
-                                            .overlay(alignment: .topLeading) {
-                                                // Tooltip
-                                                    if let x = dragX, let selVal = selectedHourValue, let selected = resolvedChartHours.first(where: { $0.hourValue == selVal }) {
-                                                    VStack(alignment: .leading, spacing: 6) {
-                                                        Text(selected.time)
-                                                            .font(.caption2.weight(.semibold))
-                                                            .foregroundColor(theme.textColor)
-                                                        Text(viewModel.formattedTemperature(selected.temperatureRaw, decimals: 1))
-                                                            .font(.headline)
-                                                            .foregroundColor(theme.textColor)
-                                                        HStack(spacing: 8) {
-                                                            Text(selected.emoji)
-                                                            if let precip = selected.precipitationChance {
-                                                                Text("\(Int(precip * 100))%")
-                                                            }
-                                                            if let wind = selected.windSpeed {
-                                                                Text(wind)
-                                                            }
-                                                        }
-                                                        .font(.caption2)
-                                                        .foregroundColor(theme.textColor.opacity(0.85))
-                                                    }
-                                                    .padding(8)
-                                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.textColor.opacity(0.12), lineWidth: 0.5))
-                                                    .frame(maxWidth: 180)
-                                                    .position(x: min(max(x, 60), g.size.width - 60), y: 24)
-                                                    .transition(.opacity)
-                                                }
-                                            }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.top, 8)
+                        chartSection(theme: theme)
                     }
                     
                     // Enhanced Hourly Breakdown
                     if let allHours = day.allHourlyData, !allHours.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Hourly Breakdown")
-                                .font(.title3.weight(.semibold))
-                                .foregroundColor(theme.textColor)
-                                .padding(.horizontal)
-                                .accessibilityAddTraits(.isHeader)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(allHours.prefix(24)) { hour in
-                                        HourlyDetailCard(hour: hour, viewModel: viewModel, textColor: theme.textColor)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                        .padding(.top, 8)
+                        hourlyBreakdownSection(theme: theme, allHours: allHours)
                     }
                     
-                    // Sun & Moon Times with Golden Hour
-                    if let sunrise = day.sunrise, let sunset = day.sunset {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Sun & Moon")
-                                .font(.title3.weight(.semibold))
-                                .foregroundColor(theme.textColor)
-                                .padding(.horizontal)
-                                .accessibilityAddTraits(.isHeader)
-                            
-                            VStack(spacing: 12) {
-                                // Sunrise/Sunset with Golden Hour
-                                HStack(spacing: 16) {
-                                    SunTimeCard(
-                                        icon: "sunrise.fill",
-                                        emoji: "🌅",
-                                        time: sunrise,
-                                        label: "Sunrise",
-                                        isGoldenHour: isGoldenHour(sunriseDate: day.sunriseDate, isMorning: true),
-                                        useEmoji: !viewModel.useMinimalistIcons,
-                                        textColor: theme.textColor
-                                    )
-                                    
-                                    SunTimeCard(
-                                        icon: "sunset.fill",
-                                        emoji: "🌇",
-                                        time: sunset,
-                                        label: "Sunset",
-                                        isGoldenHour: isGoldenHour(sunriseDate: day.sunsetDate, isMorning: false),
-                                        useEmoji: !viewModel.useMinimalistIcons,
-                                        textColor: theme.textColor
-                                    )
-                                }
-                                
-                                // Moon Phase & Times
-                                if let moonPhase = day.moonPhase {
-                                    MoonPhaseCard(
-                                        moonPhase: moonPhase,
-                                        moonrise: day.moonrise,
-                                        moonset: day.moonset,
-                                        useEmoji: !viewModel.useMinimalistIcons,
-                                        textColor: theme.textColor
-                                    )
-                                }
-                            }
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                                    .fill(.ultraThinMaterial.opacity(0.35))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                                            .stroke(theme.textColor.opacity(0.18), lineWidth: 0.5)
-                                    )
-                            )
-                            .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
-                            .padding(.horizontal)
-                        }
-                        .padding(.top, 8)
-                    }
-                }
+                    // Sun & Moon Visualizations (Data Viz 2.0)
+                    sunAndMoonSection(theme: theme)
+                    
+                    // Wind Details
+                    WindDetailSection(day: day, theme: theme)
+                    
             }
         }
         .navigationTitle(day.dayName)
@@ -393,6 +80,7 @@ struct DailyForecastDetailView: View {
         .toolbarBackground(viewModel.currentTheme(colorScheme: colorScheme).topColor.opacity(0.8), for: .navigationBar)
         .toolbarColorScheme(viewModel.appearanceMode == .light ? .light : .dark, for: .navigationBar)
     }
+}
     
     private func isGoldenHour(sunriseDate: Date?, isMorning: Bool) -> Bool {
         guard let sunDate = sunriseDate else { return false }
@@ -425,6 +113,366 @@ struct DailyForecastDetailView: View {
         default:
             return ("Extreme", .purple)
         }
+    }
+    // MARK: - Subviews to reduce body complexity
+    
+    private func heroSection(theme: WeatherTheme) -> some View {
+        VStack(spacing: DesignSystem.spacingM) {
+            // Large icon
+            if viewModel.useMinimalistIcons {
+                AnimatedWeatherIcon(
+                    systemName: viewModel.weatherIcon(for: day.condition),
+                    size: 100,
+                    condition: day.condition
+                )
+                .padding(.bottom, DesignSystem.spacingXS)
+            } else {
+                Text(day.emoji)
+                    .font(.system(size: 80))
+                    .padding(.bottom, DesignSystem.spacingXS)
+            }
+            
+            // Condition
+            Text(day.condition)
+                .font(.title2.weight(.medium))
+                .foregroundColor(theme.textColor)
+            
+            // Temperature range
+            HStack(spacing: DesignSystem.spacingM) {
+                VStack(spacing: 4) {
+                    Text("High")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(theme.textColor.opacity(0.7))
+                    Text(day.highTemp)
+                        .font(.title.weight(.bold))
+                        .foregroundColor(theme.textColor)
+                }
+                
+                Rectangle()
+                    .fill(theme.textColor.opacity(0.3))
+                    .frame(width: 1, height: 40)
+                
+                VStack(spacing: 4) {
+                    Text("Low")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(theme.textColor.opacity(0.7))
+                    Text(day.lowTemp)
+                        .font(.title.weight(.semibold))
+                        .foregroundColor(theme.textColor.opacity(0.9))
+                }
+            }
+        }
+        .padding(.top, DesignSystem.spacingXL)
+        .padding(.horizontal, DesignSystem.spacingM)
+    }
+    
+    private func quickStatsSection(theme: WeatherTheme) -> some View {
+        HStack(spacing: DesignSystem.spacingS) {
+            if let rain = day.chanceOfRain {
+                QuickStatPill(
+                    icon: "cloud.rain.fill",
+                    emoji: "🌧️",
+                    label: "Rain",
+                    value: rain,
+                    useEmoji: !viewModel.useMinimalistIcons,
+                    textColor: theme.textColor
+                )
+            }
+            if let wind = day.windSpeed {
+                QuickStatPill(
+                    icon: "wind",
+                    emoji: "💨",
+                    label: "Wind",
+                    value: wind,
+                    useEmoji: !viewModel.useMinimalistIcons,
+                    textColor: theme.textColor
+                )
+            }
+            if let uv = maxUVIndex {
+                QuickStatPill(
+                    icon: "sun.max.fill",
+                    emoji: "☀️",
+                    label: "UV Index",
+                    value: "\(uv)",
+                    useEmoji: !viewModel.useMinimalistIcons,
+                    textColor: theme.textColor
+                )
+            }
+            if let humidity = day.humidity {
+                QuickStatPill(
+                    icon: "humidity.fill",
+                    emoji: "💧",
+                    label: "Humidity",
+                    value: humidity,
+                    useEmoji: !viewModel.useMinimalistIcons,
+                    textColor: theme.textColor
+                )
+            }
+        }
+    }
+    private func hourlyBreakdownSection(theme: WeatherTheme, allHours: [HourlyForecast]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("24-Hour Forecast")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(theme.textColor)
+                .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DesignSystem.spacingS) {
+                    ForEach(allHours.prefix(24)) { hour in
+                        HourlyDetailCard(
+                            hour: hour,
+                            viewModel: viewModel,
+                            textColor: theme.textColor
+                        )
+                    }
+                }
+                .padding(.horizontal, DesignSystem.spacingM)
+            }
+        }
+    }
+    
+    private func sunAndMoonSection(theme: WeatherTheme) -> some View {
+        VStack(spacing: DesignSystem.spacingL) {
+            // Sun Path Card
+            // Sun Path Card (Show for all days, but only show progress for Today)
+            if let sunrise = day.sunriseDate, let sunset = day.sunsetDate {
+                VStack(alignment: .leading, spacing: 0) {
+                    Label("Sun Path", systemImage: "sun.max.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(theme.textColor.opacity(0.6))
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                    
+                    SunPathView(
+                        sunrise: sunrise,
+                        sunset: sunset,
+                        currentTime: day.dayName == "Today" ? Date() : nil,
+                        textColor: theme.textColor
+                    )
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                    .padding(.horizontal)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                                .stroke(theme.textColor.opacity(0.18), lineWidth: 0.5)
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                .padding(.horizontal, DesignSystem.spacingM)
+            }
+            
+            // Moon Phase Card
+            if let phase = day.moonPhase {
+                VStack(alignment: .leading, spacing: 0) {
+                    Label("Moon Phase", systemImage: "moon.stars.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(theme.textColor.opacity(0.6))
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        
+                    HStack(spacing: 24) {
+                        MoonPhaseView2(
+                            phase: phase,
+                            size: 60,
+                            color: theme.textColor
+                        )
+                        
+                        Divider()
+                            .frame(height: 60)
+                            .background(theme.textColor.opacity(0.2))
+                        
+                        VStack(alignment: .leading, spacing: 14) {
+                            if let rise = day.moonrise {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(theme.textColor.opacity(0.6))
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Text("Moonrise").font(.caption2).opacity(0.7)
+                                        Text(rise).font(.subheadline.bold())
+                                    }
+                                }
+                            }
+                            
+                            if let set = day.moonset {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.down.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(theme.textColor.opacity(0.6))
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Text("Moonset").font(.caption2).opacity(0.7)
+                                        Text(set).font(.subheadline.bold())
+                                    }
+                                }
+                            }
+                        }
+                        .foregroundColor(theme.textColor)
+                        
+                        Spacer()
+                    }
+                    .padding(.bottom, 16)
+                    .padding(.horizontal)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                                .stroke(theme.textColor.opacity(0.18), lineWidth: 0.5)
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                .padding(.horizontal, DesignSystem.spacingM)
+            }
+        }
+    }
+
+    private func chartSection(theme: WeatherTheme) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Hourly Temperatures")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(theme.textColor)
+                .padding(.horizontal)
+                .accessibilityAddTraits(.isHeader)
+            
+            ZStack {
+                RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                    .fill(.ultraThinMaterial.opacity(0.35))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                            .stroke(theme.textColor.opacity(0.18), lineWidth: 0.5)
+                    )
+                    .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                    .frame(height: 200)
+                    .padding(.horizontal, 12)
+                
+                let nowHour = Calendar.current.component(.hour, from: Date())
+
+                Chart(resolvedChartHours) { (hour: HourlyForecast) in
+                    // Subtle area fill
+                    AreaMark(
+                        x: .value("Time", hour.hourValue),
+                        y: .value("Temperature", hour.temperatureRaw)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [theme.textColor.opacity(0.15), Color.clear]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    
+                    // Main temperature line
+                    LineMark(
+                        x: .value("Time", hour.hourValue),
+                        y: .value("Temperature", hour.temperatureRaw)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(theme.textColor)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5))
+                    
+                    // No inline temperature labels here — show hours along the bottom instead
+
+                    // Show a visible dot for selected hour; show 'Now' dot only when this view is for today
+                    if hour.hourValue == selectedHourValue || (day.dayName == "Today" && hour.hourValue == nowHour) {
+                        PointMark(
+                            x: .value("Time", hour.hourValue),
+                            y: .value("Temperature", hour.temperatureRaw)
+                        )
+                        .symbolSize(hour.hourValue == selectedHourValue ? 100 : 60)
+                        .foregroundStyle(hour.hourValue == selectedHourValue ? Color.yellow : theme.textColor)
+                    }
+                }
+                .chartXAxis {
+                    // Force ticks every 3 hours (12 AM, 3 AM, 6 AM, ...) so labels are predictable and evenly spaced
+                    AxisMarks(values: .stride(by: .hour, count: 3)) { value in
+                        AxisValueLabel {
+                            if let hourInt = value.as(Int.self), hourInt >= 0 && hourInt < 24 {
+                                let hourLabel = hourInt == 0 ? "12 AM" : hourInt < 12 ? "\(hourInt) AM" : hourInt == 12 ? "12 PM" : "\(hourInt - 12) PM"
+                                Text(hourLabel)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                            }
+                        }
+                    }
+                }
+                .chartYAxis(.hidden)
+                // Match the rounded rectangle height so axis labels render inside the card
+                .frame(height: 200)
+                .padding(.horizontal, 12)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Hourly temperature chart")
+
+                // Overlay for handling drag gestures and displaying tooltip
+                .overlay {
+                    GeometryReader { g in
+                        // Clear rectangle to capture gestures
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        isDragging = true
+                                        let localX = value.location.x - 12 // account for chart horizontal padding
+                                        let width = max(1, g.size.width - 24) // subtract padding both sides
+                                        let ratio = min(max(localX / width, 0), 1)
+                                        let idx = Int(round(ratio * CGFloat(max(resolvedChartHours.count - 1, 0))))
+                                        if resolvedChartHours.indices.contains(idx) {
+                                            selectedHourValue = resolvedChartHours[idx].hourValue
+                                            dragX = value.location.x
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        isDragging = false
+                                        // clear selection when user stops dragging
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                            selectedHourValue = nil
+                                            dragX = nil
+                                        }
+                                    }
+                            )
+                            .overlay(alignment: .topLeading) {
+                                // Tooltip
+                                    if let x = dragX, let selVal = selectedHourValue, let selected = resolvedChartHours.first(where: { $0.hourValue == selVal }) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(selected.time)
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundColor(theme.textColor)
+                                        Text(viewModel.formattedTemperature(selected.temperatureRaw, decimals: 1))
+                                            .font(.headline)
+                                            .foregroundColor(theme.textColor)
+                                        HStack(spacing: 8) {
+                                            Text(selected.emoji)
+                                            if let precip = selected.precipitationChance {
+                                                Text("\(Int(precip * 100))%")
+                                            }
+                                            if let wind = selected.windSpeed {
+                                                Text(wind)
+                                            }
+                                        }
+                                        .font(.caption2)
+                                        .foregroundColor(theme.textColor.opacity(0.85))
+                                    }
+                                    .padding(8)
+                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.textColor.opacity(0.12), lineWidth: 0.5))
+                                    .frame(maxWidth: 180)
+                                    .position(x: min(max(x, 60), g.size.width - 60), y: 24)
+                                    .transition(.opacity)
+                                }
+                            }
+                    }
+                }
+            }
+        }
+        .padding(.top, 8)
     }
 }
 
@@ -536,116 +584,6 @@ struct HourlyDetailCard: View {
     }
 }
 
-struct SunTimeCard: View {
-    let icon: String
-    let emoji: String
-    let time: String
-    let label: String
-    let isGoldenHour: Bool
-    let useEmoji: Bool
-    let textColor: Color
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            if useEmoji {
-                Text(emoji)
-                    .font(.title2)
-            } else {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundColor(isGoldenHour ? .yellow : textColor.opacity(0.8))
-            }
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(textColor.opacity(0.7))
-            
-            Text(time)
-                .font(.headline)
-                .foregroundColor(textColor)
-            
-            if isGoldenHour {
-                Text("Golden Hour")
-                    .font(.caption2)
-                    .foregroundColor(.yellow)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.yellow.opacity(0.2))
-                    .cornerRadius(8)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(textColor.opacity(0.1))
-        .cornerRadius(12)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label): \(time)\(isGoldenHour ? ", currently golden hour" : "")")
-    }
-}
-
-struct MoonPhaseCard: View {
-    let moonPhase: MoonPhase
-    let moonrise: String?
-    let moonset: String?
-    let useEmoji: Bool
-    let textColor: Color
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            if useEmoji {
-                Text(MoonPhaseHelper.emoji(for: moonPhase.phase))
-                    .font(.title2)
-                    .frame(width: 32)
-            } else {
-                Image(systemName: moonPhase.icon)
-                    .font(.title2)
-                    .foregroundColor(textColor.opacity(0.8))
-                    .frame(width: 32)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(moonPhase.phase)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(textColor)
-                
-                Text("\(Int(moonPhase.illumination * 100))% illuminated")
-                    .font(.caption2)
-                    .foregroundColor(textColor.opacity(0.6))
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                if let rise = moonrise {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up")
-                            .font(.caption2)
-                        Text(rise)
-                            .font(.caption2)
-                    }
-                    .foregroundColor(textColor.opacity(0.7))
-                }
-                
-                if let set = moonset {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down")
-                            .font(.caption2)
-                        Text(set)
-                            .font(.caption2)
-                    }
-                    .foregroundColor(textColor.opacity(0.7))
-                }
-            }
-        }
-        .padding()
-        .background(textColor.opacity(0.1))
-        .cornerRadius(12)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Moon phase: \(moonPhase.phase), \(Int(moonPhase.illumination * 100))% illuminated")
-    }
-}
-
 // MARK: - Metric Row (Replaces DetailRow with pastel aesthetic)
 
 struct MetricRow: View {
@@ -706,5 +644,81 @@ struct DetailRow: View {
                 .foregroundColor(textColor)
         }
         .padding(.vertical, 4)
+    }
+}
+
+struct DetailGridItem: View {
+    let icon: String // System Image Name
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color.opacity(0.8))
+                .frame(width: 24, height: 24)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(color.opacity(0.7))
+                Text(value)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(color)
+                    .minimumScaleFactor(0.8)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .fill(.ultraThinMaterial.opacity(0.3))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .stroke(color.opacity(0.1), lineWidth: 0.5)
+        )
+    }
+}
+
+struct WindDetailSection: View {
+    let day: DailyForecast
+    let theme: WeatherTheme
+    
+    var body: some View {
+        if let speed = day.windSpeed, let direction = day.windDirection, let cardinal = day.windDirectionCardinal {
+            // Parse speed if needed or pass string
+            // WindRoseView expects speed as Double
+            let speedVal = Double(speed.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
+            
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Wind Conditions", systemImage: "wind")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(theme.textColor)
+                    .padding(.horizontal)
+                
+                HStack {
+                    Spacer()
+                    WindRoseView(
+                        speed: speedVal,
+                        direction: cardinal,
+                        degree: direction,
+                        color: theme.textColor
+                    )
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(theme.textColor.opacity(0.18), lineWidth: 0.5))
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                .padding(.horizontal, DesignSystem.spacingM)
+            }
+        }
     }
 }

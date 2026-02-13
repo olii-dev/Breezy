@@ -10,24 +10,11 @@ import WidgetKit
 
 @main
 struct Breezy_Watch_Watch_AppApp: App {
+    @WKApplicationDelegateAdaptor(ExtensionDelegate.self) var delegate
     @StateObject private var viewModel = WatchWeatherViewModel()
     
     init() {
-        // Reload widget timelines when app launches
-        Task {
-            // Small delay to ensure app is fully initialized
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            
-            await MainActor.run {
-                WidgetCenter.shared.reloadAllTimelines()
-            }
-        }
-        
-        // Setup background refresh
-        BackgroundRefreshManager.shared.setupBackgroundRefresh()
-        
-        // Start Sync Session
-        WatchSessionManager.shared.startSession()
+        // No-op: Moved setup to ExtensionDelegate to prevent crash
     }
     
     var body: some Scene {
@@ -41,6 +28,25 @@ struct Breezy_Watch_Watch_AppApp: App {
                     }
             }
             .fontDesign(viewModel.typography.design)
+        }
+    }
+}
+
+class ExtensionDelegate: NSObject, WKApplicationDelegate {
+    func applicationDidFinishLaunching() {
+        // Setup background refresh
+        BackgroundRefreshManager.shared.setupBackgroundRefresh()
+        
+        // Start Sync Session
+        WatchSessionManager.shared.startSession()
+        
+        // Reload widgets
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+        Task {
+            await BackgroundRefreshManager.shared.handleBackgroundRefresh(backgroundTasks)
         }
     }
 }

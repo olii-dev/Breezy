@@ -16,6 +16,9 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
     case radar = "Weather Radar"
     case uvIndex = "UV Index"
     case feelsLike = "Feels Like"
+    case sunPath = "Sun Path"
+    case moonPhase = "Moon Phase"
+    case uvIndexCurve = "UV Index Curve"
     
     var id: String { rawValue }
     
@@ -29,6 +32,9 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
         case .radar: return "tornado"
         case .uvIndex: return "sun.max.fill"
         case .feelsLike: return "thermometer.medium"
+        case .sunPath: return "sun.and.horizon.fill"
+        case .moonPhase: return "moon.stars.fill"
+        case .uvIndexCurve: return "chart.xyaxis.line"
         }
     }
 }
@@ -39,6 +45,7 @@ struct DashboardWidget: Codable, Identifiable, Equatable {
     let id: UUID
     let type: WidgetType
     var visibleMetrics: [WeatherMetric]? // Config for deepDetails
+    var config: [String: String]? // Generic config (e.g. ["style": "rose"] for wind)
     
     static let defaultDashboard: [DashboardWidget] = [
         DashboardWidget(id: UUID(), type: .hourlyForecast),

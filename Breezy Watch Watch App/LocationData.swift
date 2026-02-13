@@ -20,3 +20,4 @@ struct LocationData: Codable, Equatable, Identifiable {
 
 
 
+

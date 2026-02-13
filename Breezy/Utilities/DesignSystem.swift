@@ -159,7 +159,7 @@ struct JiggleModifier: ViewModifier {
                     startAnimation()
                 }
             }
-            .onChange(of: isJiggling) { newValue in
+            .onChange(of: isJiggling) { _, newValue in
                 if newValue {
                     startAnimation()
                 } else {

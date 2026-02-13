@@ -20,87 +20,108 @@ struct OnboardingView: View {
             AnimatedGradientBackground(
                 colors: [theme.topColor, theme.bottomColor]
             )
+            .ignoresSafeArea()
             
             TabView(selection: $currentPage) {
                 // Page 1: Welcome
                 OnboardingPage(
-                    icon: "cloud.sun.fill",
-                    title: "Welcome to Breezy",
-                    description: "Your beautiful weather companion. Get accurate forecasts, detailed metrics, and stay informed about weather conditions.",
-                    buttonText: "Next",
+                    content: WelcomeLabel(textColor: theme.textColor),
+                    title: "Weather, re-imagined",
+                    description: "Experience the forecast like never before with beautiful animations and a customisable interface.",
+                    buttonText: "Let's Go",
                     textColor: theme.textColor,
-                    action: { currentPage = 1 }
+                    action: { withAnimation { currentPage = 1 } }
                 )
                 .tag(0)
                 
-                // Page 2: Location
+                // Page 2: Adaptive Themes
                 OnboardingPage(
-                    icon: "location.fill",
-                    title: "Location Services",
-                    description: "Breezy needs your location to provide accurate weather forecasts in the app, widgets, and complications. When prompted, tap 'Allow While Using App'.\n\nYour location is only used for weather data and is never shared.",
-                    buttonText: "Enable Location",
+                    content: ThemeMockupView(),
+                    title: "Adaptive Themes",
+                    description: "Breezy shifts its personality with the weather. From vibrant sunsets to cool rainy mornings, the app always feels right.",
+                    buttonText: "That's Cool",
                     textColor: theme.textColor,
-                    action: {
-                        // Request Location Permission (also enables widget location access)
-                        Task {
-                            _ = try? await locationHelper.requestLocationAndGetData()
-                            withAnimation { currentPage = 2 }
-                        }
-                    }
+                    action: { withAnimation { currentPage = 2 } }
                 )
                 .tag(1)
                 
-                // Page 3: Notifications
+                // Page 3: Design Studio
                 OnboardingPage(
-                    icon: "bell.fill",
-                    title: "Weather Alerts",
-                    description: "Get notified about severe weather, rain, and high UV index. When prompted, tap 'Allow' to enable notifications.\n\nYou can customize all notification settings later in the app.",
-                    buttonText: "Enable Notifications",
+                    content: WidgetMockupView(),
+                    title: "Design Studio",
+                    description: "Your dashboard, your rules. Build a custom layout that shows exactly what you need, exactly where you want it.",
+                    buttonText: "Next",
                     textColor: theme.textColor,
-                    action: {
-                        // Request Notification Permission
-                        Task {
-                            _ = await NotificationManager.shared.requestAuthorization()
-                            withAnimation { currentPage = 3 }
-                        }
-                    }
+                    action: { withAnimation { currentPage = 3 } }
                 )
                 .tag(2)
                 
-                // Page 4: Widget Dashboard
+                // Page 4: Time Machine
                 OnboardingPage(
-                    icon: "square.grid.3x3.fill",
-                    title: "Customizable Dashboard",
-                    description: "Create your perfect weather dashboard! Add, remove, and reorder widgets right in the app. Hold any widget for 2 seconds to rearrange them however you like.",
-                    buttonText: "Next",
+                    content: TimeMachineMockupView(),
+                    title: "Time Machine",
+                    description: "Travel through time to see historical weather data. Compare different years side-by-side to see how the climate is shifting.",
+                    buttonText: "Incredible",
                     textColor: theme.textColor,
-                    action: { currentPage = 4 }
+                    action: { withAnimation { currentPage = 4 } }
                 )
                 .tag(3)
                 
-                // Page 5: Time Machine
+                // Page 5: Advanced Visuals
                 OnboardingPage(
-                    icon: "clock.arrow.circlepath",
-                    title: "Time Machine",
-                    description: "Travel through time to view historical weather data and future forecasts. Perfect for planning events or checking past conditions.",
+                    content: AstroMockupView(),
+                    title: "Advanced Visuals",
+                    description: "Deep data at a glance. Track the sun's path, moon phases, and UV index with bespoke visualizations.",
                     buttonText: "Next",
                     textColor: theme.textColor,
-                    action: { currentPage = 5 }
+                    action: { withAnimation { currentPage = 5 } }
                 )
                 .tag(4)
                 
-                // Page 6: Customization
+                // Page 6: Location
                 OnboardingPage(
-                    icon: "paintpalette.fill",
-                    title: "Fully Customizable",
-                    description: "Choose your preferred units, themes, icon styles, and more. Breezy adapts to your needs with extensive customization options in Settings.",
-                    buttonText: "Get Started",
+                    content: Image(systemName: "location.circle.fill").font(.system(size: 100)).foregroundColor(theme.textColor),
+                    title: "Always Accurate",
+                    description: "Breezy needs your location to provide local forecasts. We never share your data—it's just for the weather.",
+                    buttonText: "Enable Location",
+                    textColor: theme.textColor,
+                    action: {
+                        Task {
+                            _ = try? await locationHelper.requestLocationAndGetData()
+                            withAnimation { currentPage = 6 }
+                        }
+                    }
+                )
+                .tag(5)
+                
+                // Page 7: Notifications
+                OnboardingPage(
+                    content: Image(systemName: "bell.badge.fill").font(.system(size: 100)).foregroundColor(theme.textColor),
+                    title: "Stay Informed",
+                    description: "Get alerts for severe weather and rain so you're never caught off guard. You can customise these any time.",
+                    buttonText: "Enable Notifications",
+                    textColor: theme.textColor,
+                    action: {
+                        Task {
+                            _ = await NotificationManager.shared.requestAuthorization()
+                            withAnimation { currentPage = 7 }
+                        }
+                    }
+                )
+                .tag(6)
+                
+                // Page 8: Get Started
+                OnboardingPage(
+                    content: Image(systemName: "hand.tap.fill").font(.system(size: 100)).foregroundColor(theme.textColor),
+                    title: "Ready to Breeze?",
+                    description: "You're all set up. Welcome to the most customisable weather experience on iOS.",
+                    buttonText: "Start Exploring",
                     textColor: theme.textColor,
                     action: { completeOnboarding() }
                 )
-                .tag(5)
+                .tag(7)
             }
-            .tabViewStyle(.page)
+            .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
         }
     }
@@ -111,8 +132,23 @@ struct OnboardingView: View {
     }
 }
 
-struct OnboardingPage: View {
-    let icon: String
+struct WelcomeLabel: View {
+    let textColor: Color
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "cloud.sun.fill")
+                .font(.system(size: 100))
+                .foregroundColor(textColor)
+                .symbolRenderingMode(.hierarchical)
+            Text("Breezy")
+                .font(.system(size: 48, weight: .black, design: .rounded))
+                .foregroundColor(textColor)
+        }
+    }
+}
+
+struct OnboardingPage<Content: View>: View {
+    let content: Content
     let title: String
     let description: String
     let buttonText: String
@@ -121,38 +157,33 @@ struct OnboardingPage: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: 0) {
             Spacer()
             
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.18))
-                    .frame(width: 180, height: 180)
-                    .blur(radius: 40)
-                Image(systemName: icon)
-                    .font(.system(size: 80))
-                    .foregroundColor(textColor)
-                    .symbolRenderingMode(.hierarchical)
-                    .accessibilityHidden(true)
-            }
+            content
+                .frame(height: 350)
+            
+            Spacer()
             
             VStack(spacing: 16) {
                 Text(title)
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(textColor)
                     .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
+                    .padding(.horizontal)
                 
                 Text(description)
                     .font(.body)
-                    .foregroundColor(textColor.opacity(0.9))
+                    .foregroundColor(textColor.opacity(0.8))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
+            .padding(.bottom, 40)
             
-            Spacer()
-            
-            Button(action: action) {
+            Button(action: {
+                HapticsManager.shared.impact(style: .medium)
+                action()
+            }) {
                 Text(buttonText)
                     .font(.headline)
                     .foregroundColor(colorScheme == .light ? .white : .black)
@@ -161,12 +192,11 @@ struct OnboardingPage: View {
                     .background(
                         RoundedRectangle(cornerRadius: DesignSystem.radiusL)
                             .fill(textColor)
-                            .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 6)
+                            .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
                     )
             }
             .padding(.horizontal, 40)
             .padding(.bottom, 60)
-            .accessibilityLabel(buttonText)
         }
     }
 }

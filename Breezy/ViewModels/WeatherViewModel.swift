@@ -9,6 +9,7 @@ import SwiftUI
 import Combine
 import CoreLocation
 import WeatherKit
+import WidgetKit
 
 @MainActor
 class WeatherViewModel: ObservableObject {
@@ -36,10 +37,18 @@ class WeatherViewModel: ObservableObject {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 500_000_000)
             self.syncWatchContext()
+            
+            // Fetch initial attribution
+            do {
+                self.attribution = try await weatherService.attribution
+            } catch {
+                print("Failed to fetch WeatherKit attribution: \(error)")
+            }
         }
     }
     @Published var currentLocation: LocationData?
     @Published var weather: WeatherInfo?
+    @Published var attribution: WeatherAttribution?
     @Published var historicalWeather: WeatherInfo? // Time Machine Data - Date 1
     @Published var historicalWeather2: WeatherInfo? // Time Machine Data - Date 2 (for comparison)
     @Published var historicalRange: [HistoricalDataPoint] = [] // For Charts (deprecated)
@@ -84,6 +93,14 @@ class WeatherViewModel: ObservableObject {
     @Published var themeMode: ThemeMode = ThemeMode(rawValue: UserDefaults.standard.string(forKey: "Breezy.themeMode") ?? "") ?? .auto {
         didSet {
             UserDefaults.standard.set(themeMode.rawValue, forKey: "Breezy.themeMode")
+            // Sync to App Group
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(themeMode.rawValue, forKey: "Breezy.themeMode")
+                defaults.set(Date().timeIntervalSince1970, forKey: "Breezy.lastUpdate") // Force update
+            }
+            // Trigger widget reload
+            WidgetCenter.shared.reloadAllTimelines()
+            
             syncWatchContext()
             objectWillChange.send()
         }
@@ -92,6 +109,13 @@ class WeatherViewModel: ObservableObject {
     @Published var selectedPresetThemeName: String = UserDefaults.standard.string(forKey: "Breezy.presetTheme") ?? "Cotton Candy" {
         didSet {
             UserDefaults.standard.set(selectedPresetThemeName, forKey: "Breezy.presetTheme")
+            // Sync to App Group
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(selectedPresetThemeName, forKey: "Breezy.presetTheme")
+            }
+            // Trigger widget reload
+            WidgetCenter.shared.reloadAllTimelines()
+            
             syncWatchContext()
             objectWillChange.send()
         }
@@ -149,7 +173,13 @@ class WeatherViewModel: ObservableObject {
         get { TemperatureUnit(rawValue: temperatureUnitRaw) ?? .celsius }
         set { 
             temperatureUnitRaw = newValue.rawValue
+            // Sync to App Group
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(newValue.rawValue, forKey: "Breezy.temperatureUnit")
+                WidgetCenter.shared.reloadAllTimelines()
+            }
             syncWatchContext()
+            objectWillChange.send()
         }
     }
     
@@ -157,7 +187,13 @@ class WeatherViewModel: ObservableObject {
         get { WindSpeedUnit(rawValue: windSpeedUnitRaw) ?? .metersPerSecond }
         set { 
             windSpeedUnitRaw = newValue.rawValue
+            // Sync to App Group
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(newValue.rawValue, forKey: "Breezy.windSpeedUnit")
+                WidgetCenter.shared.reloadAllTimelines()
+            }
             syncWatchContext()
+            objectWillChange.send()
         }
     }
     
@@ -230,6 +266,12 @@ class WeatherViewModel: ObservableObject {
     @Published var appearanceMode: AppearanceMode = AppearanceMode(rawValue: UserDefaults.standard.string(forKey: "Breezy.appearanceMode") ?? "") ?? .auto {
         didSet {
             UserDefaults.standard.set(appearanceMode.rawValue, forKey: "Breezy.appearanceMode")
+            // Sync to App Group
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(appearanceMode.rawValue, forKey: "Breezy.appearanceMode")
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            syncWatchContext()
             objectWillChange.send()
         }
     }
@@ -517,6 +559,11 @@ class WeatherViewModel: ObservableObject {
             previousWeather = info
             
             RecentlyViewedStore.add(updatedLocation)
+            
+            // Refresh attribution periodically or on fetch
+            if attribution == nil {
+                self.attribution = try await weatherService.attribution
+            }
         } catch {
             self.error = "Failed to fetch weather: \(error.localizedDescription)"
         }
@@ -980,6 +1027,8 @@ class WeatherViewModel: ObservableObject {
                 emoji: WeatherIconHelper.emoji(for: condition),
                 chanceOfRain: "\(chanceOfRain)%",
                 windSpeed: windSpeed,
+                windDirection: day.wind.direction.value,
+                windDirectionCardinal: WindDirectionHelper.cardinalDirection(from: day.wind.direction.value),
                 humidity: nil,
                 sunrise: sunrise,
                 sunset: sunset,

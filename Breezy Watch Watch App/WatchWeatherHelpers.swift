@@ -24,6 +24,7 @@ struct WatchWeatherConditionConverter {
         case .drizzle: return "Drizzle"
         case .heavyRain: return "Heavy Rain"
         case .rain: return "Rain"
+        case .wintryMix: return "Wintry Mix"
         case .sunShowers:
             return "Sun Showers"
         case .blowingDust:
