@@ -26,7 +26,7 @@ struct IconGalleryView: View {
                             .font(.system(size: 34, weight: .bold))
                             .foregroundColor(theme.textColor)
                         
-                        Text("Customize your Breezy experience")
+                        Text("Customise your Breezy experience")
                             .font(.system(size: 16))
                             .foregroundColor(theme.textColor.opacity(0.7))
                     }

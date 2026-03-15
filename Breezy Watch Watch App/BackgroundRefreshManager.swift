@@ -59,8 +59,7 @@ class BackgroundRefreshManager {
     
     private func refreshWeatherData() async {
         print("🔄 BackgroundRefreshManager: Executing background refresh...")
-        let viewModel = WatchWeatherViewModel()
-        await viewModel.loadWeather()
+        _ = try? await WatchWeatherDataService.shared.refreshStoredSelectionWeather()
         
         // Reload widget timelines
         WidgetCenter.shared.reloadAllTimelines()

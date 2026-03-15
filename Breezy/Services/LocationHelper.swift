@@ -8,6 +8,8 @@
 import Foundation
 import CoreLocation
 import Combine
+import WidgetKit
+import WeatherKit
 
 class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
@@ -17,7 +19,9 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private var continuation: CheckedContinuation<LocationData, Error>?
     private var isMonitoring = false
-    private let significantChangeThreshold: Double = 1000 // meters
+    private let significantChangeThreshold: Double = 5000 // meters (5km - only update when moved to different weather zone)
+    
+    private var backgroundLocationTask: Task<Void, Never>?
 
     override init() {
         super.init()
@@ -50,10 +54,11 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
             self.continuation = cont
         }
         
-        func resume(with result: Result<LocationData, Error>) {
+        @discardableResult
+        func resume(with result: Result<LocationData, Error>) -> Bool {
             lock.lock()
             defer { lock.unlock() }
-            guard !isResumed else { return }
+            guard !isResumed else { return false }
             isResumed = true
             
             switch result {
@@ -61,6 +66,7 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
             case .failure(let err): continuation?.resume(throwing: err)
             }
             continuation = nil
+            return true
         }
     }
 
@@ -91,19 +97,20 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
             
             // Set up handler
             self.continuationHandler = { result in
-                state.resume(with: result)
+                if state.resume(with: result) {
+                    self.continuationHandler = nil
+                }
             }
             
             // Timeout
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                // Determine if we should fail or if it completed
-                self.continuationHandler?(.failure(NSError(domain: "Location", code: 2, userInfo: [NSLocalizedDescriptionKey: "Timed out"])))
-                
-                 DispatchQueue.main.async {
-                     // Only update UI error if we actually timed out (state check handled in resume)
-                     // But strictly, we can't check state here easily without exposing it.
-                     // It's benign to set error if we think we failed.
-                 }
+                let didTimeout = state.resume(with: .failure(NSError(domain: "Location", code: 2, userInfo: [NSLocalizedDescriptionKey: "Timed out"])))
+                guard didTimeout else { return }
+
+                self.continuationHandler = nil
+                DispatchQueue.main.async {
+                    self.locationError = "Location request timed out. Try again or choose a city manually."
+                }
             }
         }
     }
@@ -165,6 +172,8 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
                 DispatchQueue.main.async {
                     if isSignificantChange {
                         self.significantLocationChange = locationData
+                        // Trigger background weather fetch + widget update
+                        self.fetchWeatherAndUpdateWidget(for: locationData)
                     }
                     self.userLocation = locationData
                     // Resume continuation if active
@@ -175,6 +184,78 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
                     self.locationError = "We couldn't find your city automatically. Try again or enter it below."
                      // Resume continuation if active
                      self.continuationHandler?(.failure(NSError(domain: "Location", code: 3, userInfo: [NSLocalizedDescriptionKey: "No city found"])))
+                }
+            }
+        }
+    }
+    
+    private func fetchWeatherAndUpdateWidget(for location: LocationData) {
+        backgroundLocationTask?.cancel()
+        backgroundLocationTask = Task {
+            do {
+                let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
+                let weatherService = WeatherService.shared
+                let weather = try await weatherService.weather(for: clLocation)
+                
+                let tempUnitRaw = UserDefaults.standard.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
+                let isFahrenheit = tempUnitRaw == "Fahrenheit"
+                let tempSymbol = isFahrenheit ? "F" : "C"
+                
+                let tempValue = isFahrenheit 
+                    ? weather.currentWeather.temperature.converted(to: .fahrenheit).value
+                    : weather.currentWeather.temperature.converted(to: .celsius).value
+                let tempRaw = String(format: "%.0f°%@", tempValue, tempSymbol)
+                
+                let daily = weather.dailyForecast.first
+                let highTemp: String
+                let lowTemp: String
+                if let high = daily?.highTemperature, let low = daily?.lowTemperature {
+                    highTemp = String(format: "%.0f°%@", isFahrenheit ? high.converted(to: .fahrenheit).value : high.converted(to: .celsius).value, tempSymbol)
+                    lowTemp = String(format: "%.0f°%@", isFahrenheit ? low.converted(to: .fahrenheit).value : low.converted(to: .celsius).value, tempSymbol)
+                } else {
+                    highTemp = "--"
+                    lowTemp = "--"
+                }
+                
+                let condition = weather.currentWeather.condition.description
+                let emoji = WeatherIconHelper.emoji(for: condition)
+                
+                let widgetData = WidgetWeatherData(
+                    city: location.city,
+                    temperature: tempRaw,
+                    condition: condition,
+                    emoji: emoji,
+                    highTemp: highTemp,
+                    lowTemp: lowTemp,
+                    hourlyForecast: [],
+                    timestamp: Date(),
+                    useMinimalistIcons: nil,
+                    uvIndex: nil,
+                    pressure: nil,
+                    windSpeed: nil,
+                    rainChance: nil,
+                    rainAmount: nil,
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    conditionCode: condition,
+                    isDaylight: weather.currentWeather.isDaylight,
+                    minTemp: lowTemp,
+                    maxTemp: highTemp,
+                    humidity: nil,
+                    visibility: nil,
+                    dailyForecast: [],
+                    sunrise: daily?.sun.sunrise,
+                    sunset: daily?.sun.sunset,
+                    moonPhase: daily?.moon.phase.description,
+                    moonIllumination: nil as Double?,
+                    windDirectionDegrees: nil as Double?
+                )
+                
+                // Save to widget store and refresh widget
+                WidgetDataStore.save(widgetData)
+            } catch {
+                DispatchQueue.main.async {
+                    self.locationError = "Background refresh failed. Pull to refresh when you open the app."
                 }
             }
         }

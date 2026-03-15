@@ -7,7 +7,6 @@
 
 import SwiftUI
 import MapKit
-// import WatchKit
 
 struct WatchCitySearchView: View {
     @EnvironmentObject var viewModel: WatchWeatherViewModel
@@ -41,6 +40,7 @@ struct WatchCitySearchView: View {
                     
                     if !query.isEmpty {
                         Button {
+                            viewModel.playHaptic(.click)
                             query = ""
                         } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -71,7 +71,7 @@ struct WatchCitySearchView: View {
                              Section(header: Text("Recent").foregroundColor(theme.textColor.opacity(0.8))) {
                                  ForEach(viewModel.recentSearches) { recent in
                                      Button {
-                                         // Just adding it again (selects it)
+                                         viewModel.playHaptic(.click)
                                          viewModel.addLocation(name: recent.name, latitude: recent.latitude, longitude: recent.longitude)
                                          dismiss()
                                      } label: {
@@ -120,6 +120,7 @@ struct WatchCitySearchView: View {
                     List {
                         ForEach(searchResults.results, id: \.self) { result in
                             Button {
+                                viewModel.playHaptic(.click)
                                 addLocation(for: result)
                             } label: {
                                 HStack {
@@ -159,7 +160,7 @@ struct WatchCitySearchView: View {
                 let (lat, long, name) = try await WatchLocationSearchService.getCoordinates(for: completion)
                 
                 await MainActor.run {
-                    WKInterfaceDevice.current().play(.success)
+                    viewModel.playHaptic(.success)
                     viewModel.addLocation(name: name, latitude: lat, longitude: long)
                     isGettingLocation = false
                     dismiss() // Dismiss Search
@@ -167,9 +168,9 @@ struct WatchCitySearchView: View {
             } catch {
                 print("Error getting coords: \(error)")
                 await MainActor.run {
-                    WKInterfaceDevice.current().play(.failure)
+                    viewModel.playHaptic(.failure)
+                    isGettingLocation = false
                 }
-                isGettingLocation = false
             }
         }
     }

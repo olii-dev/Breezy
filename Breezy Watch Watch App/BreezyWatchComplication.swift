@@ -23,9 +23,8 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
     }
     
     func requestLocation() async throws -> CLLocation {
-        // OPTIMIZATION: Check if we have a recent location cached by the system
         if let lastLocation = manager.location,
-           lastLocation.timestamp.timeIntervalSinceNow > -60 { // 1 min
+           lastLocation.timestamp.timeIntervalSinceNow > -60 {
             print("⌚️ Watch Widget: Using recent system location (Age: \(Int(-lastLocation.timestamp.timeIntervalSinceNow))s)")
             return lastLocation
         }
@@ -39,7 +38,6 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
             self.continuation = cont
             manager.requestLocation()
             
-            // Timeout safety - Increased to 10s for Watch
             DispatchQueue.global().asyncAfter(deadline: .now() + 10) { [weak self] in
                 guard let self = self, self.continuation != nil else { return }
                 self.continuation?.resume(throwing: NSError(domain: "WatchWidgetLocation", code: 2, userInfo: [NSLocalizedDescriptionKey: "Timeout"]))
@@ -99,19 +97,14 @@ struct WatchComplicationProvider: TimelineProvider {
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchWeatherEntry>) -> Void) {
-        // 1. Load cached data (Synchronous)
         let cachedData = loadCachedWeatherData()
-        
-        // 2. Prepare for active fetch
         let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
         
-        // Helper to create entries
         func createEntries(from data: WatchWeatherData) -> [WatchWeatherEntry] {
             var ent: [WatchWeatherEntry] = []
             let now = Date()
             ent.append(WatchWeatherEntry(date: now, weather: data))
             
-            // Future entries from hourly forecast (next 4 hours)
             for i in 1...4 {
                 if let futureDate = Calendar.current.date(byAdding: .hour, value: i, to: now) {
                     let hourComp = Calendar.current.component(.hour, from: futureDate)
@@ -121,7 +114,7 @@ struct WatchComplicationProvider: TimelineProvider {
                         h.time.starts(with: "\(hourComp)") ||
                         h.time.starts(with: "\(hourComp > 12 ? hourComp - 12 : (hourComp == 0 ? 12 : hourComp))")
                     }) {
-                         futureWeather = WatchWeatherData(
+                        futureWeather = WatchWeatherData(
                             city: data.city,
                             temperature: matching.temperature,
                             condition: matching.condition,
@@ -143,12 +136,9 @@ struct WatchComplicationProvider: TimelineProvider {
             return ent
         }
     
-        // 3. Async Work
         Task {
-            // Define simple coord struct
             struct Coord { let lat: Double; let lon: Double; let name: String? }
             
-            // Local Stub for SavedLocation to avoid target membership issues
             struct LocalSavedLocation: Decodable {
                 let id: UUID
                 let name: String
@@ -158,7 +148,6 @@ struct WatchComplicationProvider: TimelineProvider {
             
             var targetLocation: Coord? = nil
             
-            // A. Check for manual selection (Saved Location)
             if let idStr = defaults?.string(forKey: "WatchSelectedLocationID"),
                let savedData = defaults?.data(forKey: "WatchSavedLocations"),
                let savedLocs = try? JSONDecoder().decode([LocalSavedLocation].self, from: savedData),
@@ -168,7 +157,6 @@ struct WatchComplicationProvider: TimelineProvider {
                 targetLocation = Coord(lat: match.latitude, lon: match.longitude, name: match.name)
             }
             
-            // B. If no manual selection, use GPS (Default to TRUE if not set)
             if targetLocation == nil {
                 let shouldFollowGPS = defaults?.bool(forKey: "Breezy.shouldFollowGPS") ?? true
                 
@@ -176,16 +164,14 @@ struct WatchComplicationProvider: TimelineProvider {
                     do {
                         let loc = try await WatchWidgetLocationManager.shared.requestLocation()
                         targetLocation = Coord(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude, name: nil)
-                        // Update cache
                         defaults?.set(loc.coordinate.latitude, forKey: "WatchLastLatitude")
                         defaults?.set(loc.coordinate.longitude, forKey: "WatchLastLongitude")
                     } catch {
-                         print("⌚️ Watch GPS failed: \(error). Using cache.")
+                        print("⌚️ Watch GPS failed: \(error). Using cache.")
                     }
                 }
             }
             
-            // Fallback to cache for coords
             if targetLocation == nil {
                 let lat = defaults?.double(forKey: "WatchLastLatitude") ?? defaults?.double(forKey: "LastLatitude")
                 let lon = defaults?.double(forKey: "WatchLastLongitude") ?? defaults?.double(forKey: "LastLongitude")
@@ -195,7 +181,6 @@ struct WatchComplicationProvider: TimelineProvider {
             }
             
             guard let coords = targetLocation else {
-                // No location available at all -> Cache or Placeholder
                 if let data = cachedData {
                     let entries = createEntries(from: data)
                     completion(Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60))))
@@ -205,22 +190,17 @@ struct WatchComplicationProvider: TimelineProvider {
                 return
             }
             
-            // 4. Fetch Fresh Data using the target coords
             do {
-                // Fetch fresh data
                 let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
                 let weather = try await WeatherService.shared.weather(for: location)
                 
-                // Parse Data
                 let tempUnitStr = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
                 let isFahrenheit = tempUnitStr == "Fahrenheit"
                 
-                // Current
                 let currentTempVal = isFahrenheit ? weather.currentWeather.temperature.converted(to: .fahrenheit).value : weather.currentWeather.temperature.converted(to: .celsius).value
                 let tempStr = String(format: "%.0f°", currentTempVal)
                 let cond = weather.currentWeather.condition.description
                 
-                // High/Low
                 let daily = weather.dailyForecast.first
                 let highVal = isFahrenheit ? daily?.highTemperature.converted(to: .fahrenheit).value : daily?.highTemperature.converted(to: .celsius).value
                 let lowVal = isFahrenheit ? daily?.lowTemperature.converted(to: .fahrenheit).value : daily?.lowTemperature.converted(to: .celsius).value
@@ -228,7 +208,6 @@ struct WatchComplicationProvider: TimelineProvider {
                 let highStr = highVal.map { String(format: "%.0f°", $0) }
                 let lowStr = lowVal.map { String(format: "%.0f°", $0) }
                 
-                // Hourly
                 var hourlyItems: [WatchHourlyForecast] = []
                 let next12 = weather.hourlyForecast.filter { $0.date >= Date() }.prefix(12)
                 for h in next12 {
@@ -239,20 +218,16 @@ struct WatchComplicationProvider: TimelineProvider {
                     hourlyItems.append(WatchHourlyForecast(
                         time: timeStr,
                         temperature: hStr,
-                        emoji: "☀️", // Placeholder
+                        emoji: "☀️",
                         condition: h.condition.description
                     ))
                 }
                 
-                
-                // Final City Name Determination
                 var finalCity: String
                 
                 if let manualName = coords.name {
-                    // User manually selected a city -> Use that name
                     finalCity = manualName
                 } else {
-                    // GPS -> Reverse Geocode or Cache
                     var geocodedCity = cachedData?.city
                     if let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
                        let city = placemarks.first?.locality {
@@ -261,7 +236,6 @@ struct WatchComplicationProvider: TimelineProvider {
                     finalCity = geocodedCity ?? "My Location"
                 }
 
-                
                 let freshData = WatchWeatherData(
                     city: finalCity,
                     temperature: tempStr,
@@ -278,7 +252,6 @@ struct WatchComplicationProvider: TimelineProvider {
                     pressure: nil
                 )
                 
-                print("⌚️ Watch Complication: Fetched FRESH data!")
                 let entries = createEntries(from: freshData)
                 let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60)))
                 completion(timeline)
@@ -301,7 +274,6 @@ struct WatchComplicationProvider: TimelineProvider {
             return nil
         }
         
-        // First, try to load from iOS app's shared data (most reliable)
         if let sharedData = defaults.data(forKey: "BreezyWidgetData"),
            let decoded = try? JSONDecoder().decode(SharedWeatherData.self, from: sharedData) {
             
@@ -324,14 +296,13 @@ struct WatchComplicationProvider: TimelineProvider {
                 hourlyForecast: hourlyForecast,
                 uvIndex: decoded.uvIndex,
                 windSpeed: decoded.windSpeed,
-                windDirectionDegrees: nil, // Not in shared yet
+                windDirectionDegrees: nil,
                 rainChance: decoded.rainChance,
-                humidity: nil, // Shared metrics might be missing humidity
+                humidity: nil,
                 pressure: decoded.pressure
             )
         }
         
-        // Fallback to watch app's individual keys
         if let city = defaults.string(forKey: "WatchLastCity"),
            let temp = defaults.string(forKey: "WatchLastTemperature"),
            let condition = defaults.string(forKey: "WatchLastCondition"),
@@ -375,8 +346,6 @@ struct WatchWeatherData {
     let highTemp: String?
     let lowTemp: String?
     let hourlyForecast: [WatchHourlyForecast]
-    
-    // New Metrics
     let uvIndex: Int?
     let windSpeed: String?
     let windDirectionDegrees: Double?

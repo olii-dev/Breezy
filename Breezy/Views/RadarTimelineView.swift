@@ -62,7 +62,13 @@ struct RadarTimelineView: View {
                 Slider(
                     value: Binding(
                         get: { Double(currentTimeOffset + pastRange) },
-                        set: { currentTimeOffset = Int($0) - pastRange }
+                        set: { newValue in
+                            let previousValue = currentTimeOffset + pastRange
+                            currentTimeOffset = Int(newValue) - pastRange
+                            if Int(previousValue) != Int(newValue) {
+                                HapticsManager.shared.impact(style: .light)
+                            }
+                        }
                     ),
                     in: 0...Double(pastRange + futureRange),
                     step: 10
@@ -116,6 +122,7 @@ struct RadarPlayButton: View {
     
     var body: some View {
         Button {
+            HapticsManager.shared.selectionChanged()
             withAnimation {
                 isPlaying.toggle()
             }

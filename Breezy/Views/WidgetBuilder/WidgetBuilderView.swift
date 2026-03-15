@@ -48,7 +48,7 @@ struct WidgetBuilderView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         HapticsManager.shared.notification(type: .success)
-                        var finalConfig = draftConfig
+                        let finalConfig = draftConfig
                         // finalConfig.widgetSize = .small // Removed override
                         store.save(finalConfig)
                         dismiss()
@@ -166,7 +166,7 @@ struct WidgetBuilderView: View {
                 }
             }
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.3)))
+            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
         }
     }
     
@@ -282,7 +282,7 @@ struct WidgetBuilderView: View {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                    .fill(.ultraThinMaterial.opacity(0.4))
+                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
             )
         }
         .padding(.bottom, 40)

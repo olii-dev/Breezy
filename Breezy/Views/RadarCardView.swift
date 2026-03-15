@@ -33,8 +33,8 @@ struct RadarCardView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with layer menu button
+        VStack(alignment: .leading, spacing: 0) {
+            // Standard Header
             HStack {
                 Label("Weather Radar", systemImage: "tornado")
                     .font(.caption.weight(.bold))
@@ -43,100 +43,75 @@ struct RadarCardView: View {
                 Spacer()
                 
                 Button {
+                    HapticsManager.shared.impact(style: .light)
                     showLayerMenu = true
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Image(systemName: selectedLayer.icon)
                         Text(selectedLayer.displayName)
                         Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
                     }
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.2))
-                    )
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Capsule())
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
             
-            // Map with radar overlay
-            ZStack {
+            // Map Content
+            ZStack(alignment: .bottomTrailing) {
                 RadarMapView(
                     region: $region,
                     layer: selectedLayer,
                     isLoading: $isLoading,
                     coordinate: CLLocationCoordinate2D(
-                    latitude: viewModel.currentLocation?.latitude ?? 0,
-                    longitude: viewModel.currentLocation?.longitude ?? 0
-                ),
-                isDark: viewModel.currentTheme(colorScheme: colorScheme).isDark,
-                mapStyle: viewModel.mapStyle
-            )
-                .frame(height: 300)
+                        latitude: viewModel.currentLocation?.latitude ?? 0,
+                        longitude: viewModel.currentLocation?.longitude ?? 0
+                    ),
+                    isDark: viewModel.currentTheme(colorScheme: colorScheme).isDark,
+                    mapStyle: viewModel.mapStyle
+                )
+                .frame(height: 200)
                 .cornerRadius(DesignSystem.radiusM)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
                 
-                // Loading indicator (Non-blocking)
-                if isLoading {
-                    VStack {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .tint(.white)
-                            Text("Updating radar...")
-                                .font(.caption.weight(.medium))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(20)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
-                        )
-                        .shadow(radius: 4)
-                        .padding(.top, 12)
-                        
-                        Spacer()
+                // Map Style Mini-Button
+                Button {
+                    HapticsManager.shared.impact(style: .light)
+                    // Cycle through styles
+                    let styles = WeatherViewModel.RadarMapStyle.allCases
+                    if let index = styles.firstIndex(of: viewModel.mapStyle) {
+                        viewModel.mapStyle = styles[(index + 1) % styles.count]
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                } label: {
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                        .padding(8)
+                        .background(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                        .clipShape(Circle())
                 }
+                .padding(.trailing, 20)
+                .padding(.bottom, 20)
                 
-                // Legend (top right) - compact version
-                if !isLoading {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            
-                            // Map Style Button
-                            Menu {
-                                Picker("Map Style", selection: $viewModel.mapStyle) {
-                                    ForEach(WeatherViewModel.RadarMapStyle.allCases) { style in
-                                        Text(style.rawValue).tag(style)
-                                    }
-                                }
-                            } label: {
-                                Image(systemName: "map.fill")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.white)
-                                    .padding(8)
-                                    .background(Circle().fill(Color.black.opacity(0.4)))
-                            }
-                            .padding(.trailing, 8)
-                            
-                            RadarLegendView(layer: selectedLayer)
-                                .padding(.trailing, 8)
-                        }
-                        Spacer()
-                    }
-                    .padding(.top, 8)
+                if isLoading {
+                    ProgressView()
+                        .tint(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                        .padding(20)
                 }
             }
         }
-        .softGlassCard(padding: DesignSystem.spacingM, cornerRadius: DesignSystem.radiusM)
+        .softGlassCard(padding: 0)
+        .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
         .onTapGesture {
+            HapticsManager.shared.impact(style: .light)
             showFullScreen = true
         }
         .fullScreenCover(isPresented: $showFullScreen) {
@@ -146,6 +121,7 @@ struct RadarCardView: View {
             RadarLayerMenuView(selectedLayer: $selectedLayer)
         }
         .onChange(of: selectedLayer) { oldValue, newValue in
+            HapticsManager.shared.impact(style: .light)
             withAnimation { isLoading = true }
         }
         .onChange(of: viewModel.currentLocation) { oldValue, newLocation in
@@ -179,7 +155,7 @@ struct RadarMapView: UIViewRepresentable {
         mapView.showsUserLocation = false
         mapView.isRotateEnabled = false
         mapView.isPitchEnabled = false
-        mapView.showsCompass = false
+        mapView.showsCompass = true
         mapView.showsScale = false
         
         // Configure Map Style
@@ -191,21 +167,20 @@ struct RadarMapView: UIViewRepresentable {
         let overlay = OpenWeatherTileOverlay(layer: layer)
         overlay.canReplaceMapContent = false
         mapView.addOverlay(overlay, level: .aboveLabels)
+        context.coordinator.beginLoading()
         
         // Add location marker
         let annotation = MKPointAnnotation()
         annotation.coordinate = coordinate
         mapView.addAnnotation(annotation)
         
-        // Set loading to false after a short delay (tiles start loading)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation { isLoading = false }
-        }
-        
+        // Loading will be controlled by delegate methods
         return mapView
     }
     
     func updateUIView(_ mapView: MKMapView, context: Context) {
+        context.coordinator.parent = self
+
         // Update style if needed
         if mapView.overrideUserInterfaceStyle != (isDark ? .dark : .light) {
             mapView.overrideUserInterfaceStyle = isDark ? .dark : .light
@@ -232,11 +207,7 @@ struct RadarMapView: UIViewRepresentable {
             // Add new overlay
             let overlay = OpenWeatherTileOverlay(layer: layer)
             mapView.addOverlay(overlay, level: .aboveLabels)
-            
-            // Hide loading after delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation { isLoading = false }
-            }
+            context.coordinator.beginLoading()
         }
         
         // Update annotation position
@@ -252,29 +223,53 @@ struct RadarMapView: UIViewRepresentable {
         case .standard:
             mapView.preferredConfiguration = MKStandardMapConfiguration()
             mapView.mapType = .standard
-        case .hybrid:
-            mapView.preferredConfiguration = MKHybridMapConfiguration()
-            mapView.mapType = .hybrid
         case .satellite:
             mapView.preferredConfiguration = MKImageryMapConfiguration()
             mapView.mapType = .satellite
-        case .muted:
-            let config = MKStandardMapConfiguration()
-            config.emphasisStyle = .muted
-            mapView.preferredConfiguration = config
-            mapView.mapType = .mutedStandard
         }
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
+
+    static func dismantleUIView(_ mapView: MKMapView, coordinator: Coordinator) {
+        coordinator.stopLoading(reason: false)
+        mapView.delegate = nil
+    }
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: RadarMapView
+        private var loadingTimer: Timer?
         
         init(_ parent: RadarMapView) {
             self.parent = parent
+        }
+
+        func beginLoading() {
+            DispatchQueue.main.async {
+                self.parent.isLoading = true
+                self.startLoadingTimerIfNeeded()
+            }
+        }
+        
+        private func startLoadingTimerIfNeeded() {
+            guard loadingTimer == nil else { return }
+            loadingTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.parent.isLoading = false
+                    self?.loadingTimer = nil
+                }
+            }
+        }
+        
+        func stopLoading(reason fullyRendered: Bool) {
+            loadingTimer?.invalidate()
+            loadingTimer = nil
+
+            DispatchQueue.main.async {
+                self.parent.isLoading = false
+            }
         }
         
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -288,6 +283,26 @@ struct RadarMapView: UIViewRepresentable {
             DispatchQueue.main.async {
                 self.parent.region = mapView.region
             }
+        }
+        
+        func mapViewWillStartRenderingMap(_ mapView: MKMapView) {
+            startLoadingTimerIfNeeded()
+        }
+        
+        func mapViewDidFinishRenderingMap(_ mapView: MKMapView, fullyRendered: Bool) {
+            if fullyRendered {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    self.stopLoading(reason: true)
+                }
+            }
+        }
+
+        func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
+            stopLoading(reason: true)
+        }
+
+        func mapViewDidFailLoadingMap(_ mapView: MKMapView, withError error: Error) {
+            stopLoading(reason: false)
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {

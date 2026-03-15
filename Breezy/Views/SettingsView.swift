@@ -34,6 +34,7 @@ struct SettingsView: View {
                                 icon: "paintpalette.fill",
                                 color: .pink,
                                 textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity,
                                 destination: DesignStudioView(viewModel: viewModel)
                             )
                             
@@ -42,6 +43,7 @@ struct SettingsView: View {
                                 icon: "hammer.fill",
                                 color: .purple,
                                 textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity,
                                 destination: WidgetBuilderView(viewModel: viewModel)
                             )
                         }
@@ -54,6 +56,7 @@ struct SettingsView: View {
                                 icon: "bell.fill",
                                 color: .orange,
                                 textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity,
                                 destination: NotificationSettingsView(viewModel: viewModel)
                             )
                             
@@ -62,6 +65,7 @@ struct SettingsView: View {
                                 icon: "thermometer.medium",
                                 color: .blue,
                                 textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity,
                                 destination: DataSettingsView(viewModel: viewModel)
                             )
                             
@@ -82,54 +86,49 @@ struct SettingsView: View {
                             .padding(.horizontal, DesignSystem.spacingM)
                             
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Version 0.1")
+                                Text(Bundle.main.appVersionDisplayString)
                                     .font(.caption)
                                     .foregroundColor(theme.textColor.opacity(0.7))
-                                
-                                if let attribution = viewModel.attribution {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        AsyncImage(url: attribution.combinedMarkDarkURL) { image in
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fit)
-                                                .frame(height: 12)
-                                        } placeholder: {
-                                            ProgressView()
-                                                .scaleEffect(0.5)
-                                        }
-                                        
-                                        Link("Data Sources", destination: attribution.legalPageURL)
-                                            .font(.caption2)
-                                            .foregroundColor(theme.textColor.opacity(0.8))
-                                            .underline()
+
+                                NavigationLink {
+                                    PrivacySupportView(
+                                        attributionURL: viewModel.attribution?.legalPageURL,
+                                        textColor: theme.textColor,
+                                        glassOpacity: viewModel.glassOpacity
+                                    )
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "hand.raised.fill")
+                                            .foregroundColor(theme.textColor.opacity(0.75))
+
+                                        Text("Privacy & Security")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundColor(theme.textColor)
+
+                                        Spacer()
+
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundColor(theme.textColor.opacity(0.45))
                                     }
-                                } else {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Weather data provided by Apple Weather")
-                                            .font(.caption2)
-                                            .foregroundColor(theme.textColor.opacity(0.5))
-                                        
-                                        Link("Data sources and legal", destination: URL(string: "https://developer.apple.com/weatherkit/data-source-attribution/")!)
-                                            .font(.caption2)
-                                            .foregroundColor(theme.textColor.opacity(0.8))
-                                            .underline()
-                                    }
+                                    .padding(.vertical, 8)
                                 }
-                                
-                                Text("No data is sent to third parties by this app. Your data is secure and will never be shared.")
+
+                                Text("Breezy uses your location for local weather. Your saved places and settings stay private.")
                                     .font(.caption)
                                     .foregroundColor(theme.textColor.opacity(0.5))
                             }
                             .padding()
                             .background(
                                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                                    .fill(.ultraThinMaterial.opacity(0.3))
+                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                             )
                             .padding(.horizontal, DesignSystem.spacingM)
                         }
                         
                         // Reset
                         Button {
+                            HapticsManager.shared.impact(style: .medium)
                             showResetConfirmation = true
                         } label: {
                             HStack {
@@ -141,7 +140,7 @@ struct SettingsView: View {
                             .padding()
                             .background(
                                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                                    .fill(.ultraThinMaterial.opacity(0.2))
+                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: DesignSystem.radiusM)
                                             .stroke(Color.red.opacity(0.3), lineWidth: 0.5)
@@ -174,10 +173,11 @@ struct SettingsView: View {
             .alert("Reset All Settings?", isPresented: $showResetConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Reset Everything", role: .destructive) {
+                    HapticsManager.shared.impact(style: .heavy)
                     resetDefaults()
                 }
             } message: {
-                Text("This will reset your units, cache settings, and clear all saved locations. This action cannot be undone.")
+                Text("This will reset your units, cache settings, and clear saved locations. Widgets and watch surfaces will fall back to fresh sync after the reset. This action cannot be undone.")
             }
         }
     }
@@ -200,6 +200,7 @@ struct SettingsNavCard<Destination: View>: View {
     let icon: String
     let color: Color
     let textColor: Color
+    let glassOpacity: Double
     let destination: Destination
     
     var body: some View {
@@ -227,13 +228,112 @@ struct SettingsNavCard<Destination: View>: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                    .fill(.ultraThinMaterial.opacity(0.4))
+                    .fill(.ultraThinMaterial.opacity(glassOpacity))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
                     .stroke(textColor.opacity(0.15), lineWidth: 0.5)
             )
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            HapticsManager.shared.impact(style: .light)
+        })
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+    }
+}
+
+struct PrivacySupportView: View {
+    let attributionURL: URL?
+    let textColor: Color
+    let glassOpacity: Double
+
+    @Environment(\.openURL) private var openURL
+
+    private let weatherKitURL = URL(string: "https://developer.apple.com/weatherkit/data-source-attribution/")!
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignSystem.spacingL) {
+                infoCard(
+                    title: "Privacy",
+                    systemImage: "lock.shield.fill",
+                    body: "Breezy uses your location for local weather and optional alerts. Your saved places and settings stay in your own device storage and private Apple sync containers. Breezy does not use ads or analytics SDKs."
+                )
+
+                infoCard(
+                    title: "Weather Data",
+                    systemImage: "cloud.sun.fill",
+                    body: "Weather forecasts are provided through Apple Weather and WeatherKit."
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Helpful Links")
+                        .font(.headline)
+                        .foregroundColor(textColor)
+
+                    VStack(spacing: 0) {
+                        LinkRow(title: "WeatherKit data sources", subtitle: "Apple Weather attribution and legal") {
+                            openURL(attributionURL ?? weatherKitURL)
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                            .fill(.ultraThinMaterial.opacity(glassOpacity))
+                    )
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Privacy & Security")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func infoCard(title: String, systemImage: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+                .foregroundColor(textColor)
+
+            Text(body)
+                .font(.subheadline)
+                .foregroundColor(textColor.opacity(0.8))
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
+        )
+    }
+}
+
+struct LinkRow: View {
+    let title: String
+    let subtitle: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.primary)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right.square")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -270,6 +370,7 @@ struct DataSettingsView: View {
                                 Picker("", selection: Binding(
                                     get: { viewModel.temperatureUnit },
                                     set: { newUnit in
+                                        HapticsManager.shared.selectionChanged()
                                         viewModel.temperatureUnit = newUnit
                                         if let location = viewModel.currentLocation {
                                             Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
@@ -299,6 +400,9 @@ struct DataSettingsView: View {
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
+                                .onChange(of: viewModel.windSpeedUnit) { _, _ in
+                                    HapticsManager.shared.selectionChanged()
+                                }
                             }
                             .padding()
                             
@@ -316,6 +420,9 @@ struct DataSettingsView: View {
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
+                                .onChange(of: viewModel.pressureUnit) { _, _ in
+                                    HapticsManager.shared.selectionChanged()
+                                }
                             }
                             .padding()
                             
@@ -333,6 +440,9 @@ struct DataSettingsView: View {
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
+                                .onChange(of: viewModel.visibilityUnit) { _, _ in
+                                    HapticsManager.shared.selectionChanged()
+                                }
                             }
                             .padding()
                             
@@ -350,6 +460,9 @@ struct DataSettingsView: View {
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
+                                .onChange(of: viewModel.precipitationUnit) { _, _ in
+                                    HapticsManager.shared.selectionChanged()
+                                }
                             }
                             .padding()
                             
@@ -367,10 +480,13 @@ struct DataSettingsView: View {
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
+                                .onChange(of: viewModel.dateFormat) { _, _ in
+                                    HapticsManager.shared.selectionChanged()
+                                }
                             }
                             .padding()
                         }
-                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                     }
                     
                     // Cache Section
@@ -389,7 +505,7 @@ struct DataSettingsView: View {
                                     .foregroundColor(theme.textColor)
                             }
                             .padding()
-                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             
                             Button {
                                 WeatherCache.clear()
@@ -401,7 +517,7 @@ struct DataSettingsView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                                 .foregroundColor(.red.opacity(0.8))
                             }
                         }
@@ -455,8 +571,7 @@ struct NotificationSettingsView: View {
                         if notificationStatus != .authorized {
                             Button("Enable") {
                                 Task {
-                                    _ = await NotificationManager.shared.requestAuthorization()
-                                    await checkNotificationStatus()
+                                    await enableNotifications()
                                 }
                             }
                             .buttonStyle(.borderedProminent)
@@ -464,7 +579,7 @@ struct NotificationSettingsView: View {
                         }
                     }
                     .padding()
-                    .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.3)))
+                    .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                     
                     
                     // Essential Alerts Section
@@ -482,6 +597,7 @@ struct NotificationSettingsView: View {
                                         return c.date(from: comps) ?? Date()
                                     },
                                     set: {
+                                        HapticsManager.shared.selectionChanged()
                                         let c = Calendar.current
                                         notificationSettings.dailyForecastHour = c.component(.hour, from: $0)
                                         notificationSettings.dailyForecastMinute = c.component(.minute, from: $0)
@@ -489,7 +605,7 @@ struct NotificationSettingsView: View {
                                     }
                                 ), displayedComponents: .hourAndMinute)
                                 .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.3)))
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             }
                             
                             SettingsToggleRow(title: "Severe Weather", icon: "exclamationmark.triangle.fill", color: .red, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.severeWeatherEnabled}, set: {notificationSettings.severeWeatherEnabled=$0; saveNotificationSettings()}))
@@ -568,7 +684,7 @@ struct NotificationSettingsView: View {
                                             .foregroundColor(theme.textColor.opacity(0.5))
                                     }
                                     .padding()
-                                    .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.3)))
+                                    .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                                 }
                             }
                             
@@ -747,7 +863,7 @@ struct NotificationSettingsView: View {
                             }
                         }
                         .padding()
-                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.3)))
+                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                     } label: {
                         HStack {
                             Image(systemName: "gearshape.fill")
@@ -769,7 +885,7 @@ struct NotificationSettingsView: View {
             previousWindUnit = viewModel.windSpeedUnit
             previousTempUnit = viewModel.temperatureUnit
         }
-        .onChange(of: viewModel.windSpeedUnit) { newUnit in
+        .onChange(of: viewModel.windSpeedUnit) { _, newUnit in
             guard let oldUnit = previousWindUnit, oldUnit != newUnit else {
                 previousWindUnit = newUnit
                 return
@@ -791,7 +907,7 @@ struct NotificationSettingsView: View {
             saveNotificationSettings()
             previousWindUnit = newUnit
         }
-        .onChange(of: viewModel.temperatureUnit) { newUnit in
+        .onChange(of: viewModel.temperatureUnit) { _, newUnit in
             guard let oldUnit = previousTempUnit, oldUnit != newUnit else {
                 previousTempUnit = newUnit
                 return
@@ -840,6 +956,16 @@ struct NotificationSettingsView: View {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         notificationStatus = settings.authorizationStatus
     }
+
+    private func enableNotifications() async {
+        let granted = await NotificationManager.shared.requestAuthorization()
+        await checkNotificationStatus()
+
+        guard granted || notificationStatus == .authorized else { return }
+
+        NotificationManager.shared.registerNotificationCategories()
+        saveNotificationSettings()
+    }
     
     private func saveNotificationSettings() {
         UserDefaults.standard.notificationSettings = notificationSettings
@@ -877,18 +1003,9 @@ struct LocationSettingsView: View {
                             .foregroundColor(theme.textColor)
                             .padding()
                             .frame(maxWidth: .infinity)
-                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                         }
                         
-                        Button {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(url)
-                            }
-                        } label: {
-                            Text("Open System Settings")
-                                .font(.caption)
-                                .foregroundColor(theme.textColor.opacity(0.7))
-                        }
                     }
                     
                     // Favourites
@@ -916,7 +1033,7 @@ struct LocationSettingsView: View {
                                     }
                                 }
                                 .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.3)))
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             }
                             
                             Button("Clear All") { FavouritesStore.clear() }
@@ -962,7 +1079,7 @@ struct DesignStudioView: View {
                                 .tint(theme.textColor)
                             }
                             .padding()
-                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             
                             // Themes Navigation
                             NavigationLink {
@@ -988,16 +1105,46 @@ struct DesignStudioView: View {
                                         .foregroundColor(theme.textColor.opacity(0.5))
                                 }
                                 .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             }
 
                             SettingsToggleRow(
-                                title: "Icons",
-                                icon: "sparkles",
+                                title: "Emojis",
+                                icon: "face.smiling",
                                 color: .yellow,
                                 textColor: theme.textColor,
-                                isOn: $viewModel.useMinimalistIcons
+                                isOn: Binding(
+                                    get: { !viewModel.useMinimalistIcons },
+                                    set: { viewModel.useMinimalistIcons = !$0 }
+                                )
                             )
+                            
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "square.stack.3d.forward.dottedline.fill")
+                                        .foregroundColor(.blue)
+                                    Text("Material Opacity")
+                                        .foregroundColor(theme.textColor)
+                                    Spacer()
+                                    Text("\(Int(viewModel.glassOpacity * 100))%")
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundColor(theme.textColor.opacity(0.6))
+                                }
+                                
+                                Slider(value: $viewModel.glassOpacity, in: 0.0...1.0, step: 0.01)
+                                    .tint(theme.textColor)
+
+                                HStack {
+                                    Spacer()
+                                    Button("Reset") {
+                                        viewModel.glassOpacity = 0.35
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(DesignSystem.skyBlue)
+                                }
+                            }
+                            .padding()
+                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             
                             // App Icons Gallery Navigation
                             NavigationLink {
@@ -1023,7 +1170,7 @@ struct DesignStudioView: View {
                                         .foregroundColor(theme.textColor.opacity(0.5))
                                 }
                                 .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             }
                         }
                     }
@@ -1047,7 +1194,16 @@ struct DesignStudioView: View {
                                         }
                                         .foregroundColor(theme.textColor)
                                         .frame(width: 90, height: 90)
-                                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.typography == font ? 0.6 : 0.3)))
+                                        .background(
+                                            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                                                .fill(
+                                                    .ultraThinMaterial.opacity(
+                                                        viewModel.typography == font
+                                                            ? min(1.0, viewModel.glassOpacity + 0.25)
+                                                            : max(0.08, viewModel.glassOpacity * 0.75)
+                                                    )
+                                                )
+                                        )
                                         .overlay(
                                             RoundedRectangle(cornerRadius: DesignSystem.radiusM)
                                                 .stroke(viewModel.typography == font ? Color.blue : Color.clear, lineWidth: 2)
@@ -1060,6 +1216,43 @@ struct DesignStudioView: View {
                         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
                     }
                     
+                    VStack(alignment: .leading, spacing: DesignSystem.spacingM) {
+                        StudioHeader(title: "DAILY VIEW", icon: "sun.max.trianglebadge.exclamationmark", theme: theme)
+
+                        NavigationLink {
+                            DayDetailSettingsView(viewModel: viewModel)
+                        } label: {
+                            HStack(spacing: 16) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(LinearGradient(colors: [Color.orange, Color.yellow], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                        .frame(width: 36, height: 36)
+
+                                    Image(systemName: "slider.horizontal.3")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Daily View")
+                                        .foregroundColor(theme.textColor)
+                                    Text("Choose which sections appear when you open a day in the 10-day forecast.")
+                                        .font(.caption)
+                                        .foregroundColor(theme.textColor.opacity(0.62))
+                                        .multilineTextAlignment(.leading)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(theme.textColor.opacity(0.5))
+                            }
+                            .padding()
+                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                        }
+                    }
+
                     // 3. Dashboard Info
                     VStack(alignment: .leading, spacing: DesignSystem.spacingM) {
                         StudioHeader(title: "WIDGET LAYOUT", icon: "square.grid.2x2.fill", theme: theme)
@@ -1081,7 +1274,7 @@ struct DesignStudioView: View {
                             }
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                         }
                     }
                     

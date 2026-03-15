@@ -13,7 +13,6 @@ struct RadarLegendView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Gradient bar - thinner and more compact
             LinearGradient(
                 stops: layer.legendGradient.map { item in
                     Gradient.Stop(
@@ -24,14 +23,13 @@ struct RadarLegendView: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
-            .frame(width: 80, height: 12)
-            .cornerRadius(3)
+            .frame(width: 92, height: 12)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .stroke(Color.white.opacity(0.4), lineWidth: 0.5)
             )
             
-            // Value labels (compact, just min and max)
             HStack(spacing: 0) {
                 Text(layer.legendGradient.first?.label ?? "")
                     .font(.system(size: 8))
@@ -43,13 +41,11 @@ struct RadarLegendView: View {
                     .font(.system(size: 8))
                     .foregroundColor(.white.opacity(0.9))
             }
-            .frame(width: 80)
+            .frame(width: 92)
         }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.7))
-        )
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
     
     private func normalizedPosition(for value: Double) -> Double {

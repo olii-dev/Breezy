@@ -13,6 +13,24 @@ struct UVIndexCurveView: View {
     let hourlyForecast: [HourlyForecast]
     let currentUV: Int
     let colorScheme: ColorScheme
+    @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
+    @AppStorage("Breezy.typography") private var typographyRaw: String = WeatherFont.system.rawValue
+
+    private var typographyDesign: Font.Design {
+        WeatherFont(rawValue: typographyRaw)?.design ?? .default
+    }
+
+    private var chartHours: [HourlyForecast] {
+        hourlyForecast
+            .filter { ($0.uvIndex ?? 0) >= 0 }
+            .filter { (0...23).contains($0.hourValue) }
+            .sorted { lhs, rhs in
+                if lhs.hourValue == rhs.hourValue {
+                    return lhs.time < rhs.time
+                }
+                return lhs.hourValue < rhs.hourValue
+            }
+    }
     
     // UV Categories for color coding
     func color(for uv: Int) -> Color {
@@ -36,7 +54,7 @@ struct UVIndexCurveView: View {
     var chartView: some View {
         VStack(spacing: 8) {
             Chart {
-                ForEach(hourlyForecast) { hour in
+                ForEach(chartHours) { hour in
                     // Area under curve with vertical gradient
                     AreaMark(
                         x: .value("Time", hour.hourValue),
@@ -99,19 +117,20 @@ struct UVIndexCurveView: View {
                             .lineStyle(StrokeStyle(lineWidth: 1))
                             .foregroundStyle(colorScheme == .dark ? .white.opacity(0.5) : .black.opacity(0.5))
                             .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
-                                VStack(spacing: 2) {
+                                VStack(spacing: 4) {
                                     Text("\(hour.uvIndex ?? 0)")
-                                        .font(.system(.title3, design: .rounded).bold())
+                                        .font(.system(.title3, design: typographyDesign).bold())
                                         .foregroundColor(colorScheme == .dark ? .white : .black)
-                                    
+                                
                                     Text(formatHour(hour.hourValue))
                                         .font(.caption2.weight(.medium))
                                         .foregroundColor(.secondary)
                                 }
-                                .padding(6)
-                                .background(.ultraThinMaterial)
-                                .cornerRadius(8)
-                                .shadow(radius: 4)
+                                .padding(12)
+                                .frame(minWidth: 140)
+                                .background(.ultraThinMaterial.opacity(glassOpacity))
+                                .cornerRadius(12)
+                                .shadow(radius: 6)
                             }
                     } else if selectedHour == nil, hour.hourValue == Calendar.current.component(.hour, from: Date()) {
                          // Default "Now" indicator when not scrubbing
@@ -119,12 +138,7 @@ struct UVIndexCurveView: View {
                             x: .value("Time", hour.hourValue),
                             y: .value("UV", hour.uvIndex ?? 0)
                         )
-                        .symbolSize(0) // handled by .symbol above, just used for annotation anchor
-                        .annotation(position: .top) {
-                            Text("\(currentUV)")
-                                .font(.caption.bold())
-                                .foregroundColor(colorScheme == .dark ? .white : .black)
-                        }
+                        .symbolSize(0)
                     }
                 }
                 
@@ -136,12 +150,19 @@ struct UVIndexCurveView: View {
                         .gesture(
                             DragGesture()
                                 .onChanged { value in
-                                    let origin = geometry[proxy.plotFrame!].origin
+                                    guard !chartHours.isEmpty else { return }
+                                    guard let plotFrame = proxy.plotFrame else { return }
+                                    let frame = geometry[plotFrame]
+                                    guard frame.width > 0 else { return }
                                     let location = CGPoint(
-                                        x: value.location.x - origin.x,
-                                        y: value.location.y - origin.y
+                                        x: value.location.x - frame.origin.x,
+                                        y: value.location.y - frame.origin.y
                                     )
+                                    guard location.x >= 0, location.x <= frame.width else { return }
                                     if let hour: Int = proxy.value(atX: location.x) {
+                                        if hour != self.selectedHour {
+                                            HapticsManager.shared.impact(style: .light)
+                                        }
                                         self.selectedHour = hour
                                     }
                                 }
@@ -152,11 +173,14 @@ struct UVIndexCurveView: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .stride(by: 6)) { value in
-                    if let hour = value.as(Int.self) {
-                        AxisValueLabel {
-                            Text(formatHour(hour))
-                                .font(.caption2)
+                AxisMarks(values: [0, 6, 12, 18, 23]) { value in
+                    AxisValueLabel {
+                        if let hour = value.as(Int.self), hour >= 0 && hour < 24 {
+                            let hourLabel = hour == 0 ? "12 AM" : hour == 6 ? "6 AM" : hour == 12 ? "12 PM" : hour == 18 ? "6 PM" : hour == 23 ? "11 PM" : ""
+                            if !hourLabel.isEmpty {
+                                Text(hourLabel)
+                                    .font(.system(size: 11, weight: .medium))
+                            }
                         }
                     }
                 }

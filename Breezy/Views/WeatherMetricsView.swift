@@ -25,18 +25,6 @@ struct WeatherMetricsView: View {
                 )
             }
             
-            // Air Quality
-            if let airQuality = metrics.airQuality, let aqi = airQuality.aqi {
-                MetricCard(
-                    icon: "aqi.medium",
-                    title: "Air Quality",
-                    value: "\(aqi)",
-                    subtitle: airQuality.category ?? "",
-                    color: aqiColor(for: aqi),
-                    recommendation: AirQualityHelper.recommendation(for: aqi)
-                )
-            }
-            
             // Two-column grid for other metrics
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 // Pressure

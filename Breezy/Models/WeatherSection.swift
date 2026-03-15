@@ -8,17 +8,34 @@
 import Foundation
 
 enum WidgetType: String, Codable, CaseIterable, Identifiable {
+    // Forecasts
     case hourlyForecast = "Hourly Forecast"
     case dailyForecast = "Daily Forecast"
+    case forecastNarrative = "Forecast Narrative"
+    case hourlyTemperatures = "Hourly Temperatures"
+    
+    // Details
     case deepDetails = "Deep Details"
     case rainSummary = "Rain Summary"
+    case rainfallToday = "Rainfall Today"
+    case minutePrecipitation = "Next 60 Minutes"
     case windSummary = "Wind Summary"
-    case radar = "Weather Radar"
+    case windGraph = "Wind Graph"
     case uvIndex = "UV Index"
     case feelsLike = "Feels Like"
+    case uvIndexCurve = "UV Index Curve"
+    case humidityStrip = "Humidity"
+    case precipitationTimeline = "Precip Timeline"
+    case visibilityCard = "Visibility"
+    case cloudCoverCard = "Cloud Cover"
+    case windHistory = "Wind History"
+    
+    // Astronomy
     case sunPath = "Sun Path"
     case moonPhase = "Moon Phase"
-    case uvIndexCurve = "UV Index Curve"
+    
+    // Maps
+    case radar = "Weather Radar"
     
     var id: String { rawValue }
     
@@ -26,12 +43,22 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .hourlyForecast: return "chart.xyaxis.line"
         case .dailyForecast: return "calendar"
+        case .forecastNarrative: return "text.justify.left"
         case .deepDetails: return "speedometer"
         case .rainSummary: return "cloud.rain.fill"
+        case .rainfallToday: return "drop.fill"
+        case .minutePrecipitation: return "chart.bar.fill"
         case .windSummary: return "wind"
+        case .windGraph: return "chart.line.uptrend.xyaxis"
         case .radar: return "tornado"
         case .uvIndex: return "sun.max.fill"
         case .feelsLike: return "thermometer.medium"
+        case .hourlyTemperatures: return "thermometer.sun.fill"
+        case .humidityStrip: return "humidity.fill"
+        case .precipitationTimeline: return "chart.bar.xaxis"
+        case .visibilityCard: return "eye.fill"
+        case .cloudCoverCard: return "cloud.fill"
+        case .windHistory: return "lines.measurement.horizontal"
         case .sunPath: return "sun.and.horizon.fill"
         case .moonPhase: return "moon.stars.fill"
         case .uvIndexCurve: return "chart.xyaxis.line"
@@ -51,6 +78,7 @@ struct DashboardWidget: Codable, Identifiable, Equatable {
         DashboardWidget(id: UUID(), type: .hourlyForecast),
         DashboardWidget(id: UUID(), type: .deepDetails, visibleMetrics: [.humidity, .feelsLike, .wind, .uvIndex, .rain, .visibility]),
         DashboardWidget(id: UUID(), type: .dailyForecast),
+        DashboardWidget(id: UUID(), type: .forecastNarrative),
         DashboardWidget(id: UUID(), type: .radar)
     ]
 }
@@ -88,3 +116,39 @@ enum WeatherSection: String, Codable, Identifiable, CaseIterable {
     }
 }
 
+
+
+// MARK: - Widget Categories for Gallery Grouping
+
+enum WidgetCategory: String, CaseIterable, Identifiable {
+    case forecasts = "Forecasts"
+    case details = "Details"
+    case astronomy = "Astronomy"
+    case maps = "Maps"
+    
+    var id: String { rawValue }
+}
+
+extension WidgetType {
+    var category: WidgetCategory {
+        switch self {
+        case .hourlyForecast, .dailyForecast, .forecastNarrative, .hourlyTemperatures, .precipitationTimeline:
+            return .forecasts
+        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory:
+            return .details
+        case .sunPath, .moonPhase:
+            return .astronomy
+        case .radar:
+            return .maps
+        }
+    }
+
+    var supportsConfiguration: Bool {
+        switch self {
+        case .hourlyForecast, .deepDetails, .forecastNarrative, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .sunPath, .moonPhase, .humidityStrip, .windHistory:
+            return true
+        default:
+            return false
+        }
+    }
+}

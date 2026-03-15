@@ -10,6 +10,13 @@ import Combine
 import UserNotifications
 import CoreLocation
 
+struct SevereWeatherAssessment: Equatable {
+    let isSevere: Bool
+    let headline: String
+    let detail: String
+    let symbol: String
+}
+
 @MainActor
 class NotificationManager: NSObject, ObservableObject {
     static let shared = NotificationManager()
@@ -273,37 +280,55 @@ class NotificationManager: NSObject, ObservableObject {
     func checkSevereWeather(weather: WeatherInfo) {
         guard settings.severeWeatherEnabled else { return }
         guard authorizationStatus == .authorized else { return }
-        
+        let assessment = Self.severeWeatherAssessment(for: weather)
+
         // Severe weather ignores quiet hours (safety critical)
-        
+        if assessment.isSevere {
+            sendSevereWeatherAlert(weather: weather, assessment: assessment)
+        }
+    }
+
+    static func severeWeatherAssessment(for weather: WeatherInfo) -> SevereWeatherAssessment {
         let condition = weather.condition.lowercased()
-        
-        // Check for severe conditions by keywords
-        let severeConditions = [
-            "thunderstorm", "heavy rain", "heavy snow", "blizzard",
-            "strong storms", "tropical storm", "hail", "squall"
+        let severeConditions: [(keyword: String, detail: String, symbol: String)] = [
+            ("thunderstorm", "Thunderstorm conditions are possible in \(weather.location.city).", "cloud.bolt.rain.fill"),
+            ("strong storms", "Stormy conditions are building in \(weather.location.city).", "cloud.bolt.rain.fill"),
+            ("tropical storm", "Tropical storm conditions are possible in \(weather.location.city).", "hurricane"),
+            ("hail", "Hail is possible in \(weather.location.city).", "cloud.hail.fill"),
+            ("squall", "Squally conditions are possible in \(weather.location.city).", "wind"),
+            ("blizzard", "Blizzard conditions are possible in \(weather.location.city).", "wind.snow"),
+            ("heavy snow", "Heavy snow is possible in \(weather.location.city).", "snowflake"),
+            ("heavy rain", "Heavy rain is expected in \(weather.location.city).", "cloud.heavyrain.fill")
         ]
-        
-        var isSevere = severeConditions.contains(where: { condition.contains($0) })
-        
-        // Check for high winds (40+ mph or 64+ km/h)
-        if let windSpeed = weather.metrics?.windSpeed {
-            if let windValue = parseWindSpeed(windSpeed) {
-                // High wind threshold: 40 mph (64 km/h)
-                let highWindThreshold: Double = 40.0 // mph
-                if windValue >= highWindThreshold {
-                    isSevere = true
-                }
-            }
+
+        if let match = severeConditions.first(where: { condition.contains($0.keyword) }) {
+            return SevereWeatherAssessment(
+                isSevere: true,
+                headline: "Severe weather possible",
+                detail: match.detail,
+                symbol: match.symbol
+            )
         }
-        
-        // Only send if actually severe (no cooldown - if it's severe, alert immediately)
-        if isSevere {
-            sendSevereWeatherAlert(weather: weather)
+
+        if let windSpeed = weather.metrics?.windSpeed,
+           let windValue = parseWindSpeedValue(windSpeed),
+           windValue >= 40 {
+            return SevereWeatherAssessment(
+                isSevere: true,
+                headline: "Dangerous wind possible",
+                detail: "Strong winds around \(windSpeed) are possible in \(weather.location.city).",
+                symbol: "wind"
+            )
         }
+
+        return SevereWeatherAssessment(isSevere: false, headline: "", detail: "", symbol: "")
     }
     
     private func parseWindSpeed(_ windString: String) -> Double? {
+        Self.parseWindSpeedValue(windString)
+    }
+
+    private static func parseWindSpeedValue(_ windString: String) -> Double? {
         // Parse wind speed from strings like "25 mph" or "40 km/h"
         let lowercased = windString.lowercased()
         let isKmh = lowercased.contains("km/h")
@@ -322,10 +347,10 @@ class NotificationManager: NSObject, ObservableObject {
         return value
     }
     
-    private func sendSevereWeatherAlert(weather: WeatherInfo) {
+    private func sendSevereWeatherAlert(weather: WeatherInfo, assessment: SevereWeatherAssessment) {
         let content = UNMutableNotificationContent()
         content.title = "Severe Weather Alert"
-        content.body = "\(weather.condition) expected in \(weather.location.city)"
+        content.body = assessment.detail
         content.sound = .defaultCritical
         content.categoryIdentifier = "WEATHER_ALERT"
         content.userInfo = ["type": "severeWeather", "location": weather.location.city]
@@ -349,7 +374,7 @@ class NotificationManager: NSObject, ObservableObject {
         // Check hourly forecast for rain in next few hours
         let nextHours = weather.hourlyForecast.prefix(3)
         for hour in nextHours {
-            let condition = hour.condition.lowercased()
+            let condition = (hour.condition ?? "").lowercased()
             if condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower") {
                 sendRainAlert(hour: hour, location: weather.location.city)
                 return // Only send one alert
@@ -477,7 +502,7 @@ class NotificationManager: NSObject, ObservableObject {
             return hour.hourValue > now
         }) else { return }
         
-        let condition = nextHour.condition.lowercased()
+        let condition = (nextHour.condition ?? "").lowercased()
         let willRain = condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower")
         
         // Check for rain cancellation (was predicting rain, now not)

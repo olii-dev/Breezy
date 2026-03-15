@@ -7,7 +7,7 @@ Follow this exact order to ensure the Simulator environment is clean and connect
 2.  In Xcode, go to `Product` > `Clean Build Folder` (Cmd+Shift+K).
 
 ## 2. Launch Watch App FIRST
-1.  Select the **BreezyWatch Watch App** scheme in Xcode.
+1.  Select the **Breezy Watch Watch App** scheme in Xcode.
 2.  Press Run (**Cmd+R**).
 3.  Wait for the Watch Simulator to launch and show the weather/loading spinner.
 4.  **KEEP THIS WINDOW OPEN AND AWAKE.** (Don't let it go to sleep or lock).

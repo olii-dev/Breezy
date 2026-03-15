@@ -19,12 +19,10 @@ struct FeelsLikeWidget: View {
                 Image(systemName: "thermometer.medium")
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                 Text("Feels Like")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
             
             if let feelsLike = weather.feelsLike {
                 VStack(alignment: .leading, spacing: 4) {
@@ -38,18 +36,11 @@ struct FeelsLikeWidget: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 4)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
             } else {
                 Text("N/A")
-                    .padding()
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-        )
+        .softGlassCard()
     }
     
     func impactDescription() -> String {

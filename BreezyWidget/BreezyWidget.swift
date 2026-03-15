@@ -101,6 +101,7 @@ struct WidgetWeatherData: Codable {
     let pressure: String?
     let windSpeed: String?
     let rainChance: String?
+    let rainAmount: String?
     let latitude: Double?
     let longitude: Double?
     
@@ -236,6 +237,16 @@ class WidgetLocationManager: NSObject, CLLocationManagerDelegate {
 
 struct WeatherDataStore {
     private static let key = "BreezyWidgetData"
+    private static let lastRefreshKey = "BreezyLastRefresh"
+    
+    static var isDataFresh: Bool {
+        guard let defaults = UserDefaults(suiteName: "group.com.breezy.weather"),
+              let lastRefresh = defaults.object(forKey: lastRefreshKey) as? Date else {
+            return false
+        }
+        let freshnessInterval: TimeInterval = 30 * 60 // 30 minutes
+        return Date().timeIntervalSince(lastRefresh) < freshnessInterval
+    }
     
     static func load() -> WidgetWeatherData? {
         guard let defaults = UserDefaults(suiteName: "group.com.breezy.weather") else {
@@ -522,6 +533,11 @@ struct Provider: TimelineProvider {
     }
     
     func getSnapshot(in context: Context, completion: @escaping (WeatherEntry) -> ()) {
+        if context.isPreview {
+            completion(WeatherEntry.mock)
+            return
+        }
+
         let entry: WeatherEntry
         if let weather = WeatherDataStore.load() {
             entry = WeatherEntry(date: Date(), weather: weather)
@@ -586,6 +602,7 @@ struct Provider: TimelineProvider {
                             pressure: data.pressure,
                             windSpeed: data.windSpeed,
                             rainChance: data.rainChance,
+                            rainAmount: data.rainAmount,
                             latitude: data.latitude,
                             longitude: data.longitude,
                             conditionCode: data.conditionCode, // Use parent's condition code/daylight for now or map?
@@ -655,6 +672,14 @@ struct Provider: TimelineProvider {
                  return 
             }
             
+            // OPTIMIZATION: Check if data is already fresh (within 30 mins)
+            // If app refreshed recently, skip API call and use cached data
+            if WeatherDataStore.isDataFresh {
+                print("📱 Widget: Data is fresh, using cache instead of fetching")
+                createTimeline(from: cachedData)
+                return
+            }
+            
                 // 4. Fetch Fresh Data
              do {
                  let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
@@ -668,10 +693,12 @@ struct Provider: TimelineProvider {
                 // Units
                 let tempUnitRaw = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
                 let windUnitRaw = defaults?.string(forKey: "Breezy.windSpeedUnit") ?? "m/s"
+                let precipUnitRaw = defaults?.string(forKey: "Breezy.precipitationUnit") ?? "Millimeters"
                 // let pressUnitRaw = defaults?.string(forKey: "Breezy.pressureUnit") ?? "hPa"
                 // let visUnitRaw = defaults?.string(forKey: "Breezy.visibilityUnit") ?? "Kilometers"
                 
                 let isFahrenheit = tempUnitRaw == "Fahrenheit"
+                let precipitationUnit = PrecipitationUnit(rawValue: precipUnitRaw) ?? .millimeters
                 
                 // Current Temp
                 let currentTemp = weather.currentWeather.temperature
@@ -719,6 +746,11 @@ struct Provider: TimelineProvider {
                 // Rain Chance
                 let rainChanceVal = daily?.precipitationChance ?? 0.0
                 let rainChanceStr = String(format: "%.0f%%", rainChanceVal * 100)
+                let startOfToday = calendar.startOfDay(for: currentDate)
+                let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? currentDate
+                let todayHours = weather.hourlyForecast.filter { $0.date >= startOfToday && $0.date < endOfToday }
+                let todayRainAmount = todayHours.reduce(0.0) { $0 + $1.precipitationAmount.value }
+                let rainAmountStr = String(format: "%.1f %@", precipitationUnit.convert(todayRainAmount), precipitationUnit.symbol)
                 
                 // Humidity
                 let humidityVal = weather.currentWeather.humidity
@@ -819,6 +851,7 @@ struct Provider: TimelineProvider {
                     pressure: pressStr,
                     windSpeed: windStr,
                     rainChance: rainChanceStr,
+                    rainAmount: rainAmountStr,
                     latitude: coords.lat,
                     longitude: coords.lon,
                     conditionCode: conditionCode,
@@ -1530,6 +1563,15 @@ struct CustomWidgetView: View {
             
         case .precipChance:
             metricStack(icon: "umbrella.fill", value: entry.weather.rainChance ?? "0%", label: "", alignment: align)
+
+        case .rainAmount:
+            let amountComponents = (entry.weather.rainAmount ?? "0.0 mm").split(separator: " ", maxSplits: 1).map(String.init)
+            metricStack(
+                icon: "drop.fill",
+                value: amountComponents.first ?? "--",
+                label: amountComponents.count > 1 ? amountComponents[1] : "",
+                alignment: align
+            )
             
         case .pressure:
              metricStack(icon: "barometer", value: entry.weather.pressure?.components(separatedBy: " ").first ?? "--", label: "", alignment: align)
@@ -1702,7 +1744,6 @@ struct BreezyWidgetBundle: WidgetBundle {
         BreezyCompactWidget()
         BreezyDetailedWidget()
         BreezyForecastWidget()
-        BreezyConditionsWidget()
         BreezyCircularUVWidget()
         BreezyInlineWidget()
         BreezyCircularTempWidget()
@@ -1717,11 +1758,6 @@ struct BreezyWidgetBundle: WidgetBundle {
         BreezyMoonWidget() // New Astronomy
         #endif
         BreezyWeatherWidget() // Custom Widget moved to end
-        #if os(iOS)
-        if #available(iOS 18.0, macOS 15.0, *) {
-            BreezyWidgetControl()
-        }
-        #endif
     }
 }
 
@@ -3507,6 +3543,8 @@ struct ForecastMediumView: View {
                     Text(index == 0 ? "Today" : day.dayName.prefix(3))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     
                     Image(systemName: WidgetIconHelper.getIcon(for: day.condition, isMinimalist: true))
                         .font(.system(size: 24))
@@ -3518,9 +3556,13 @@ struct ForecastMediumView: View {
                          Text(day.highTemp.replacingOccurrences(of: "°", with: "") + "°")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                         Text(day.lowTemp.replacingOccurrences(of: "°", with: "") + "°")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -3554,10 +3596,14 @@ struct ForecastLargeView: View {
                  Text("7-Day Forecast")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white.opacity(0.9))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Spacer()
                 Text(entry.weather.city)
                      .font(.system(size: 13, weight: .medium))
                      .foregroundColor(.white.opacity(0.6))
+                     .lineLimit(1)
+                     .minimumScaleFactor(0.8)
             }
             .padding(.bottom, 10)
             .padding(.horizontal, 4)
@@ -3570,6 +3616,8 @@ struct ForecastLargeView: View {
                         Text(index == 0 ? "Today" : day.dayName)
                             .font(.system(size: 15, weight: .medium))
                             .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .frame(width: 60, alignment: .leading)
                         
                         Spacer()
@@ -3585,6 +3633,8 @@ struct ForecastLargeView: View {
                             Text(day.lowTemp.replacingOccurrences(of: "°", with: "") + "°")
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundColor(.white.opacity(0.6))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                                 .frame(width: 35, alignment: .trailing)
                             
                             // Visual Bar (Simple)
@@ -3595,6 +3645,8 @@ struct ForecastLargeView: View {
                             Text(day.highTemp.replacingOccurrences(of: "°", with: "") + "°")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                                 .frame(width: 35, alignment: .trailing)
                         }
                     }
@@ -3616,137 +3668,6 @@ struct ForecastLargeView: View {
         }
     }
 }
-
-// 2. Conditions Widget (Metrics Focus)
-struct BreezyConditionsWidget: Widget {
-    let kind: String = "BreezyConditionsWidget"
-    
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
-            ConditionsWidgetEntryView(entry: entry)
-        }
-        .configurationDisplayName("Current Conditions")
-        .description("Detailed look at wind, UV, rain, and pressure.")
-        #if os(iOS)
-        .supportedFamilies([.systemSmall, .systemMedium])
-        #endif
-    }
-}
-
-struct ConditionsWidgetEntryView: View {
-    let entry: WeatherEntry
-    @Environment(\.widgetFamily) var family
-    @Environment(\.colorScheme) var colorScheme
-
-    var body: some View {
-        switch family {
-        case .systemSmall:
-            ConditionsSmallView(entry: entry)
-        case .systemMedium:
-            ConditionsMediumView(entry: entry)
-        default:
-            ConditionsSmallView(entry: entry)
-        }
-    }
-}
-
-struct ConditionsSmallView: View {
-    let entry: WeatherEntry
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ConditionItem(icon: "wind", value: entry.weather.windSpeed ?? "--", label: "Wind")
-                ConditionItem(icon: "sun.max.fill", value: "\(entry.weather.uvIndex ?? 0)", label: "UV")
-                ConditionItem(icon: "drop.fill", value: entry.weather.rainChance ?? "0%", label: "Rain")
-                ConditionItem(icon: "gauge.medium", value: entry.weather.pressure?.components(separatedBy: " ").first ?? "--", label: "hPa") 
-            }
-        }
-        .padding(12)
-        .containerBackground(for: .widget) {
-            LinearGradient(
-                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-}
-
-struct ConditionsMediumView: View {
-    let entry: WeatherEntry
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(entry.weather.city)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                Spacer()
-                Text("Current Conditions")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            .padding(.bottom, 2)
-            
-            // 2x4 Grid (8 Metrics)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                // Row 1
-                ConditionItem(icon: "thermometer.high", value: entry.weather.highTemp?.replacingOccurrences(of: "°", with: "") ?? "--", label: "High")
-                ConditionItem(icon: "wind", value: entry.weather.windSpeed ?? "--", label: "Wind")
-                ConditionItem(icon: "sun.max.fill", value: "\(entry.weather.uvIndex ?? 0)", label: "UV Index")
-                ConditionItem(icon: "humidity", value: entry.weather.humidity ?? "--", label: "Humidity")
-                
-                // Row 2
-                ConditionItem(icon: "thermometer.low", value: entry.weather.lowTemp?.replacingOccurrences(of: "°", with: "") ?? "--", label: "Low")
-                ConditionItem(icon: "drop.fill", value: entry.weather.rainChance ?? "0%", label: "Rain")
-                ConditionItem(icon: "eye.fill", value: entry.weather.visibility?.components(separatedBy: " ").first ?? "--", label: "Visibility")
-                ConditionItem(icon: "gauge.medium", value: entry.weather.pressure?.components(separatedBy: " ").first ?? "--", label: "Pressure")
-            }
-        }
-        .padding(16)
-        .containerBackground(for: .widget) {
-             LinearGradient(
-                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-}
-
-struct ConditionItem: View {
-    let icon: String
-    let value: String
-    let label: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.9))
-                Spacer()
-            }
-            Text(value)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(label)
-                .font(.system(size: 9))
-                .foregroundColor(.white.opacity(0.7))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(8)
-        .background(Color.white.opacity(0.1))
-        .cornerRadius(8)
-    }
-}
-
-
 
 // MARK: - Mock Data for Previews
 
@@ -3785,6 +3706,7 @@ extension WidgetWeatherData {
             pressure: "1012 hPa",
             windSpeed: "12 mph",
             rainChance: "0%",
+            rainAmount: "0.0 mm",
             latitude: 37.7749,
             longitude: -122.4194,
             conditionCode: "sun.max.fill",
@@ -3836,14 +3758,14 @@ extension WidgetWeatherData {
     WeatherEntry.mock
 }
 
-#Preview("Forecast", as: .systemMedium) {
+#Preview("Forecast Medium", as: .systemMedium) {
     BreezyForecastWidget()
 } timeline: {
     WeatherEntry.mock
 }
 
-#Preview("Conditions", as: .systemSmall) {
-    BreezyConditionsWidget()
+#Preview("Forecast Large", as: .systemLarge) {
+    BreezyForecastWidget()
 } timeline: {
     WeatherEntry.mock
 }
@@ -4092,6 +4014,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
     case visibility
     case feelsLike
     case precipChance
+    case rainAmount
     case pressure
     case highLow
     case dailyForecast // New
@@ -4109,6 +4032,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
         case .visibility: return "Visibility"
         case .feelsLike: return "Feels Like"
         case .precipChance: return "Rain Chance"
+        case .rainAmount: return "Rain Amount"
         case .pressure: return "Pressure"
         case .highLow: return "High / Low"
         case .dailyForecast: return "Daily Forecast"
@@ -4127,6 +4051,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
         case .visibility: return "eye.fill"
         case .feelsLike: return "figure.stand"
         case .precipChance: return "umbrella.fill"
+        case .rainAmount: return "drop.fill"
         case .pressure: return "barometer"
         case .highLow: return "arrow.up.arrow.down"
         case .dailyForecast: return "calendar"

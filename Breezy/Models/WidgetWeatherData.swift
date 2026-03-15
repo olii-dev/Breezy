@@ -21,6 +21,7 @@ struct WidgetWeatherData: Codable {
     let pressure: String?
     let windSpeed: String?
     let rainChance: String?
+    let rainAmount: String?
     let latitude: Double?
     let longitude: Double?
     
@@ -32,6 +33,13 @@ struct WidgetWeatherData: Codable {
     let humidity: String?
     let visibility: String?
     let dailyForecast: [WidgetDailyForecast]
+    
+    // Additional fields for widget extension
+    let sunrise: Date?
+    let sunset: Date?
+    let moonPhase: String?
+    let moonIllumination: Double?
+    let windDirectionDegrees: Double?
     
     struct WidgetHourlyForecast: Codable {
         let time: String

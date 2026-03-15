@@ -51,7 +51,7 @@ struct CustomThemeBuilderView: View {
                         .padding(32)
                         .background(
                             RoundedRectangle(cornerRadius: 24)
-                                .fill(.ultraThinMaterial.opacity(0.3))
+                                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 24)
                                         .stroke(textColor.opacity(0.2), lineWidth: 1)
@@ -64,13 +64,22 @@ struct CustomThemeBuilderView: View {
                     // Controls
                     VStack(spacing: 24) {
                         ColorPickerRow(title: "Top Gradient", color: $topColor, textColor: textColor)
+                            .onChange(of: topColor) { _, _ in
+                                HapticsManager.shared.impact(style: .light)
+                            }
                         ColorPickerRow(title: "Bottom Gradient", color: $bottomColor, textColor: textColor)
+                            .onChange(of: bottomColor) { _, _ in
+                                HapticsManager.shared.impact(style: .light)
+                            }
                         ColorPickerRow(title: "Text Color", color: $textColor, textColor: textColor)
+                            .onChange(of: textColor) { _, _ in
+                                HapticsManager.shared.impact(style: .light)
+                            }
                     }
                     .padding(24)
                     .background(
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(.ultraThinMaterial)
+                            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                     )
                     .padding(.horizontal)
                     
@@ -78,6 +87,7 @@ struct CustomThemeBuilderView: View {
                     VStack(spacing: 16) {
                         Button {
                             // Apply and Save
+                            HapticsManager.shared.notification(type: .success)
                             let newTheme = WeatherTheme(topColor: topColor, bottomColor: bottomColor, textColor: textColor)
                             viewModel.customTheme = newTheme
                             viewModel.themeMode = .custom
@@ -94,6 +104,7 @@ struct CustomThemeBuilderView: View {
                         }
                         
                         Button("Cancel") {
+                            HapticsManager.shared.impact(style: .light)
                             dismiss()
                         }
                         .foregroundColor(textColor.opacity(0.7))

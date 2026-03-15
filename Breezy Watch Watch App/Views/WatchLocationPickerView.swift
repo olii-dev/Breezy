@@ -16,6 +16,7 @@ struct WatchLocationPickerView: View {
         List {
             // Current Location (GPS)
             Button {
+                viewModel.playHaptic(.click)
                 viewModel.selectLocation(nil)
                 dismiss()
             } label: {
@@ -42,6 +43,7 @@ struct WatchLocationPickerView: View {
             // Saved Locations
             ForEach(viewModel.savedLocations) { location in
                 Button {
+                    viewModel.playHaptic(.click)
                     viewModel.selectLocation(location.id)
                     dismiss()
                 } label: {
@@ -72,6 +74,9 @@ struct WatchLocationPickerView: View {
                     Text("Add City")
                 }
             }
+            .simultaneousGesture(TapGesture().onEnded {
+                viewModel.playHaptic(.click)
+            })
         }
         .navigationTitle("Locations")
     }

@@ -8,67 +8,138 @@
 import SwiftUI
 
 struct UVIndexWidget: View {
-    let weather: WeatherInfo
+    struct Content {
+        let title: String
+        let uvIndex: Int?
+        let category: String?
+        let summary: String?
+
+        init(title: String = "UV Index", uvIndex: Int?, category: String? = nil, summary: String? = nil) {
+            self.title = title
+            self.uvIndex = uvIndex
+            self.category = category
+            self.summary = summary
+        }
+    }
+
+    private let weather: WeatherInfo?
+    private let content: Content?
     @ObservedObject var viewModel: WeatherViewModel
+    let style: String
+    let showsCategory: Bool
     @Environment(\.colorScheme) var colorScheme
+
+    init(weather: WeatherInfo, viewModel: WeatherViewModel, style: String = "standard", showsCategory: Bool = true) {
+        self.weather = weather
+        self.content = nil
+        self.viewModel = viewModel
+        self.style = style
+        self.showsCategory = showsCategory
+    }
+
+    init(content: Content, viewModel: WeatherViewModel, style: String = "standard", showsCategory: Bool = true) {
+        self.weather = nil
+        self.content = content
+        self.viewModel = viewModel
+        self.style = style
+        self.showsCategory = showsCategory
+    }
+
+    private var isEmphasisStyle: Bool {
+        style == "emphasis"
+    }
+
+    private var isMinimalStyle: Bool {
+        style == "minimal"
+    }
+
+    private var resolvedTitle: String {
+        content?.title ?? "UV Index"
+    }
+
+    private var resolvedUVIndex: Int? {
+        content?.uvIndex ?? weather?.metrics?.uvIndex
+    }
+
+    private var resolvedCategory: String? {
+        content?.category ?? weather?.metrics?.uvIndexCategory
+    }
+
+    private var resolvedSummary: String? {
+        content?.summary
+    }
     
     var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+
         VStack(alignment: .leading, spacing: 12) {
-            // Header
             HStack {
                 Image(systemName: "sun.max.fill")
-                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
-                Text("UV Index")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
+                    .foregroundColor(isEmphasisStyle ? .yellow : theme.textColor.opacity(0.7))
+                Text(resolvedTitle)
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(theme.textColor.opacity(0.6))
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
             
-            if let uvIndex = weather.metrics?.uvIndex {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(uvIndex)")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                    
-                    Text(weather.metrics?.uvIndexCategory ?? category(for: uvIndex))
-                        .font(.headline)
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                    
-                    // Simple Progress Bar
+            if let uvIndex = resolvedUVIndex {
+                VStack(alignment: .leading, spacing: isMinimalStyle ? 10 : 6) {
+                    if isMinimalStyle {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("\(uvIndex)")
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundColor(theme.textColor)
+
+                            if showsCategory {
+                                Text(resolvedCategory ?? category(for: uvIndex))
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(theme.textColor.opacity(0.78))
+                            }
+
+                            Spacer()
+                        }
+                    } else {
+                        Text("\(uvIndex)")
+                            .font(.system(size: isEmphasisStyle ? 42 : 36, weight: .bold))
+                            .foregroundColor(theme.textColor)
+
+                        if showsCategory {
+                            Text(resolvedCategory ?? category(for: uvIndex))
+                                .font(.headline)
+                                .foregroundColor(theme.textColor)
+                        }
+                    }
+
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule()
                                 .fill(Color.gray.opacity(0.3))
-                                .frame(height: 6)
+                                .frame(height: isEmphasisStyle ? 8 : 6)
                             
                             Capsule()
                                 .fill(color(for: uvIndex))
-                                .frame(width: min(CGFloat(uvIndex) / 11.0 * geo.size.width, geo.size.width), height: 6)
+                                .frame(width: min(CGFloat(uvIndex) / 11.0 * geo.size.width, geo.size.width), height: isEmphasisStyle ? 8 : 6)
                         }
                     }
-                    .frame(height: 6)
+                    .frame(height: isEmphasisStyle ? 8 : 6)
                     .padding(.top, 8)
-                    
-                    Text(description(for: uvIndex))
-                        .font(.caption)
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
-                        .padding(.top, 4)
-                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !isMinimalStyle {
+                        Text(resolvedSummary ?? uvSummary(for: uvIndex))
+                            .font(.caption)
+                            .foregroundColor(theme.textColor.opacity(0.7))
+                            .padding(.top, 4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
             } else {
-                Text("N/A")
-                    .padding()
+                Text(resolvedSummary ?? "No UV data available.")
+                    .font(.caption)
+                    .foregroundColor(theme.textColor.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-        )
+        .softGlassCard()
     }
     
     func category(for uv: Int) -> String {
@@ -91,13 +162,13 @@ struct UVIndexWidget: View {
         }
     }
     
-    func description(for uv: Int) -> String {
+    func uvSummary(for uv: Int) -> String {
         switch uv {
-        case 0...2: return "No protection needed."
-        case 3...5: return "Seek shade during midday hours."
-        case 6...7: return "Protection required. Reduces time in sun."
-        case 8...10: return "Extra protection needed. Be careful."
-        default: return "Take all precautions. Skin can burn in minutes."
+        case 0...2: return "Low intensity conditions right now."
+        case 3...5: return "Moderate intensity through the brightest part of the day."
+        case 6...7: return "High intensity conditions are in place."
+        case 8...10: return "Very high intensity conditions at the moment."
+        default: return "Extreme UV intensity is currently active."
         }
     }
 }

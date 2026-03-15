@@ -16,6 +16,20 @@ extension UserDefaults {
 
 struct WidgetDataStore {
     private static let key = "BreezyWidgetData"
+    private static let lastRefreshKey = "BreezyLastRefresh"
+    
+    static var isDataFresh: Bool {
+        guard let defaults = UserDefaults.shared,
+              let lastRefresh = defaults.object(forKey: lastRefreshKey) as? Date else {
+            return false
+        }
+        let freshnessInterval: TimeInterval = 30 * 60 // 30 minutes
+        return Date().timeIntervalSince(lastRefresh) < freshnessInterval
+    }
+    
+    static func markRefreshed() {
+        UserDefaults.shared?.set(Date(), forKey: lastRefreshKey)
+    }
     
     static func save(_ data: WidgetWeatherData) {
         guard let defaults = UserDefaults.shared else {
@@ -30,6 +44,7 @@ struct WidgetDataStore {
         }
         
         defaults.set(encoded, forKey: key)
+        defaults.set(Date(), forKey: lastRefreshKey)
         defaults.synchronize()
         
         print("✅ WidgetDataStore: Saved weather for \(data.city) at \(data.timestamp)")
@@ -52,6 +67,7 @@ struct WidgetDataStore {
     
     static func clear() {
         UserDefaults.shared?.removeObject(forKey: key)
+        UserDefaults.shared?.removeObject(forKey: lastRefreshKey)
     }
 }
 

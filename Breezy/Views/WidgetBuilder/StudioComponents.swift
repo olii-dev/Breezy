@@ -33,6 +33,7 @@ struct SettingsToggleRow: View {
     let color: Color
     let textColor: Color
     @Binding var isOn: Bool
+    @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
     
     var body: some View {
         HStack {
@@ -49,11 +50,14 @@ struct SettingsToggleRow: View {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .tint(color)
+                .onChange(of: isOn) { _, _ in
+                    HapticsManager.shared.impact(style: .light)
+                }
         }
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(.ultraThinMaterial.opacity(0.4))
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
         )
     }
 }

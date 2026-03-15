@@ -18,10 +18,14 @@ struct WeatherMetrics: Codable, Equatable {
     let windDirection: Double? // degrees (0-360)
     let windDirectionCardinal: String? // N, NE, E, SE, S, SW, W, NW
     let windSpeed: String? // wind speed in mph or km/h
+    let windGust: String? // wind gust speed in mph or km/h
     let rainChance: String? // percentage
+    let todayRainfall: String? // total rainfall today (e.g., "2.4 mm")
+    let todayMaxRainIntensity: String? // max intensity today (e.g., "4 mm/h")
     let cloudCover: String? // percentage
     let sunrise: String? // time string
     let sunset: String? // time string
+    let minuteForecast: [MinuteForecast]? // next 60 minutes of precipitation
 }
 
 struct AirQuality: Codable, Equatable {

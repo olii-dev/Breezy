@@ -51,6 +51,7 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         windSpeedUnit: WindSpeedUnit,
         pressureUnit: PressureUnit,
         visibilityUnit: VisibilityUnit,
+        precipitationUnit: PrecipitationUnit,
         themeMode: WeatherViewModel.ThemeMode,
         presetTheme: String,
         currentTheme: WeatherTheme,
@@ -66,6 +67,7 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
             "Breezy.windSpeedUnit": windSpeedUnit.rawValue,
             "Breezy.pressureUnit": pressureUnit.displayName, // ID is rawValue
             "Breezy.visibilityUnit": visibilityUnit.rawValue,
+            "Breezy.precipitationUnit": precipitationUnit.rawValue,
             "Breezy.themeMode": themeMode.rawValue,
             "Breezy.presetTheme": presetTheme,
             "Breezy.mapStyle": mapStyle.rawValue
@@ -99,6 +101,7 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         context["Breezy.windSpeedUnit"] = windSpeedUnit.rawValue
         context["Breezy.pressureUnit"] = pressureUnit.rawValue
         context["Breezy.visibilityUnit"] = visibilityUnit.rawValue
+        context["Breezy.precipitationUnit"] = precipitationUnit.rawValue
         
         // Critical: Try to use sendMessage for INSTANT sync if reachable
         print("📱 PHONE: Attempting sync. Session State: \(session.activationState.rawValue), Reachable: \(session.isReachable)")

@@ -26,7 +26,6 @@ class IconManager: ObservableObject {
         case primary = "Default"
         case dark = "DarkIcon"
         case sunset = "SunsetIcon"
-        case ocean = "OceanIcon"
         case minimalist = "MinimalistIcon"
         
     /*  
@@ -41,7 +40,6 @@ class IconManager: ObservableObject {
             case .dark: return "Bubble"
             case .minimalist: return "Minimalist"
             case .sunset: return "Translucent"
-            case .ocean: return "Pixel"
             /*
             case .neon: return "Neon"
             case .retro: return "Retro"
@@ -56,7 +54,6 @@ class IconManager: ObservableObject {
             case .dark: return "moon.fill"
             case .minimalist: return "cloud.fill"
             case .sunset: return "sun.haze.fill"
-            case .ocean: return "water.waves"
             /*
             case .neon: return "bolt.fill"
             case .retro: return "gamecontroller.fill"
@@ -71,7 +68,6 @@ class IconManager: ObservableObject {
             case .dark: return "DarkIconPreview"
             case .minimalist: return "MinimalistIconPreview"
             case .sunset: return "SunsetIconPreview"
-            case .ocean: return "OceanIconPreview"
             /*
             case .neon: return "NeonIcon"
             case .retro: return "RetroIcon"

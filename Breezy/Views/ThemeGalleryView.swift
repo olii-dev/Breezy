@@ -39,6 +39,7 @@ struct ThemeGalleryView: View {
                             .padding(.leading, 8)
                         
                         Button {
+                            HapticsManager.shared.impact(style: .light)
                             withAnimation {
                                 viewModel.themeMode = .auto
                             }
@@ -69,7 +70,7 @@ struct ThemeGalleryView: View {
                                 }
                             }
                             .padding()
-                            .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial.opacity(0.4)))
+                            .background(RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 16)
                                     .stroke(viewModel.themeMode == .auto ? Color.blue : Color.clear, lineWidth: 2)
@@ -116,6 +117,9 @@ struct ThemeGalleryView: View {
                                     customTheme: viewModel.customTheme
                                 )
                             }
+                            .simultaneousGesture(TapGesture().onEnded {
+                                HapticsManager.shared.impact(style: .light)
+                            })
                         }
                     }
                     .padding(.horizontal)
@@ -136,7 +140,10 @@ struct ThemeCard: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            HapticsManager.shared.impact(style: .light)
+            action()
+        }) {
              VStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(LinearGradient(colors: [theme.topColor, theme.bottomColor], startPoint: .topLeading, endPoint: .bottomTrailing))

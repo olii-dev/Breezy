@@ -8,7 +8,7 @@
 import Foundation
 
 struct LocationData: Identifiable, Codable, Equatable {
-    var id: UUID { UUID() }
+    var id: String { "\(city)-\(coordinateString)" }
     let city: String
     let latitude: Double
     let longitude: Double

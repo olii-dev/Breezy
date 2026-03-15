@@ -9,6 +9,7 @@ import SwiftUI
 
 struct WidgetPreviewView: View {
     let config: CustomWidgetConfiguration
+    @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
     // We use mock data for the preview to avoid complex dependency injection
     // In the real widget, this would use real WeatherEntry data
     
@@ -174,7 +175,7 @@ struct WidgetPreviewView: View {
             }
         case .blur:
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
         case .weatherMatch:
             // Mock "Sunny" gradient
             LinearGradient(
@@ -241,6 +242,9 @@ struct WidgetPreviewView: View {
                     
                 case .precipChance:
                     metricStack(icon: "umbrella.fill", value: "0%", label: "", alignment: align)
+
+                case .rainAmount:
+                    metricStack(icon: "drop.fill", value: "2.4", label: "mm", alignment: align)
                     
                 case .pressure:
                      metricStack(icon: "barometer", value: "1012", label: "", alignment: align)

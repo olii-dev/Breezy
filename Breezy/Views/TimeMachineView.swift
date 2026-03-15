@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Charts
 
 struct TimeMachineView: View {
     @ObservedObject var viewModel: WeatherViewModel
@@ -15,6 +16,8 @@ struct TimeMachineView: View {
     @State private var date1 = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
     @State private var date2 = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
     @State private var viewMode: ViewMode = .details
+    @AppStorage("Breezy.timeMachine.date1") private var storedDate1Epoch: Double = Date().addingTimeInterval(-7 * 86_400).timeIntervalSince1970
+    @AppStorage("Breezy.timeMachine.date2") private var storedDate2Epoch: Double = Date().addingTimeInterval(-1 * 86_400).timeIntervalSince1970
     
     // View Mode Selection - Details and Compare
     enum ViewMode: String, CaseIterable {
@@ -49,7 +52,7 @@ struct TimeMachineView: View {
                     VStack(spacing: 24) {
                         // HEADER
                         Text("TIME MACHINE")
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .font(.system(size: 22, weight: .bold, design: viewModel.typography.design))
                             .tracking(3)
                             .foregroundStyle(theme.textColor)
                             .padding(.top, 8)
@@ -119,6 +122,18 @@ struct TimeMachineView: View {
                     }
                 }
             }
+            .onAppear {
+                let rememberedDate1 = Date(timeIntervalSince1970: storedDate1Epoch)
+                let rememberedDate2 = Date(timeIntervalSince1970: storedDate2Epoch)
+                date1 = rememberedDate1
+                date2 = rememberedDate2
+            }
+            .onChange(of: date1) { _, newValue in
+                storedDate1Epoch = newValue.timeIntervalSince1970
+            }
+            .onChange(of: date2) { _, newValue in
+                storedDate2Epoch = newValue.timeIntervalSince1970
+            }
         }
     }
     
@@ -152,20 +167,15 @@ struct TimeMachineView: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                    )
                 }
                 .disabled(viewModel.historicalLoading)
             }
             .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                    )
-            )
+            .softGlassCard(padding: 16, cornerRadius: 16)
             .padding(.horizontal, 20)
             
             // Weather Display
@@ -209,41 +219,23 @@ struct TimeMachineView: View {
                     }
                     .padding(24)
                     .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(.ultraThinMaterial.opacity(0.6))
-                    )
-                    .padding(.horizontal, 20)
+                    .softGlassCard(padding: 0, cornerRadius: 20)
                     
                     // SUN TIMES (if available)
                     if let metrics = history.metrics,
                        let sunrise = metrics.sunrise,
                        let sunset = metrics.sunset {
                         HStack(spacing: 12) {
-                            TMSunTimeCard(icon: "sunrise.fill", label: "Sunrise", time: sunrise, theme: theme)
-                            TMSunTimeCard(icon: "sunset.fill", label: "Sunset", time: sunset, theme: theme)
+                            TMSunTimeCard(icon: "sunrise.fill", label: "Sunrise", time: sunrise, theme: theme, viewModel: viewModel)
+                            TMSunTimeCard(icon: "sunset.fill", label: "Sunset", time: sunset, theme: theme, viewModel: viewModel)
                         }
                         .padding(.horizontal, 20)
                     }
                     
-                    // HOURLY FORECAST
+                    // INTERACTIVE HOURLY HISTORY
                     if !history.hourlyForecast.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("HOURLY FORECAST")
-                                .font(.caption.weight(.bold))
-                                .tracking(1.5)
-                                .foregroundStyle(theme.textColor.opacity(0.5))
-                                .padding(.horizontal, 20)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(history.hourlyForecast.prefix(24)) { hour in
-                                        HourlyCard(hour: hour, useIcon: viewModel.useMinimalistIcons, theme: theme)
-                                    }
-                                }
-                                .padding(.horizontal, 20)
-                            }
-                        }
+                        TimeMachineHourlyChartView(history: history, theme: theme, viewModel: viewModel)
+                            .padding(.horizontal, 20)
                     }
                     
                     // METRICS GRID
@@ -257,19 +249,19 @@ struct TimeMachineView: View {
                             
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                                 if let windSpeed = metrics.windSpeed {
-                                    EnhancedMetricCard(icon: "wind", label: "Wind", value: windSpeed, subValue: metrics.windDirectionCardinal ?? "", theme: theme)
+                                    EnhancedMetricCard(icon: "wind", label: "Wind", value: windSpeed, subValue: metrics.windDirectionCardinal ?? "", theme: theme, viewModel: viewModel)
                                 }
                                 if let uv = metrics.uvIndex {
-                                    EnhancedMetricCard(icon: "sun.max.fill", label: "UV Index", value: "\(uv)", subValue: metrics.uvIndexCategory ?? "", theme: theme)
+                                    EnhancedMetricCard(icon: "sun.max.fill", label: "UV Index", value: "\(uv)", subValue: metrics.uvIndexCategory ?? "", theme: theme, viewModel: viewModel)
                                 }
                                 if let humidity = metrics.humidity {
-                                    EnhancedMetricCard(icon: "humidity", label: "Humidity", value: "\(humidity)%", subValue: "", theme: theme)
+                                    EnhancedMetricCard(icon: "humidity", label: "Humidity", value: "\(humidity)%", subValue: "", theme: theme, viewModel: viewModel)
                                 }
                                 if let rain = metrics.rainChance {
-                                    EnhancedMetricCard(icon: "drop.fill", label: "Rain", value: rain, subValue: "", theme: theme)
+                                    EnhancedMetricCard(icon: "drop.fill", label: "Rain", value: rain, subValue: "", theme: theme, viewModel: viewModel)
                                 }
                                 if let pressure = metrics.pressure {
-                                    EnhancedMetricCard(icon: "gauge.medium", label: "Pressure", value: pressure, subValue: "", theme: theme)
+                                    EnhancedMetricCard(icon: "gauge.medium", label: "Pressure", value: pressure, subValue: "", theme: theme, viewModel: viewModel)
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -331,16 +323,15 @@ struct TimeMachineView: View {
                     .font(.subheadline)
                     .padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                    )
                 }
                 .disabled(viewModel.historicalLoading)
             }
             .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.1))
-            )
+                .softGlassCard(padding: 0, cornerRadius: 16)
             .padding(.horizontal, 20)
             
             // COMPARISON DISPLAY
@@ -353,7 +344,8 @@ struct TimeMachineView: View {
                             weather: weather1,
                             dateFormat: viewModel.dateFormat,
                             useIcon: viewModel.useMinimalistIcons,
-                            theme: theme
+                            theme: theme,
+                            viewModel: viewModel
                         )
                         
                         EnhancedComparisonCard(
@@ -361,7 +353,8 @@ struct TimeMachineView: View {
                             weather: weather2,
                             dateFormat: viewModel.dateFormat,
                             useIcon: viewModel.useMinimalistIcons,
-                            theme: theme
+                            theme: theme,
+                            viewModel: viewModel
                         )
                     }
                     .padding(.horizontal, 20)
@@ -371,17 +364,23 @@ struct TimeMachineView: View {
                        let sr1 = m1.sunrise, let ss1 = m1.sunset,
                        let sr2 = m2.sunrise, let ss2 = m2.sunset {
                         VStack(spacing: 8) {
-                            SunComparisonRow(icon: "sunrise.fill", label: "Sunrise", time1: sr1, time2: sr2, theme: theme)
-                            SunComparisonRow(icon: "sunset.fill", label: "Sunset", time1: ss1, time2: ss2, theme: theme)
+                            SunComparisonRow(icon: "sunrise.fill", label: "Sunrise", time1: sr1, time2: sr2, theme: theme, viewModel: viewModel)
+                            SunComparisonRow(icon: "sunset.fill", label: "Sunset", time1: ss1, time2: ss2, theme: theme, viewModel: viewModel)
                         }
                         .padding(16)
-                        .background(Color.white.opacity(0.08))
-                        .cornerRadius(16)
+                        .softGlassCard(padding: 0, cornerRadius: 16)
                         .padding(.horizontal, 20)
                     }
                     
                     // Metrics comparison
-                    EnhancedComparisonMetrics(weather1: weather1, weather2: weather2, theme: theme)
+                    EnhancedComparisonMetrics(
+                        date1: date1,
+                        date2: date2,
+                        weather1: weather1,
+                        weather2: weather2,
+                        theme: theme,
+                        viewModel: viewModel
+                    )
                         .padding(.horizontal, 20)
                 }
             } else {
@@ -407,6 +406,7 @@ struct TMSunTimeCard: View {
     let label: String
     let time: String
     let theme: WeatherTheme
+    let viewModel: WeatherViewModel
     
     var body: some View {
         HStack(spacing: 10) {
@@ -427,10 +427,202 @@ struct TMSunTimeCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(.ultraThinMaterial.opacity(0.4))
-        )
+        .softGlassCard(padding: 0, cornerRadius: 14)
+    }
+}
+
+// MARK: - Interactive Historical Hourly Chart
+
+struct TimeMachineHourlyChartView: View {
+    let history: WeatherInfo
+    let theme: WeatherTheme
+    @ObservedObject var viewModel: WeatherViewModel
+    @State private var selectedHourID: String?
+
+    private var hours: [HourlyForecast] {
+        Array(history.hourlyForecast.prefix(24))
+            .sorted { lhs, rhs in
+                if lhs.hourValue == rhs.hourValue {
+                    return (lhs.sourceDate ?? .distantPast) < (rhs.sourceDate ?? .distantPast)
+                }
+                return lhs.hourValue < rhs.hourValue
+            }
+    }
+
+    private var selectedHour: HourlyForecast? {
+        guard let selectedHourID else { return nil }
+        return hours.first { $0.id == selectedHourID }
+    }
+
+    private var range: ClosedRange<Double> {
+        let values = hours.map { $0.temperatureRaw }
+        guard let minVal = values.min(), let maxVal = values.max() else { return 0...1 }
+        let padding = max(1.5, (maxVal - minVal) * 0.2)
+        return (minVal - padding)...(maxVal + padding)
+    }
+
+    private var labelHours: [Int] {
+        [0, 6, 12, 18].filter { hour in
+            hours.contains(where: { $0.hourValue == hour })
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("HOURLY HISTORY")
+                .font(.caption.weight(.bold))
+                .tracking(1.5)
+                .foregroundStyle(theme.textColor.opacity(0.5))
+
+            Chart {
+                ForEach(hours) { hour in
+                    AreaMark(
+                        x: .value("Hour", hour.hourValue),
+                        yStart: .value("Base", range.lowerBound),
+                        yEnd: .value("Temperature", hour.temperatureRaw)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [theme.textColor.opacity(0.28), theme.textColor.opacity(0.05)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                    LineMark(
+                        x: .value("Hour", hour.hourValue),
+                        y: .value("Temperature", hour.temperatureRaw)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .foregroundStyle(theme.textColor.opacity(0.9))
+
+                    PointMark(
+                        x: .value("Hour", hour.hourValue),
+                        y: .value("Temperature", hour.temperatureRaw)
+                    )
+                    .symbolSize(selectedHourID == hour.id ? 56 : 18)
+                    .foregroundStyle(theme.textColor.opacity(selectedHourID == hour.id ? 1.0 : 0.65))
+                }
+
+                if let selectedHour {
+                    RuleMark(x: .value("Selected", selectedHour.hourValue))
+                        .foregroundStyle(theme.textColor.opacity(0.35))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(selectedHour.time) · \(viewModel.formattedTemperature(selectedHour.temperatureRaw))")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundColor(theme.textColor)
+
+                                HStack(spacing: 8) {
+                                    if let rain = selectedHour.precipitationChance {
+                                        TMTooltipChip(label: "Rain", value: "\(Int(rain * 100))%")
+                                    }
+                                    if let humidity = selectedHour.humidity {
+                                        TMTooltipChip(label: "Hum", value: "\(humidity)%")
+                                    }
+                                    if let uv = selectedHour.uvIndex {
+                                        TMTooltipChip(label: "UV", value: "\(uv)")
+                                    }
+                                }
+
+                                if let wind = selectedHour.windSpeed, !wind.isEmpty {
+                                    Text("Wind \(wind)\(selectedHour.windDirection.map { " · \($0)" } ?? "")")
+                                        .font(.caption2)
+                                        .foregroundColor(theme.textColor.opacity(0.72))
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(theme.textColor.opacity(0.12), lineWidth: 0.5)
+                            )
+                        }
+                }
+            }
+            .frame(height: 240)
+            .chartXScale(domain: 0...23)
+            .chartYScale(domain: range)
+            .chartXAxis {
+                AxisMarks(values: labelHours) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                        .foregroundStyle(theme.textColor.opacity(0.12))
+                    AxisValueLabel {
+                        if let hour = value.as(Int.self) {
+                            Text(DateFormatterHelper.formatHour(hour))
+                                .font(.caption2)
+                                .foregroundStyle(theme.textColor.opacity(0.7))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                        .foregroundStyle(theme.textColor.opacity(0.1))
+                    AxisValueLabel {
+                        if let temperature = value.as(Double.self) {
+                            Text(viewModel.formattedTemperature(temperature))
+                                .font(.caption2)
+                                .foregroundStyle(theme.textColor.opacity(0.6))
+                        }
+                    }
+                }
+            }
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    Rectangle()
+                        .fill(.clear)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    guard !hours.isEmpty else { return }
+                                    guard let plotFrame = proxy.plotFrame else { return }
+                                    let frame = geometry[plotFrame]
+                                    let x = min(max(value.location.x - frame.minX, 0), frame.width)
+                                    let ratio = frame.width > 0 ? x / frame.width : 0
+                                    let targetHour = Int(round(ratio * 23))
+
+                                    let nearest = hours.min { a, b in
+                                        abs(a.hourValue - targetHour) < abs(b.hourValue - targetHour)
+                                    }
+                                    if let nearest, nearest.id != selectedHourID {
+                                        HapticsManager.shared.impact(style: .light)
+                                        selectedHourID = nearest.id
+                                    }
+                                }
+                                .onEnded { _ in
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                        selectedHourID = nil
+                                    }
+                                }
+                        )
+                }
+            }
+        }
+        .padding(16)
+        .softGlassCard(padding: 0, cornerRadius: 18)
+    }
+}
+
+private struct TMTooltipChip: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        Text("\(label) \(value)")
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.white.opacity(0.12), in: Capsule())
     }
 }
 
@@ -440,6 +632,7 @@ struct HourlyCard: View {
     let hour: HourlyForecast
     let useIcon: Bool
     let theme: WeatherTheme
+    let viewModel: WeatherViewModel
     
     var body: some View {
         VStack(spacing: 8) {
@@ -448,11 +641,11 @@ struct HourlyCard: View {
                 .foregroundStyle(theme.textColor.opacity(0.6))
             
             if useIcon {
-                Image(systemName: WeatherIconHelper.minimalistIcon(for: hour.condition))
+                Image(systemName: WeatherIconHelper.minimalistIcon(for: hour.condition ?? "Clear"))
                     .font(.title3)
                     .foregroundStyle(theme.textColor)
             } else {
-                Text(hour.emoji)
+                Text(hour.emoji ?? "--")
                     .font(.title3)
             }
             
@@ -462,10 +655,7 @@ struct HourlyCard: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(.ultraThinMaterial.opacity(0.4))
-        )
+        .softGlassCard(padding: 0, cornerRadius: 14)
     }
 }
 
@@ -477,6 +667,16 @@ struct EnhancedMetricCard: View {
     let value: String
     let subValue: String
     let theme: WeatherTheme
+    let viewModel: WeatherViewModel
+
+    init(icon: String, label: String, value: String, subValue: String, theme: WeatherTheme, viewModel: WeatherViewModel) {
+        self.icon = icon
+        self.label = label
+        self.value = value
+        self.subValue = subValue
+        self.theme = theme
+        self.viewModel = viewModel
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -496,10 +696,7 @@ struct EnhancedMetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(.ultraThinMaterial.opacity(0.4))
-        )
+        .softGlassCard(padding: 0, cornerRadius: 14)
     }
 }
 
@@ -511,6 +708,16 @@ struct EnhancedComparisonCard: View {
     let dateFormat: DateFormat
     let useIcon: Bool
     let theme: WeatherTheme
+    let viewModel: WeatherViewModel
+
+    init(date: Date, weather: WeatherInfo, dateFormat: DateFormat, useIcon: Bool, theme: WeatherTheme, viewModel: WeatherViewModel) {
+        self.date = date
+        self.weather = weather
+        self.dateFormat = dateFormat
+        self.useIcon = useIcon
+        self.theme = theme
+        self.viewModel = viewModel
+    }
     
     var body: some View {
         VStack(spacing: 10) {
@@ -549,10 +756,7 @@ struct EnhancedComparisonCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(.ultraThinMaterial.opacity(0.5))
-        )
+        .softGlassCard(padding: 0, cornerRadius: 18)
     }
 }
 
@@ -564,6 +768,16 @@ struct SunComparisonRow: View {
     let time1: String
     let time2: String
     let theme: WeatherTheme
+    let viewModel: WeatherViewModel
+
+    init(icon: String, label: String, time1: String, time2: String, theme: WeatherTheme, viewModel: WeatherViewModel) {
+        self.icon = icon
+        self.label = label
+        self.time1 = time1
+        self.time2 = time2
+        self.theme = theme
+        self.viewModel = viewModel
+    }
     
     var body: some View {
         HStack {
@@ -584,7 +798,7 @@ struct SunComparisonRow: View {
             
             Image(systemName: "arrow.right")
                 .font(.caption2)
-                .foregroundStyle(theme.textColor.opacity(0.4))
+                .foregroundStyle(theme.textColor.opacity(viewModel.glassOpacity))
             
             Text(time2)
                 .font(.caption)
@@ -597,72 +811,228 @@ struct SunComparisonRow: View {
 // MARK: - Enhanced Comparison Metrics
 
 struct EnhancedComparisonMetrics: View {
+    let date1: Date
+    let date2: Date
     let weather1: WeatherInfo
     let weather2: WeatherInfo
     let theme: WeatherTheme
+    let viewModel: WeatherViewModel
+
+    init(date1: Date, date2: Date, weather1: WeatherInfo, weather2: WeatherInfo, theme: WeatherTheme, viewModel: WeatherViewModel) {
+        self.date1 = date1
+        self.date2 = date2
+        self.weather1 = weather1
+        self.weather2 = weather2
+        self.theme = theme
+        self.viewModel = viewModel
+    }
     
     var body: some View {
         VStack(spacing: 16) {
-            // Temperature delta
-            let temp1Str = weather1.temperature.replacingOccurrences(of: "°", with: "")
-            let temp2Str = weather2.temperature.replacingOccurrences(of: "°", with: "")
-            if let temp1 = Double(temp1Str),
-               let temp2 = Double(temp2Str) {
-                let delta = temp2 - temp1
-                let deltaStr = delta > 0 ? "+\(Int(delta))°" : "\(Int(delta))°"
-                
-                HStack(spacing: 12) {
-                    Image(systemName: delta > 0 ? "thermometer.sun.fill" : delta < 0 ? "thermometer.snowflake" : "thermometer.medium")
-                        .font(.title2)
-                        .foregroundStyle(delta > 0 ? .red : delta < 0 ? .blue : theme.textColor)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Temperature Change")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(theme.textColor.opacity(0.6))
-                        Text(deltaStr)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(theme.textColor)
-                    }
-                    
-                    Spacer()
-                }
-                .padding(16)
-                .background(Color.white.opacity(0.12))
-                .cornerRadius(16)
+            let temp1 = numericValue(from: weather1.temperature)
+            let temp2 = numericValue(from: weather2.temperature)
+
+            if let temp1, let temp2 {
+                TMComparisonTrend(
+                    title: "Temperature Trend",
+                    value1: temp1,
+                    value2: temp2,
+                    label1: viewModel.dateFormat.format(date1),
+                    label2: viewModel.dateFormat.format(date2),
+                    theme: theme,
+                    viewModel: viewModel
+                )
             }
-            
-            // Other metrics comparison
-            if let metrics1 = weather1.metrics, let metrics2 = weather2.metrics {
-                VStack(spacing: 10) {
-                    if let h1 = metrics1.humidity, let h2 = metrics2.humidity {
-                        ComparisonMetricRow(
-                            icon: "humidity",
-                            label: "Humidity",
-                            value1: "\(h1)%",
-                            value2: "\(h2)%",
-                            delta: h2 - h1,
-                            unit: "%",
-                            theme: theme
-                        )
-                    }
-                    
-                    if let uv1 = metrics1.uvIndex, let uv2 = metrics2.uvIndex {
-                        ComparisonMetricRow(
-                            icon: "sun.max.fill",
-                            label: "UV Index",
-                            value1: "\(uv1)",
-                            value2: "\(uv2)",
-                            delta: uv2 - uv1,
-                            unit: "",
-                            theme: theme
-                        )
-                    }
+
+            let metrics1 = weather1.metrics
+            let metrics2 = weather2.metrics
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                if let temp1, let temp2 {
+                    TMDeltaCard(
+                        icon: "thermometer.medium",
+                        label: "Temperature",
+                        value1: weather1.temperature,
+                        value2: weather2.temperature,
+                        delta: temp2 - temp1,
+                        suffix: viewModel.temperatureUnit.symbol,
+                        theme: theme,
+                        viewModel: viewModel
+                    )
                 }
-                .padding(14)
-                .background(Color.white.opacity(0.08))
-                .cornerRadius(16)
+
+                if let humidity1 = metrics1?.humidity, let humidity2 = metrics2?.humidity {
+                    TMDeltaCard(
+                        icon: "humidity",
+                        label: "Humidity",
+                        value1: "\(humidity1)%",
+                        value2: "\(humidity2)%",
+                        delta: Double(humidity2 - humidity1),
+                        suffix: "%",
+                        theme: theme,
+                        viewModel: viewModel
+                    )
+                }
+
+                if let uv1 = metrics1?.uvIndex, let uv2 = metrics2?.uvIndex {
+                    TMDeltaCard(
+                        icon: "sun.max.fill",
+                        label: "UV Index",
+                        value1: "\(uv1)",
+                        value2: "\(uv2)",
+                        delta: Double(uv2 - uv1),
+                        suffix: "",
+                        theme: theme,
+                        viewModel: viewModel
+                    )
+                }
+
+                if let rain1 = metrics1?.rainChance, let rain2 = metrics2?.rainChance,
+                   let rainValue1 = numericValue(from: rain1), let rainValue2 = numericValue(from: rain2) {
+                    TMDeltaCard(
+                        icon: "drop.fill",
+                        label: "Rain Chance",
+                        value1: rain1,
+                        value2: rain2,
+                        delta: rainValue2 - rainValue1,
+                        suffix: "%",
+                        theme: theme,
+                        viewModel: viewModel
+                    )
+                }
+
+                if let pressure1 = metrics1?.pressure, let pressure2 = metrics2?.pressure,
+                   let pressureValue1 = numericValue(from: pressure1), let pressureValue2 = numericValue(from: pressure2) {
+                    TMDeltaCard(
+                        icon: "gauge.medium",
+                        label: "Pressure",
+                        value1: pressure1,
+                        value2: pressure2,
+                        delta: pressureValue2 - pressureValue1,
+                        suffix: "",
+                        theme: theme,
+                        viewModel: viewModel
+                    )
+                }
+
+                if let wind1 = metrics1?.windSpeed, let wind2 = metrics2?.windSpeed,
+                   let windValue1 = numericValue(from: wind1), let windValue2 = numericValue(from: wind2) {
+                    TMDeltaCard(
+                        icon: "wind",
+                        label: "Wind",
+                        value1: wind1,
+                        value2: wind2,
+                        delta: windValue2 - windValue1,
+                        suffix: "",
+                        theme: theme,
+                        viewModel: viewModel
+                    )
+                }
             }
+        }
+    }
+
+    private func numericValue(from text: String) -> Double? {
+        let filtered = text.filter { $0.isNumber || $0 == "." || $0 == "-" }
+        return Double(filtered)
+    }
+}
+
+private struct TMDeltaCard: View {
+    let icon: String
+    let label: String
+    let value1: String
+    let value2: String
+    let delta: Double
+    let suffix: String
+    let theme: WeatherTheme
+    let viewModel: WeatherViewModel
+
+    private var deltaColor: Color {
+        if delta > 0 { return .red.opacity(0.9) }
+        if delta < 0 { return .blue.opacity(0.9) }
+        return theme.textColor.opacity(0.6)
+    }
+
+    private var deltaLabel: String {
+        if delta == 0 { return "No change" }
+        let sign = delta > 0 ? "+" : ""
+        let rounded = abs(delta) >= 10 ? String(Int(delta)) : String(format: "%.1f", delta)
+        return "\(sign)\(rounded)\(suffix)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(label, systemImage: icon)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(theme.textColor.opacity(0.65))
+
+            HStack(spacing: 8) {
+                Text(value1)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(theme.textColor.opacity(0.7))
+
+                Image(systemName: "arrow.right")
+                    .font(.caption2)
+                    .foregroundStyle(theme.textColor.opacity(0.45))
+
+                Text(value2)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(theme.textColor)
+            }
+
+            Text(deltaLabel)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(deltaColor)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .softGlassCard(padding: 0, cornerRadius: 14)
+    }
+}
+
+private struct TMComparisonTrend: View {
+    let title: String
+    let value1: Double
+    let value2: Double
+    let label1: String
+    let label2: String
+    let theme: WeatherTheme
+    let viewModel: WeatherViewModel
+
+    private var maxValue: Double {
+        max(max(value1, value2), 1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(theme.textColor.opacity(0.6))
+
+            HStack(alignment: .bottom, spacing: 18) {
+                trendBar(value: value1, label: label1)
+                trendBar(value: value2, label: label2)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(14)
+        .softGlassCard(padding: 0, cornerRadius: 14)
+    }
+
+    private func trendBar(value: Double, label: String) -> some View {
+        VStack(spacing: 6) {
+            Text(viewModel.formattedTemperature(value))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(theme.textColor)
+
+            RoundedRectangle(cornerRadius: 5)
+                .fill(theme.textColor.opacity(0.65))
+                .frame(width: 34, height: max(20, CGFloat(value / maxValue) * 86))
+
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(theme.textColor.opacity(0.65))
         }
     }
 }
@@ -677,6 +1047,18 @@ struct ComparisonMetricRow: View {
     let delta: Int
     let unit: String
     let theme: WeatherTheme
+    let viewModel: WeatherViewModel
+
+    init(icon: String, label: String, value1: String, value2: String, delta: Int, unit: String, theme: WeatherTheme, viewModel: WeatherViewModel) {
+        self.icon = icon
+        self.label = label
+        self.value1 = value1
+        self.value2 = value2
+        self.delta = delta
+        self.unit = unit
+        self.theme = theme
+        self.viewModel = viewModel
+    }
     
     var body: some View {
         HStack {
@@ -697,7 +1079,7 @@ struct ComparisonMetricRow: View {
             
             Image(systemName: "arrow.right")
                 .font(.caption2)
-                .foregroundStyle(theme.textColor.opacity(0.4))
+                .foregroundStyle(theme.textColor.opacity(viewModel.glassOpacity))
             
             Text(value2)
                 .font(.caption)

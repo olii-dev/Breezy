@@ -126,9 +126,11 @@ struct WatchWindDirectionHelper {
     }
 }
 
-enum WatchTemperatureUnit: String {
+enum WatchTemperatureUnit: String, CaseIterable, Identifiable {
     case celsius = "celsius"
     case fahrenheit = "fahrenheit"
+
+    var id: String { rawValue }
     
     var symbol: String {
         switch self {

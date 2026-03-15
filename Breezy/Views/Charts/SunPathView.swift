@@ -21,12 +21,34 @@ struct SunPathView: View {
     let sunset: Date
     let currentTime: Date? // Optional: If nil, hides current progress
     let textColor: Color
+    let style: String
+    let showsCountdown: Bool
+
+    init(
+        sunrise: Date,
+        sunset: Date,
+        currentTime: Date?,
+        textColor: Color,
+        style: String = "full",
+        showsCountdown: Bool = true
+    ) {
+        self.sunrise = sunrise
+        self.sunset = sunset
+        self.currentTime = currentTime
+        self.textColor = textColor
+        self.style = style
+        self.showsCountdown = showsCountdown
+    }
+
+    private var isMinimalStyle: Bool {
+        style == "minimal"
+    }
     
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
-            let arcHeight = h * 0.5 // Height of the arc
+            let arcHeight = h * (isMinimalStyle ? 0.38 : 0.5) // Height of the arc
             let horizonY = h * 0.8  // Y position of the horizon
             
             ZStack {
@@ -46,30 +68,39 @@ struct SunPathView: View {
                     )
                 }
                 .stroke(
-                    LinearGradient(
+                    isMinimalStyle
+                    ? LinearGradient(
+                        colors: [textColor.opacity(0.35), textColor.opacity(0.75), textColor.opacity(0.35)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    : LinearGradient(
                         colors: [.orange.opacity(0.6), .yellow, .orange.opacity(0.6)],
                         startPoint: .leading,
                         endPoint: .trailing
                     ),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                    style: StrokeStyle(lineWidth: isMinimalStyle ? 3 : 4, lineCap: .round)
                 )
                 .background(
-                    // Faint fill under the curve
-                    Path { path in
-                        path.move(to: CGPoint(x: 20, y: horizonY))
-                        path.addQuadCurve(
-                            to: CGPoint(x: w - 20, y: horizonY),
-                            control: CGPoint(x: w / 2, y: horizonY - arcHeight * 2)
-                        )
-                        path.closeSubpath()
+                    Group {
+                        if !isMinimalStyle {
+                            Path { path in
+                                path.move(to: CGPoint(x: 20, y: horizonY))
+                                path.addQuadCurve(
+                                    to: CGPoint(x: w - 20, y: horizonY),
+                                    control: CGPoint(x: w / 2, y: horizonY - arcHeight * 2)
+                                )
+                                path.closeSubpath()
+                            }
+                            .fill(
+                                LinearGradient(
+                                    colors: [.orange.opacity(0.15), .clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                        }
                     }
-                    .fill(
-                        LinearGradient(
-                            colors: [.orange.opacity(0.15), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
                 )
                 
                 // 3. Sun Indicator
@@ -82,86 +113,88 @@ struct SunPathView: View {
                     )
                     
                     // Sun Glow
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.orange.opacity(0.6), .clear],
-                                center: .center,
-                                startRadius: 2,
-                                endRadius: 20
+                    if !isMinimalStyle {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [.orange.opacity(0.6), .clear],
+                                    center: .center,
+                                    startRadius: 2,
+                                    endRadius: 20
+                                )
                             )
-                        )
-                        .frame(width: 40, height: 40)
-                        .position(point)
-                        .blur(radius: 2)
+                            .frame(width: 40, height: 40)
+                            .position(point)
+                            .blur(radius: 2)
+                    }
                     
                     // Sun Core
                     Circle()
                         .fill(Color.white)
                         .frame(width: 10, height: 10)
                         .position(point)
-                        .shadow(color: .orange, radius: 4)
+                        .shadow(color: isMinimalStyle ? textColor.opacity(0.35) : .orange, radius: 4)
                         .overlay(
                             Circle()
-                                .stroke(Color.orange, lineWidth: 2)
+                                .stroke(isMinimalStyle ? textColor.opacity(0.5) : Color.orange, lineWidth: 2)
                                 .frame(width: 10, height: 10)
                                 .position(point)
                         )
                 }
                 
-                // Countdown Label / Center Status
-                VStack {
-                    if let countdown = timeUntilEvent {
-                        Text(countdown.title)
-                            .font(.caption2.weight(.medium))
-                            .foregroundColor(textColor.opacity(0.6))
-                            .textCase(.uppercase)
-                        Text(countdown.time)
-                            .font(.title3.bold()) // 4. Larger font for emphasis
-                            .foregroundColor(textColor)
-                    } else {
-                        // If no current time (future day), maybe show just "Daylight" again or empty?
-                        // Let's show "Daylight Duration" here too, prominently?
-                        // Or leave blank to keep it clean.
-                        // Actually, the user asked for sunrise/sunset times, which are at the bottom.
-                        // The arc is nice.
+                if showsCountdown {
+                    VStack {
+                        if let countdown = timeUntilEvent {
+                            Text(countdown.title)
+                                .font(.caption2.weight(.medium))
+                                .foregroundColor(textColor.opacity(0.6))
+                                .textCase(.uppercase)
+                            Text(countdown.time)
+                                .font(.title3.bold())
+                                .foregroundColor(textColor)
+                        }
                     }
+                    .offset(y: 15)
                 }
-                .offset(y: 15) // Position INSIDE the ring (below the arc, above horizon)
                 
                 // Labels
                 VStack {
                     Spacer()
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Sunrise")
-                                .font(.caption2.weight(.medium))
-                                .foregroundColor(textColor.opacity(0.6))
+                            if !isMinimalStyle {
+                                Text("Sunrise")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
                             Text(formatTime(sunrise))
-                                .font(.subheadline.bold())
+                                .font(isMinimalStyle ? .caption.weight(.semibold) : .subheadline.bold())
                                 .foregroundColor(textColor)
                         }
                         Spacer()
                         
-                        // Daylight Duration (Center)
-                        VStack(spacing: 0) {
-                             Text("Daylight")
-                                .font(.caption2)
-                                .foregroundColor(textColor.opacity(0.5))
-                                .textCase(.uppercase)
-                             Text(daylightDuration)
-                                .font(.caption.bold())
-                                .foregroundColor(textColor.opacity(0.8))
+                        if !showsCountdown {
+                            VStack(spacing: 0) {
+                                 Text(isMinimalStyle ? "Length" : "Daylight")
+                                    .font(.caption2)
+                                    .foregroundColor(textColor.opacity(0.5))
+                                    .textCase(.uppercase)
+                                 Text(daylightDuration)
+                                    .font(.caption.bold())
+                                    .foregroundColor(textColor.opacity(0.8))
+                            }
+                            .offset(y: 4)
                         }
-                        .offset(y: 4)
                         
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text("Sunset")
-                                .font(.caption2.weight(.medium))
-                                .foregroundColor(textColor.opacity(0.6))
+                            if !isMinimalStyle {
+                                Text("Sunset")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
                             Text(formatTime(sunset))
-                                .font(.subheadline.bold())
+                                .font(isMinimalStyle ? .caption.weight(.semibold) : .subheadline.bold())
                                 .foregroundColor(textColor)
                         }
                     }
@@ -170,7 +203,7 @@ struct SunPathView: View {
                 .padding(.horizontal, 4)
             }
         }
-        .frame(height: 130) // Reduced height since countdown is now inside
+        .frame(height: isMinimalStyle ? 150 : 180)
     }
     
     // Progress 0.0 (Sunrise) -> 1.0 (Sunset)

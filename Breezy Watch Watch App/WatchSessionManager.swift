@@ -57,6 +57,10 @@ class WatchSessionManager: NSObject, WCSessionDelegate {
             if let visRaw = applicationContext["Breezy.visibilityUnit"] as? String {
                 defaults.set(visRaw, forKey: "Breezy.visibilityUnit")
             }
+
+            if let precipRaw = applicationContext["Breezy.precipitationUnit"] as? String {
+                defaults.set(precipRaw, forKey: "Breezy.precipitationUnit")
+            }
             
             // Notify view model to reload
             NotificationCenter.default.post(name: NSNotification.Name("WatchContextUpdated"), object: nil)

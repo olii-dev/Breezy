@@ -11,6 +11,7 @@ import Combine
 import CoreLocation
 import WeatherKit
 import WidgetKit
+import WatchKit
 
 
 @MainActor
@@ -43,8 +44,7 @@ class WatchWeatherViewModel: ObservableObject {
 
 
     
-    private let weatherService = WeatherService.shared
-    private let locationHelper = WatchLocationHelper()
+    private let weatherDataService = WatchWeatherDataService.shared
     private var temperatureUnit: WatchTemperatureUnit = .celsius
     private var windSpeedUnit: WindSpeedUnit = .metersPerSecond
     private var pressureUnit: PressureUnit = .hectopascals
@@ -139,6 +139,7 @@ class WatchWeatherViewModel: ObservableObject {
         savedLocations.append(newLocation)
         saveLocations()
         addToRecents(name: name, latitude: latitude, longitude: longitude)
+        playHaptic(.success)
         selectLocation(newLocation.id) // Switch to it immediately
     }
     
@@ -150,6 +151,7 @@ class WatchWeatherViewModel: ObservableObject {
         
         savedLocations.remove(atOffsets: offsets)
         saveLocations()
+        playHaptic(.click)
         
         Task {
              await loadWeather()
@@ -158,6 +160,7 @@ class WatchWeatherViewModel: ObservableObject {
     
     func selectLocation(_ id: UUID?) {
         selectedLocationID = id
+        playHaptic(.click)
         // Persist selection
         if let id = id {
             UserDefaults(suiteName: "group.com.breezy.weather")?.set(id.uuidString, forKey: "WatchSelectedLocationID")
@@ -258,156 +261,88 @@ class WatchWeatherViewModel: ObservableObject {
     }
     
     func loadWeather() async {
+        await performWeatherLoad(playHaptics: false)
+    }
+
+    func refresh() async {
+        await performWeatherLoad(playHaptics: true)
+    }
+
+    func playHaptic(_ type: WKHapticType) {
+        WKInterfaceDevice.current().play(type)
+    }
+
+    func refreshStatusText(for weather: WatchWeatherData) -> String {
+        let sourceLabel: String
+        switch weather.metadata.source {
+        case .phone:
+            sourceLabel = "iPhone"
+        case .weatherKit:
+            sourceLabel = "Watch"
+        case .cache:
+            sourceLabel = weather.metadata.isStale ? "Cached" : "Saved"
+        }
+
+        let timestamp = RelativeDateTimeFormatter().localizedString(for: weather.metadata.fetchedAt, relativeTo: Date())
+        return "Updated \(timestamp) • \(sourceLabel)"
+    }
+
+    func toggleMetric(_ metric: WeatherMetric, isEnabled: Bool) {
+        if isEnabled {
+            visibleMetrics.insert(metric)
+        } else {
+            visibleMetrics.remove(metric)
+        }
+
+        if let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup),
+           let data = try? JSONEncoder().encode(visibleMetrics) {
+            defaults.set(data, forKey: "Breezy.visibleMetrics")
+        }
+
+        playHaptic(.click)
+    }
+
+    func clearCachedWeather() {
+        guard let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup) else {
+            return
+        }
+
+        let keysToRemove = [
+            WatchAppStorageKey.lastLatitude,
+            WatchAppStorageKey.lastLongitude,
+            WatchAppStorageKey.lastCity,
+            WatchAppStorageKey.lastTemperature,
+            WatchAppStorageKey.lastCondition,
+            WatchAppStorageKey.lastEmoji,
+            WatchAppStorageKey.lastHighTemp,
+            WatchAppStorageKey.lastLowTemp,
+            WatchAppStorageKey.lastCacheTimestamp
+        ]
+
+        keysToRemove.forEach(defaults.removeObject(forKey:))
+        weather = nil
+        error = nil
+    }
+
+    private func performWeatherLoad(playHaptics: Bool) async {
         isLoading = true
         error = nil
         checkLocationAuthorization()
         
         do {
-            // Determine Location & Fetch Strategy
-            let location: (latitude: Double, longitude: Double, city: String)
-            var weatherData: WatchWeatherData? = nil
-            var usedPhone = false
-            
-            if let selectedID = selectedLocationID,
-               let saved = savedLocations.first(where: { $0.id == selectedID }) {
-                // MANUAL SELECTION: Use specific coords
-                location = (saved.latitude, saved.longitude, saved.name)
-                
-                // Try to fetch from phone using these coords (saves watch battery/data)
-                do {
-                    if let phoneData = try await WatchSessionManager.shared.requestWeatherData(for: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)) {
-                        print("⌚️ Watch: Received manual location data from iPhone!")
-                        weatherData = parsePhoneData(phoneData, city: location.city)
-                        usedPhone = true
-                    }
-                } catch {
-                     print("⌚️ Watch: Phone unreachable for manual loc. Falling back to local.")
-                }
-                
-            } else {
-                // AUTO / GPS: Try to follow iPhone first
-                print("⌚️ Watch: Attempting to follow iPhone location...")
-                
-                do {
-                    // Request with NIL coords -> Asks iPhone for ITS current location
-                    if let phoneData = try await WatchSessionManager.shared.requestWeatherData(for: nil) {
-                        // Phone responded! Extract City & Coords if possible (we only get city name in reply usually)
-                        // The reply has "city", but maybe not exact coords.
-                        // We use the city name from phone. Coords might be missing, but we have weather data.
-                        
-                        let city = phoneData["city"] as? String ?? "Current Location"
-                        print("⌚️ Watch: Following iPhone at \(city)!")
-                        
-                        weatherData = parsePhoneData(phoneData, city: city)
-                        usedPhone = true
-                        
-                        // We might not have exact coords to save to cache, but that's okay for display.
-                        // To keep cache valid, we can use 0,0 or try to parse if phone sent them (it doesn't currently).
-                        // Let's assume 0,0 for now as we have the data.
-                        location = (0, 0, city) 
-                    } else {
-                         throw NSError(domain: "Watch", code: 1, userInfo: [NSLocalizedDescriptionKey: "Phone returned nil"])
-                    }
-                } catch {
-                    print("⌚️ Watch: Phone unreachable (\(error)). Falling back to Watch GPS.")
-                    
-                    // Fallback: Watch GPS
-                    let gpsData = try await locationHelper.requestLocationAndGetData()
-                    location = (gpsData.latitude, gpsData.longitude, gpsData.city)
-                    checkLocationAuthorization()
-                }
-            }
-            
-            // If we successfully got data from phone, use it
-            if let data = weatherData {
-                self.weather = data
-            } else {
-                 // Fallback: Fetch from WeatherKit directly (using the determined location)
-                 // If we are here, 'location' is set (either from Manual or GPS fallback)
-                 let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
-             
-                print("⌚️ Watch: Fetching from WeatherKit (Independent Mode)")
-                // Fallback: Fetch weather from WeatherKit directly
-                let weather = try await weatherService.weather(for: clLocation)
-                
-                // Parse weather data (Existing Logic)
-                let hourly = weather.hourlyForecast
-                let daily = weather.dailyForecast
-                
-                // Get current temperature
-                let (tempValue, feelsValue) = getCurrentTemperatures(from: weather.currentWeather)
-                let symbol = temperatureUnit.symbol
-                let tempRaw = String(format: "%.0f°%@", tempValue, symbol)
-                let feelsRaw = String(format: "%.0f°%@", feelsValue, symbol)
-                
-                // Get condition
-                let cond = WatchWeatherConditionConverter.description(from: weather.currentWeather.condition)
-                let emoji = WatchWeatherIconHelper.emoji(for: cond)
-                let iconName = WatchWeatherIconHelper.minimalistIcon(for: cond)
-                
-                // Get today's high/low
-                let (highTemp, lowTemp) = getTodayHighLow(from: daily)
-                
-                // Extract additional metrics
-                let metrics = extractMetrics(from: weather.currentWeather, daily: daily)
-                
-                // Parse all available hourly forecast data
-                let allHourlyForecasts = parseHourlyForecast(from: hourly)
-                
-                // Filter main hourly forecast to next 24 hours
-                let now = Date()
-                let calendar = Calendar.current
-                let endTime = calendar.date(byAdding: .hour, value: 24, to: now)!
-                let mainHourlyForecast = allHourlyForecasts.filter { $0.date >= now && $0.date < endTime }
-                
-                // Create WatchWeatherData
-                let watchData = WatchWeatherData(
-                    city: location.city,
-                    temperature: tempRaw,
-                    feelsLike: feelsRaw,
-                    condition: cond,
-                    emoji: emoji,
-                    iconName: iconName,
-                    highTemp: highTemp,
-                    lowTemp: lowTemp,
-                    hourlyForecast: mainHourlyForecast,
-                    dailyForecast: parseDailyForecast(from: daily, hourlyForecast: allHourlyForecasts),
-                    windSpeed: metrics.windSpeed,
-                    windDirection: metrics.windDirection,
-                    windDirectionDegrees: metrics.windDirectionDegrees,
-                    uvIndex: metrics.uvIndex,
-                    rainChance: metrics.rainChance,
-                    humidity: metrics.humidity,
-                    pressure: metrics.pressure,
-                    visibility: metrics.visibility,
-                    dewPoint: metrics.dewPoint,
-                    cloudCover: metrics.cloudCover,
-                    sunrise: metrics.sunrise,
-                    sunset: metrics.sunset
-                )
-                
-                self.weather = watchData
+            let selectedLocation = selectedLocationID.flatMap { selectedID in
+                savedLocations.first(where: { $0.id == selectedID })
             }
 
-            
-            // Cache data (Shared logic for both paths)
-            if let w = self.weather, let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
-                defaults.set(location.latitude, forKey: "WatchLastLatitude")
-                defaults.set(location.longitude, forKey: "WatchLastLongitude")
-                defaults.set(location.city, forKey: "WatchLastCity")
-                defaults.set(w.temperature, forKey: "WatchLastTemperature")
-                defaults.set(w.condition, forKey: "WatchLastCondition")
-                defaults.set(w.emoji, forKey: "WatchLastEmoji")
-                defaults.set(w.highTemp, forKey: "WatchLastHighTemp")
-                defaults.set(w.lowTemp, forKey: "WatchLastLowTemp")
-                defaults.set(Date(), forKey: "WatchLastCacheTimestamp")
-                defaults.synchronize()
-            }
+            self.weather = try await weatherDataService.fetchWeather(selectedLocation: selectedLocation)
             
             // Reload complications
             reloadComplications()
             
             isLoading = false
+            if playHaptics {
+                playHaptic(.success)
+            }
             
         } catch {
             // Error Handling (Same as before)
@@ -423,13 +358,16 @@ class WatchWeatherViewModel: ObservableObject {
             self.error = errorMessage
             isLoading = false
             checkLocationAuthorization()
+            if playHaptics {
+                playHaptic(.failure)
+            }
         }
     }
     
     func requestLocationPermission() {
         Task {
             do {
-                _ = try await locationHelper.requestLocationAndGetData()
+                _ = try await WatchLocationHelper().requestLocationAndGetData()
                 await loadWeather()
             } catch {
                 // Error will be handled by loadWeather or shown in error state
@@ -686,239 +624,6 @@ class WatchWeatherViewModel: ObservableObject {
         return directions[index]
     }
     
-    // MARK: - Phone Data Parsing
-    
-    private func parsePhoneData(_ data: [String: Any], city: String) -> WatchWeatherData {
-        // Defaults
-        let sym = temperatureUnit.symbol
-        
-        // Helper to get formatted temp (assuming input is celsius)
-        func fmtTemp(_ cVal: Double?) -> String {
-            guard let c = cVal else { return "--" }
-            if temperatureUnit == .fahrenheit {
-                let f = (c * 9/5) + 32
-                return String(format: "%.0f°F", f)
-            }
-            return String(format: "%.0f°C", c)
-        }
-        
-        // 1. Current
-        let tempStr = fmtTemp(data["temp_c"] as? Double)
-        let feelsStr = fmtTemp(data["feels_c"] as? Double)
-        let condition = (data["condition"] as? String) ?? "Unknown"
-        let emoji = WatchWeatherIconHelper.emoji(for: condition)
-        let iconName = WatchWeatherIconHelper.minimalistIcon(for: condition)
-        
-        // 2. High/Low
-        let highStr = fmtTemp(data["high_c"] as? Double)
-        let lowStr = fmtTemp(data["low_c"] as? Double)
-        
-        // 3. Metrics
-        let uvVal = (data["uv"] as? Double) ?? 0
-        let uvIndex = Int(uvVal)
-        
-        let windMps = (data["wind_mps"] as? Double) ?? 0
-        let windStr: String
-        // Manually convert for display since we don't have Measurement object
-        // 1 mps = 3.6 kmh = 2.237 mph
-        if windSpeedUnit == .milesPerHour {
-             windStr = String(format: "%.0f mph", windMps * 2.23694)
-        } else if windSpeedUnit == .kilometersPerHour {
-             windStr = String(format: "%.0f km/h", windMps * 3.6)
-        } else {
-             windStr = String(format: "%.0f m/s", windMps)
-        }
-        
-        let humidity = Int((data["humidity"] as? Double ?? 0) * 100)
-        let rainChanceVal = (data["rainChance"] as? Double ?? 0) * 100
-        let rainChance = String(format: "%.0f%%", rainChanceVal)
-        
-        let pressHpa = data["pressure_hpa"] as? Double
-        let pressure: String
-        if let p = pressHpa {
-             if pressureUnit == .inchesOfMercury {
-                 pressure = String(format: "%.2f inHg", p * 0.02953)
-             } else {
-                 pressure = String(format: "%.0f hPa", p)
-             }
-        } else { pressure = "--" }
-        
-        let visKm = data["visibility_km"] as? Double
-        let visibility: String
-        if let v = visKm {
-             if visibilityUnit == .miles {
-                 visibility = String(format: "%.1f mi", v * 0.621371)
-             } else {
-                 visibility = String(format: "%.1f km", v)
-             }
-        } else { visibility = "--" }
-        
-        let dewC = data["dew_c"] as? Double
-        let dewPoint = fmtTemp(dewC)
-        
-        let cloudVal = (data["cloud"] as? Double ?? 0) * 100
-        let cloudCover = String(format: "%.0f%%", cloudVal)
-        
-        let sunriseTs = data["sunrise"] as? TimeInterval
-        let sunsetTs = data["sunset"] as? TimeInterval
-        let sunrise = sunriseTs != nil ? WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: sunriseTs!)) : nil
-        let sunset = sunsetTs != nil ? WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: sunsetTs!)) : nil
-        
-        // 4. Hourly
-        var hourlyDisplay: [WatchHourlyForecast] = []
-        if let hourlyRaw = data["hourly"] as? [[String: Any]] {
-            for h in hourlyRaw {
-                guard let ts = h["time"] as? TimeInterval,
-                      let tC = h["temp_c"] as? Double,
-                      let cond = h["condition"] as? String else { continue }
-                
-                let date = Date(timeIntervalSince1970: ts)
-                let calendar = Calendar.current
-                let hourInt = calendar.component(.hour, from: date)
-                
-                hourlyDisplay.append(WatchHourlyForecast(
-                    date: date,
-                    time: WatchDateFormatterHelper.formatHour(hourInt),
-                    temperature: fmtTemp(tC),
-                    emoji: WatchWeatherIconHelper.emoji(for: cond),
-                    iconName: WatchWeatherIconHelper.minimalistIcon(for: cond),
-                    condition: cond
-                ))
-            }
-        }
-        
-        // 5. Daily - Construct a minimal "dummy" daily forecast list or re-use single day
-        // Since the phone payload was simplified, we might be missing full 7-day forecast.
-        // For V1 of Hybrid, we can just fetch the detailed 7-day forecast from local if needed,
-        // OR we just accept we only have 24h hourly and Today's details.
-        // Let's create a single "Today" entry for the daily list so it doesn't crash.
-        // (Enhancement: Phone should send full 7-day list)
-        
-        var dailyDisplay: [WatchDailyForecast] = []
-        
-        if let dailyRaw = data["daily"] as? [[String: Any]] {
-            let calendar = Calendar.current
-            for d in dailyRaw {
-                guard let ts = d["time"] as? TimeInterval,
-                      let minC = d["low_c"] as? Double,
-                      let maxC = d["high_c"] as? Double,
-                      let cond = d["condition"] as? String else { continue }
-                
-                let date = Date(timeIntervalSince1970: ts)
-                let isToday = calendar.isDateInToday(date)
-                
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "EEE"
-                let dayName = isToday ? "Today" : dateFormatter.string(from: date)
-                
-                let emoji = WatchWeatherIconHelper.emoji(for: cond)
-                let iconName = WatchWeatherIconHelper.minimalistIcon(for: cond)
-                
-                // Format Temps
-                let lowStr: String
-                let highStr: String
-                let lowVal: Double
-                let highVal: Double
-                
-                if temperatureUnit == .fahrenheit {
-                    let minF = (minC * 9/5) + 32
-                    let maxF = (maxC * 9/5) + 32
-                    lowStr = String(format: "%.0f°", minF)
-                    highStr = String(format: "%.0f°", maxF)
-                    lowVal = minF
-                    highVal = maxF
-                } else {
-                    lowStr = String(format: "%.0f°", minC)
-                    highStr = String(format: "%.0f°", maxC)
-                    lowVal = minC
-                    highVal = maxC
-                }
-                
-                let rainVal = (d["rainChance"] as? Double ?? 0) * 100
-                let rainStr = String(format: "%.0f%%", rainVal)
-                
-                let uvStr = String(format: "%d", Int(d["uv"] as? Double ?? 0))
-                
-                let windMps = (d["wind_mps"] as? Double) ?? 0
-                let windStr: String
-                if windSpeedUnit == .milesPerHour {
-                     windStr = String(format: "%.0f mph", windMps * 2.23694)
-                } else if windSpeedUnit == .kilometersPerHour {
-                     windStr = String(format: "%.0f km/h", windMps * 3.6)
-                } else {
-                     windStr = String(format: "%.0f m/s", windMps)
-                }
-                
-                let riseTs = d["sunrise"] as? TimeInterval ?? 0
-                let setTs = d["sunset"] as? TimeInterval ?? 0
-                let riseStr = riseTs > 0 ? WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: riseTs)) : "--"
-                let setStr = setTs > 0 ? WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: setTs)) : "--"
-                
-                dailyDisplay.append(WatchDailyForecast(
-                    dayName: dayName,
-                    iconName: iconName,
-                    emoji: emoji,
-                    lowTemp: lowStr,
-                    highTemp: highStr,
-                    lowValue: lowVal,
-                    highValue: highVal,
-                    condition: cond,
-                    precipitationChance: rainStr,
-                    maxWindSpeed: windStr,
-                    uvIndex: uvStr,
-                    sunrise: riseStr,
-                    sunset: setStr,
-                    hourlyForecast: [] // We don't have hourly for future days in simple payload
-                ))
-            }
-        }
-        
-        // Fallback if empty (Old Phone App version)
-        if dailyDisplay.isEmpty {
-            dailyDisplay.append(WatchDailyForecast(
-                dayName: "Today",
-                iconName: iconName,
-                emoji: emoji,
-                lowTemp: lowStr,
-                highTemp: highStr,
-                lowValue: (data["low_c"] as? Double) ?? 0,
-                highValue: (data["high_c"] as? Double) ?? 0,
-                condition: condition,
-                precipitationChance: rainChance,
-                maxWindSpeed: windStr,
-                uvIndex: "\(uvIndex)",
-                sunrise: sunrise,
-                sunset: sunset,
-                hourlyForecast: hourlyDisplay
-            ))
-        }
-        
-        return WatchWeatherData(
-            city: city,
-            temperature: tempStr,
-            feelsLike: feelsStr,
-            condition: condition,
-            emoji: emoji,
-            iconName: iconName,
-            highTemp: highStr,
-            lowTemp: lowStr,
-            hourlyForecast: hourlyDisplay,
-            dailyForecast: dailyDisplay,
-            windSpeed: windStr,
-            windDirection: nil, // Not sent in simple payload
-            windDirectionDegrees: nil,
-            uvIndex: uvIndex,
-            rainChance: rainChance,
-            humidity: humidity,
-            pressure: pressure,
-            visibility: visibility,
-            dewPoint: dewPoint,
-            cloudCover: cloudCover,
-            sunrise: sunrise,
-            sunset: sunset
-        )
-    }
-    
     // MARK: - Widget Reloading
     
     private func reloadComplications() {
@@ -984,61 +689,6 @@ enum WatchLayoutSection: String, Codable, Identifiable, CaseIterable {
         case .metrics: return "list.bullet.rectangle.portrait"
         }
     }
-}
-
-// MARK: - Watch Data Models
-
-struct WatchWeatherData {
-    let city: String
-    let temperature: String
-    let feelsLike: String?
-    let condition: String
-    let emoji: String
-    let iconName: String
-    let highTemp: String?
-    let lowTemp: String?
-    let hourlyForecast: [WatchHourlyForecast]
-    let dailyForecast: [WatchDailyForecast]
-    let windSpeed: String?
-    let windDirection: String?
-    let windDirectionDegrees: Double?
-    let uvIndex: Int?
-    let rainChance: String?
-    let humidity: Int?
-    let pressure: String?
-    let visibility: String?
-    let dewPoint: String?
-    let cloudCover: String?
-    let sunrise: String?
-    let sunset: String?
-}
-
-struct WatchHourlyForecast: Identifiable {
-    let id = UUID()
-    let date: Date
-    let time: String
-    let temperature: String
-    let emoji: String
-    let iconName: String
-    let condition: String
-}
-
-    struct WatchDailyForecast: Identifiable {
-    let id = UUID()
-    let dayName: String
-    let iconName: String
-    let emoji: String
-    let lowTemp: String
-    let highTemp: String
-    let lowValue: Double // For gauge/bar chart
-    let highValue: Double // For gauge/bar chart
-    let condition: String
-    let precipitationChance: String
-    let maxWindSpeed: String
-    let uvIndex: String
-    let sunrise: String?
-    let sunset: String?
-    let hourlyForecast: [WatchHourlyForecast]
 }
 
 extension WatchWeatherViewModel {

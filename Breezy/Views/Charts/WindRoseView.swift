@@ -12,6 +12,11 @@ struct WindRoseView: View {
     let direction: String // "N", "NW", etc.
     let degree: Double // 0-360
     let color: Color
+    @AppStorage("Breezy.typography") private var typographyRaw: String = WeatherFont.system.rawValue
+
+    private var typographyDesign: Font.Design {
+        WeatherFont(rawValue: typographyRaw)?.design ?? .default
+    }
     
     var body: some View {
         ZStack {
@@ -19,7 +24,7 @@ struct WindRoseView: View {
             ForEach(0..<8) { i in
                 Rectangle()
                     .fill(color.opacity(0.1))
-                    .frame(width: 1, height: 120)
+                    .frame(width: 1, height: 140)
                     .rotationEffect(.degrees(Double(i) * 45))
             }
             
@@ -28,7 +33,7 @@ struct WindRoseView: View {
                 Text(card.rawValue)
                     .font(.caption2.bold())
                     .foregroundColor(color.opacity(0.6))
-                    .offset(x: 0, y: -70)
+                    .offset(x: 0, y: -80)
                     .rotationEffect(.degrees(card.rotation))
             }
             
@@ -36,7 +41,7 @@ struct WindRoseView: View {
             ForEach(1...3, id: \.self) { i in
                 Circle()
                     .stroke(color.opacity(0.05), lineWidth: 1)
-                    .frame(width: CGFloat(i) * 40, height: CGFloat(i) * 40)
+                    .frame(width: CGFloat(i) * 50, height: CGFloat(i) * 50)
             }
             
             // The Indicator Arrow
@@ -60,14 +65,14 @@ struct WindRoseView: View {
             // Center Metrics
             VStack(spacing: 0) {
                 Text("\(Int(speed))")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .font(.system(size: 24, weight: .bold, design: typographyDesign))
                     .foregroundColor(color)
                 Text("km/h")
                     .font(.caption2)
                     .foregroundColor(color.opacity(0.7))
             }
         }
-        .frame(height: 160)
+        .frame(height: 180)
     }
     
     enum Cardinal: String, CaseIterable {

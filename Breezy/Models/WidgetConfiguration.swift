@@ -144,6 +144,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
     case visibility
     case feelsLike
     case precipChance
+    case rainAmount
     case pressure
     case highLow
     case dailyForecast // New
@@ -161,6 +162,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
         case .visibility: return "Visibility"
         case .feelsLike: return "Feels Like"
         case .precipChance: return "Rain Chance"
+        case .rainAmount: return "Rain Amount"
         case .pressure: return "Pressure"
         case .highLow: return "High / Low"
         case .dailyForecast: return "Daily Forecast"
@@ -179,6 +181,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
         case .visibility: return "eye.fill"
         case .feelsLike: return "figure.stand"
         case .precipChance: return "umbrella.fill"
+        case .rainAmount: return "drop.fill"
         case .pressure: return "barometer"
         case .highLow: return "arrow.up.arrow.down"
         case .dailyForecast: return "calendar"

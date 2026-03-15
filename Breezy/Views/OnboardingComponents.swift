@@ -72,6 +72,8 @@ struct ThemeMockupView: View {
 }
 
 struct WidgetMockupView: View {
+    @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
+
     var body: some View {
         ZStack {
             // Background Grid
@@ -90,7 +92,7 @@ struct WidgetMockupView: View {
             
             // Active Widget
             RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
                 .frame(width: 160, height: 160)
                 .overlay(
                     VStack(spacing: 12) {
@@ -167,6 +169,12 @@ struct AstroMockupView: View {
 }
 
 struct TimeMachineMockupView: View {
+    @AppStorage("Breezy.typography") private var typographyRaw: String = WeatherFont.system.rawValue
+
+    private var typographyDesign: Font.Design {
+        WeatherFont(rawValue: typographyRaw)?.design ?? .default
+    }
+
     var body: some View {
         VStack(spacing: 30) {
             HStack(spacing: 20) {
@@ -181,7 +189,7 @@ struct TimeMachineMockupView: View {
                         .foregroundColor(.yellow)
                     
                     Text("24°")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.system(size: 24, weight: .bold, design: typographyDesign))
                         .foregroundColor(.white)
                 }
                 .padding()
@@ -202,7 +210,7 @@ struct TimeMachineMockupView: View {
                         .foregroundColor(DesignSystem.softBlue)
                     
                     Text("18°")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.system(size: 24, weight: .bold, design: typographyDesign))
                         .foregroundColor(.white)
                 }
                 .padding()
@@ -212,7 +220,7 @@ struct TimeMachineMockupView: View {
             HStack(spacing: 8) {
                 Image(systemName: "clock.arrow.circlepath")
                 Text("Compare Historical Data")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: typographyDesign).weight(.semibold))
             }
             .foregroundColor(DesignSystem.lavender)
             .padding(.horizontal, 16)

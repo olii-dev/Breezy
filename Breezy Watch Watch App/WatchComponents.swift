@@ -1,22 +1,4 @@
-//
-//  WatchComponents.swift
-//  Breezy Watch Watch App
-//
-//  Reusable UI components for the overhauled Watch App
-//
-
 import SwiftUI
-import Charts
-
-//
-//  WatchComponents.swift
-//  Breezy Watch Watch App
-//
-//  Reusable UI components - Breezy Minimalist Style
-//
-
-import SwiftUI
-import Charts
 
 // MARK: - Metric Pill (Restored)
 
@@ -45,7 +27,6 @@ struct MetricPill: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
         .background(backgroundColor)
-        .cornerRadius(12)
         .cornerRadius(12)
     }
 }
@@ -186,6 +167,8 @@ struct HourlyCard: View {
         VStack(spacing: 6) {
             Text(hour.time)
                 .font(.system(size: 10, weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundColor(.white.opacity(0.7))
             
             if isMinimalist {
@@ -198,8 +181,11 @@ struct HourlyCard: View {
             }
             
             Text(hour.temperature)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
+        .frame(minWidth: 66)
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .foregroundColor(textColor)
@@ -297,45 +283,51 @@ struct SunScheduleView: View {
     var textColor: Color = .white
     
     var body: some View {
-        HStack(spacing: 16) {
-            HStack(spacing: 4) {
-                if isMinimalist {
-                    Image(systemName: "sunrise.fill")
-                        .symbolRenderingMode(.multicolor)
-                        .font(.caption2)
-                } else {
-                    Text("🌅").font(.caption2)
-                }
-                Text(sunrise)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .foregroundColor(textColor)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                scheduleTile(title: "Sunrise", value: sunrise, systemIcon: "sunrise.fill", emoji: "🌅")
+                scheduleTile(title: "Sunset", value: sunset, systemIcon: "sunset.fill", emoji: "🌇")
             }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 10)
-            .background(textColor.opacity(0.1))
-            .cornerRadius(8)
-            
-            HStack(spacing: 4) {
-                if isMinimalist {
-                    Image(systemName: "sunset.fill")
-                        .symbolRenderingMode(.multicolor)
-                        .font(.caption2)
-                } else {
-                    Text("🌇").font(.caption2)
-                }
-                Text(sunset)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .foregroundColor(textColor)
+
+            VStack(spacing: 8) {
+                scheduleTile(title: "Sunrise", value: sunrise, systemIcon: "sunrise.fill", emoji: "🌅")
+                scheduleTile(title: "Sunset", value: sunset, systemIcon: "sunset.fill", emoji: "🌇")
             }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 10)
-            .background(textColor.opacity(0.1))
-            .cornerRadius(8)
         }
+    }
+
+    @ViewBuilder
+    private func scheduleTile(title: String, value: String, systemIcon: String, emoji: String) -> some View {
+        HStack(spacing: 6) {
+            if isMinimalist {
+                Image(systemName: systemIcon)
+                    .symbolRenderingMode(.multicolor)
+                    .font(.system(size: 13))
+            } else {
+                Text(emoji)
+                    .font(.system(size: 13))
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title.uppercased())
+                    .font(.system(size: 9, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .foregroundColor(textColor.opacity(0.55))
+                Text(value)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundColor(textColor)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(textColor.opacity(0.1))
+        .cornerRadius(10)
     }
 }
 
@@ -343,115 +335,324 @@ struct DayDetailView: View {
     let day: WatchDailyForecast
     @EnvironmentObject var viewModel: WatchWeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    @AppStorage(WatchAppStorageKey.showDayMetrics, store: UserDefaults(suiteName: WatchAppStorageKey.appGroup)) private var showDayMetrics = true
+    @AppStorage(WatchAppStorageKey.showDaySunSchedule, store: UserDefaults(suiteName: WatchAppStorageKey.appGroup)) private var showDaySunSchedule = true
     
     var body: some View {
         let theme = viewModel.theme(for: day.condition, isSystemDark: colorScheme == .dark)
         
-        ZStack {
-            // Dynamic Background
+        List {
+            // Hero Section (Day + Icon + Condition)
+            Section {
+                VStack(alignment: .center, spacing: 8) {
+                    Text(day.dayName)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    
+                    if viewModel.useMinimalistIcons {
+                        Image(systemName: day.iconName)
+                            .symbolRenderingMode(.multicolor)
+                            .font(.system(size: 36))
+                    } else {
+                        Text(day.emoji)
+                            .font(.system(size: 36))
+                    }
+                    
+                    Text(day.condition)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .listRowBackground(Color.clear)
+            
+            // Temperature Section
+            Section {
+                HStack {
+                    Spacer()
+                    VStack(alignment: .center, spacing: 4) {
+                        Text("HIGH")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                        Text(day.highTemp)
+                            .font(.system(size: 22, weight: .semibold))
+                    }
+                    Spacer()
+                    VStack(alignment: .center, spacing: 4) {
+                        Text("LOW")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                        Text(day.lowTemp)
+                            .font(.system(size: 22, weight: .semibold))
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .listRowBackground(Color.clear)
+            
+            // Details Section
+            if showDayMetrics {
+                Section("DETAILS") {
+                    DetailRow(
+                        icon: viewModel.useMinimalistIcons ? "umbrella.fill" : "☔️",
+                        title: "Precipitation",
+                        value: day.precipitationChance,
+                        isSystemImage: viewModel.useMinimalistIcons
+                    )
+                    
+                    DetailRow(
+                        icon: viewModel.useMinimalistIcons ? "wind" : "💨",
+                        title: "Peak Wind",
+                        value: day.maxWindSpeed,
+                        isSystemImage: viewModel.useMinimalistIcons
+                    )
+                    
+                    DetailRow(
+                        icon: viewModel.useMinimalistIcons ? "sun.max.fill" : "☀️",
+                        title: "UV Index",
+                        value: day.uvIndex,
+                        isSystemImage: viewModel.useMinimalistIcons
+                    )
+                    
+                    DetailRow(
+                        icon: viewModel.useMinimalistIcons ? "thermometer.medium" : "🌡",
+                        title: "Temp Range",
+                        value: "\(Int(day.highValue - day.lowValue))°",
+                        isSystemImage: viewModel.useMinimalistIcons
+                    )
+                }
+                .listRowBackground(Color.clear)
+            }
+            
+            // Hourly Section
+            if !day.hourlyForecast.isEmpty {
+                Section("HOURLY") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            Spacer()
+                            ForEach(day.hourlyForecast) { hour in
+                                VStack(spacing: 4) {
+                                    Text(hour.time)
+                                        .font(.system(size: 9, weight: .medium))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.7)
+                                    
+                                    if viewModel.useMinimalistIcons {
+                                        Image(systemName: hour.iconName)
+                                            .symbolRenderingMode(.multicolor)
+                                            .font(.system(size: 14))
+                                    } else {
+                                        Text(hour.emoji)
+                                            .font(.system(size: 14))
+                                    }
+                                    
+                                    Text(hour.temperature)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                }
+                                .frame(minWidth: 50)
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 8)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .frame(height: 90)
+                }
+                .listRowBackground(Color.clear)
+            }
+            
+            // Sun Schedule Section
+            if showDaySunSchedule, let rise = day.sunrise, let set = day.sunset {
+                Section("SUN SCHEDULE") {
+                    DetailRow(
+                        icon: viewModel.useMinimalistIcons ? "sunrise.fill" : "🌅",
+                        title: "Sunrise",
+                        value: rise,
+                        isSystemImage: viewModel.useMinimalistIcons
+                    )
+                    
+                    DetailRow(
+                        icon: viewModel.useMinimalistIcons ? "sunset.fill" : "🌇",
+                        title: "Sunset",
+                        value: set,
+                        isSystemImage: viewModel.useMinimalistIcons
+                    )
+                }
+                .listRowBackground(Color.clear)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(
             LinearGradient(
                 gradient: Gradient(colors: [theme.topColor, theme.bottomColor]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Header
-                    Text(day.dayName)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(theme.textColor)
-                        .padding(.top, 8)
-                    
-                    // Icon + Condition
-                    VStack(spacing: 8) {
-                        if viewModel.useMinimalistIcons {
-                            Image(systemName: day.iconName)
-                                .symbolRenderingMode(.multicolor)
-                                .font(.system(size: 50))
-                        } else {
-                            Text(day.emoji)
-                                .font(.system(size: 50))
-                        }
-                        
-                        Text(day.condition)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(theme.textColor.opacity(0.9))
-                    }
-                
-                // Temps
-                HStack(spacing: 20) {
-                    VStack(spacing: 4) {
-                        Text("High")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(theme.textColor.opacity(0.6))
-                        Text(day.highTemp)
-                            .font(.system(size: 24, weight: .light))
-                            .foregroundColor(theme.textColor)
-                    }
-                    
-                    VStack(spacing: 4) {
-                        Text("Low")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(theme.textColor.opacity(0.6))
-                        Text(day.lowTemp)
-                            .font(.system(size: 24, weight: .light))
-                            .foregroundColor(theme.textColor)
-                    }
-                }
-                .padding(.vertical, 8)
-                
-                // Details Grid (Balanced for 3 items)
-                HStack(spacing: 8) {
-                    MetricPill(
-                        icon: viewModel.useMinimalistIcons ? "umbrella.fill" : "☔️",
-                        value: day.precipitationChance,
-                        isSystemImage: viewModel.useMinimalistIcons,
-                        textColor: theme.textColor,
-                        backgroundColor: theme.textColor.opacity(0.1)
-                    )
-                    MetricPill(
-                        icon: viewModel.useMinimalistIcons ? "wind" : "💨",
-                        value: day.maxWindSpeed,
-                        isSystemImage: viewModel.useMinimalistIcons,
-                        textColor: theme.textColor,
-                        backgroundColor: theme.textColor.opacity(0.1)
-                    )
-                    MetricPill(
-                        icon: viewModel.useMinimalistIcons ? "sun.max.fill" : "☀️",
-                        value: "UV \(day.uvIndex)",
-                        isSystemImage: viewModel.useMinimalistIcons,
-                        textColor: theme.textColor,
-                        backgroundColor: theme.textColor.opacity(0.1)
-                    )
-                }
-                .padding(.horizontal)
-                
-                // Hourly Forecast (Horizontal)
-                if !day.hourlyForecast.isEmpty {
-                    HourlyForecastHorizontalView(hourly: day.hourlyForecast, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
-                        .padding(.top, 16)
-                }
-
-                
-                // Sun Schedule (Bottom)
-                if let rise = day.sunrise, let set = day.sunset {
-                    VStack(spacing: 8) {
-                        Text("SUN SCHEDULE")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(theme.textColor.opacity(0.6))
-                        
-                        SunScheduleView(sunrise: rise, sunset: set, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
-                }
-            }
-            .padding()
-            .focusable()
-        }
+        )
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+// Simple detail row helper
+struct DetailRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let isSystemImage: Bool
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Spacer()
+            
+            if isSystemImage {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 18)
+            } else {
+                Text(icon)
+                    .font(.system(size: 13))
+                    .frame(width: 18)
+            }
+            
+            VStack(alignment: .center, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .opacity(0.7)
+                
+                Text(value)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .allowsTightening(true)
+            }
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+struct DayHeroCard: View {
+    let day: WatchDailyForecast
+    let isMinimalist: Bool
+    let textColor: Color
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(day.dayName)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundColor(textColor)
+
+            if isMinimalist {
+                Image(systemName: day.iconName)
+                    .symbolRenderingMode(.multicolor)
+                    .font(.system(size: 44))
+            } else {
+                Text(day.emoji)
+                    .font(.system(size: 44))
+            }
+
+            Text(day.condition)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundColor(textColor.opacity(0.92))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+struct DayTemperatureCard: View {
+    let title: String
+    let value: String
+    let textColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundColor(textColor.opacity(0.58))
+
+            Text(value)
+                .font(.system(size: 28, weight: .light, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundColor(textColor)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+    }
+}
+
+struct DaySectionTitle: View {
+    let title: String
+    let textColor: Color
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .foregroundColor(textColor.opacity(0.62))
+            .padding(.horizontal, 2)
+    }
+}
+
+struct DayDetailInfoRow: View {
+    let title: String
+    let value: String
+    let icon: String
+    let isSystemImage: Bool
+    let textColor: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if isSystemImage {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(textColor)
+                    .frame(width: 22)
+            } else {
+                Text(icon)
+                    .font(.system(size: 15))
+                    .frame(width: 22)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundColor(textColor.opacity(0.62))
+
+                Text(value)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .allowsTightening(true)
+                    .foregroundColor(textColor)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
 }

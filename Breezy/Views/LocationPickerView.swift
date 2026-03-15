@@ -89,6 +89,7 @@ struct LocationPickerView: View {
                 
                 if !searchService.searchQuery.isEmpty {
                     Button {
+                        HapticsManager.shared.impact(style: .light)
                         searchService.searchQuery = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -100,7 +101,7 @@ struct LocationPickerView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                    .fill(.ultraThinMaterial.opacity(0.3))
+                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
@@ -114,6 +115,7 @@ struct LocationPickerView: View {
             Task {
                 guard !isButtonBusy else { return }
                 isButtonBusy = true
+                HapticsManager.shared.impact(style: .medium)
                 do {
                     viewModel.shouldFollowGPS = true
                     let locationData = try await locationHelper.requestLocationAndGetData()
@@ -158,7 +160,7 @@ struct LocationPickerView: View {
             .padding(DesignSystem.spacingM)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                    .fill(.ultraThinMaterial.opacity(0.4))
+                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusL)
@@ -171,6 +173,7 @@ struct LocationPickerView: View {
         VStack(spacing: DesignSystem.spacingS) {
             ForEach(searchService.completions, id: \.self) { completion in
                 Button {
+                    HapticsManager.shared.impact(style: .light)
                     selectLocation(completion: completion)
                 } label: {
                     HStack(spacing: 12) {
@@ -206,7 +209,7 @@ struct LocationPickerView: View {
     
     private var recentlyViewedSection: some View {
          VStack(alignment: .leading, spacing: 12) {
-             Text("Recently Viewed")
+             Text("Recently Searched")
                  .font(.subheadline.weight(.semibold))
                  .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
              
@@ -218,6 +221,7 @@ struct LocationPickerView: View {
                          icon: "clock.fill",
                          color: .purple,
                          textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                         glassOpacity: viewModel.glassOpacity,
                          onDelete: {
                              RecentlyViewedStore.remove(location)
                          },
@@ -250,6 +254,7 @@ struct LocationPickerView: View {
                          icon: "star.fill",
                          color: .yellow,
                          textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                         glassOpacity: viewModel.glassOpacity,
                          onDelete: {
                              FavouritesStore.remove(location)
                          }
@@ -275,6 +280,7 @@ struct LocationPickerView: View {
             do {
                 viewModel.shouldFollowGPS = false
                 let locationData = try await searchService.getCoordinates(for: completion)
+                RecentlyViewedStore.add(locationData)
                 await viewModel.fetchWeather(for: locationData, isManualRefresh: true)
                 dismiss()
                 
@@ -298,12 +304,16 @@ struct LocationRowCard: View {
     let icon: String
     let color: Color
     let textColor: Color
+    let glassOpacity: Double
     var onDelete: (() -> Void)? = nil
     var onFavorite: (() -> Void)? = nil
     let action: () -> Void
-    
+
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            HapticsManager.shared.impact(style: .light)
+            action()
+        }) {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -313,7 +323,7 @@ struct LocationRowCard: View {
                         .font(.caption.weight(.bold))
                         .foregroundColor(color)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body.weight(.medium))
@@ -322,30 +332,34 @@ struct LocationRowCard: View {
                         .font(.caption2)
                         .foregroundColor(textColor.opacity(0.6))
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "chevron.right")
                     .font(.caption2)
-                    .foregroundColor(textColor.opacity(0.5))
+                    .foregroundColor(textColor.opacity(glassOpacity))
             }
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                    .fill(.ultraThinMaterial.opacity(0.3))
+                    .fill(.ultraThinMaterial.opacity(glassOpacity))
             )
         }
         .contextMenu {
             if let onFavorite = onFavorite {
                 Button {
+                    HapticsManager.shared.notification(type: .success)
                     onFavorite()
                 } label: {
                     Label("Add to Favourites", systemImage: "star")
                 }
             }
-            
+
             if let onDelete = onDelete {
-                Button(role: .destructive, action: onDelete) {
+                Button(role: .destructive) {
+                    HapticsManager.shared.impact(style: .heavy)
+                    onDelete()
+                } label: {
                     Label("Delete Location", systemImage: "trash")
                 }
             }

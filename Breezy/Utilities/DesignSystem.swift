@@ -66,13 +66,17 @@ struct SoftGlassCard: ViewModifier {
     let padding: CGFloat
     let cornerRadius: CGFloat
     
+    // Default opacity from UserDefaults/Settings if not available via Environment or ViewModel
+    // Note: To be fully dynamic, we would pass this in or use an EnvironmentObject
+    @AppStorage("Breezy.glassOpacity") var glassOpacity: Double = 0.35
+    
     func body(content: Content) -> some View {
         content
             .padding(padding)
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(.ultraThinMaterial.opacity(0.3))
+                        .fill(.ultraThinMaterial.opacity(glassOpacity))
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 }
@@ -97,11 +101,12 @@ extension View {
 struct ModernCard: ViewModifier {
     let padding: CGFloat
     let cornerRadius: CGFloat
+    @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
     
     func body(content: Content) -> some View {
         content
             .padding(padding)
-            .background(.ultraThinMaterial.opacity(0.4))
+            .background(.ultraThinMaterial.opacity(glassOpacity))
             .cornerRadius(cornerRadius)
             .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
     }

@@ -8,7 +8,7 @@
 import Foundation
 
 struct DailyForecast: Identifiable, Codable, Equatable {
-    var id: UUID { UUID() }
+    var id: String { date }
     let date: String
     let dayName: String
     let highTemp: String

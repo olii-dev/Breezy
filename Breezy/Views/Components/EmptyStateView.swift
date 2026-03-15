@@ -11,6 +11,7 @@ struct EmptyStateView: View {
     enum StateType {
         case loading
         case noLocation
+        case noInternet
         case error(String)
         case noData
     }
@@ -25,13 +26,19 @@ struct EmptyStateView: View {
             
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.1))
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.3), Color.cyan.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .frame(width: 140, height: 140)
                     .blur(radius: 30)
                 
-                Image(systemName: iconName)
+                iconView
                     .font(.system(size: 60))
-                    .foregroundColor(.primary.opacity(0.8))
+                    .foregroundStyle(iconGradient)
                     .symbolEffect(.pulse, isActive: state == .loading)
             }
             .padding(.bottom, 8)
@@ -60,7 +67,7 @@ struct EmptyStateView: View {
                         .padding(.vertical, 14)
                         .background(
                             Capsule()
-                                .fill(Color.primary)
+                                .fill(iconGradient)
                                 .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                         )
                 }
@@ -71,12 +78,54 @@ struct EmptyStateView: View {
         }
     }
     
-    private var iconName: String {
+    @ViewBuilder
+    private var iconView: some View {
         switch state {
-        case .loading: return "cloud.sun.fill"
-        case .noLocation: return "location.slash.fill"
-        case .error: return "exclamationmark.triangle.fill"
-        case .noData: return "cloud.drizzle.fill"
+        case .loading:
+            Image(systemName: "cloud.sun.fill")
+        case .noLocation:
+            Image(systemName: "location.slash.fill")
+        case .noInternet:
+            Image(systemName: "wifi.slash")
+        case .error:
+            Image(systemName: "exclamationmark.triangle.fill")
+        case .noData:
+            Image(systemName: "cloud.drizzle.fill")
+        }
+    }
+    
+    private var iconGradient: LinearGradient {
+        switch state {
+        case .loading:
+            return LinearGradient(
+                colors: [Color.blue, Color.cyan],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .noLocation:
+            return LinearGradient(
+                colors: [Color.orange, Color.red],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .noInternet:
+            return LinearGradient(
+                colors: [Color.gray, Color.gray.opacity(0.6)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .error:
+            return LinearGradient(
+                colors: [Color.red, Color.orange],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .noData:
+            return LinearGradient(
+                colors: [Color.blue.opacity(0.8), Color.cyan],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
     
@@ -84,6 +133,7 @@ struct EmptyStateView: View {
         switch state {
         case .loading: return "Loading Weather"
         case .noLocation: return "Location Required"
+        case .noInternet: return "No Internet"
         case .error: return "Something Went Wrong"
         case .noData: return "No Data Available"
         }
@@ -93,6 +143,7 @@ struct EmptyStateView: View {
         switch state {
         case .loading: return "Fetching the latest forecast..."
         case .noLocation: return "Breezy needs your location to provide accurate weather for your area."
+        case .noInternet: return "Check your connection and pull to refresh."
         case .error(let msg): return msg
         case .noData: return "We couldn't find weather data for this location."
         }
@@ -102,6 +153,7 @@ struct EmptyStateView: View {
         switch state {
         case .loading: return nil
         case .noLocation: return "Enable Location"
+        case .noInternet: return "Try Again"
         case .error: return "Try Again"
         case .noData: return "Search Location"
         }
@@ -113,6 +165,7 @@ extension EmptyStateView.StateType: Equatable {
         switch (lhs, rhs) {
         case (.loading, .loading): return true
         case (.noLocation, .noLocation): return true
+        case (.noInternet, .noInternet): return true
         case (.noData, .noData): return true
         case (.error(let a), .error(let b)): return a == b
         default: return false
@@ -123,6 +176,6 @@ extension EmptyStateView.StateType: Equatable {
 #Preview {
     ZStack {
         Color.blue.opacity(0.2).ignoresSafeArea()
-        EmptyStateView(state: .noLocation, action: {})
+        EmptyStateView(state: .noInternet, action: {})
     }
 }

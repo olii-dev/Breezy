@@ -2,9 +2,10 @@
 //  WatchSharedModels.swift
 //  Breezy Watch Watch App
 //
-//  Shared enums for Watch App
+//  Shared enums and weather models for Watch surfaces.
 //
 
+import Foundation
 import SwiftUI
 
 enum WeatherFont: String, CaseIterable, Identifiable, Codable {
@@ -138,4 +139,100 @@ enum PrecipitationUnit: String, CaseIterable, Identifiable, Codable {
         case .inches: return value * 0.0393701
         }
     }
+}
+
+enum WatchWeatherDataSource: String, Codable {
+    case phone
+    case weatherKit
+    case cache
+}
+
+struct WatchWeatherMetadata {
+    let source: WatchWeatherDataSource
+    let fetchedAt: Date
+    let isStale: Bool
+    let latitude: Double?
+    let longitude: Double?
+}
+
+struct WatchWeatherData {
+    let city: String
+    let temperature: String
+    let feelsLike: String?
+    let condition: String
+    let emoji: String
+    let iconName: String
+    let highTemp: String?
+    let lowTemp: String?
+    let hourlyForecast: [WatchHourlyForecast]
+    let dailyForecast: [WatchDailyForecast]
+    let windSpeed: String?
+    let windDirection: String?
+    let windDirectionDegrees: Double?
+    let uvIndex: Int?
+    let rainChance: String?
+    let humidity: Int?
+    let pressure: String?
+    let visibility: String?
+    let dewPoint: String?
+    let cloudCover: String?
+    let sunrise: String?
+    let sunset: String?
+    let metadata: WatchWeatherMetadata
+}
+
+struct WatchHourlyForecast: Identifiable {
+    var id: Date { date }
+
+    let date: Date
+    let time: String
+    let temperature: String
+    let emoji: String
+    let iconName: String
+    let condition: String
+}
+
+struct WatchDailyForecast: Identifiable {
+    let id = UUID()
+    let dayName: String
+    let iconName: String
+    let emoji: String
+    let lowTemp: String
+    let highTemp: String
+    let lowValue: Double
+    let highValue: Double
+    let condition: String
+    let precipitationChance: String
+    let maxWindSpeed: String
+    let uvIndex: String
+    let sunrise: String?
+    let sunset: String?
+    let hourlyForecast: [WatchHourlyForecast]
+}
+
+enum WatchAppStorageKey {
+    static let appGroup = "group.com.breezy.weather"
+    static let temperatureUnit = "Breezy.temperatureUnit"
+    static let selectedLocationID = "WatchSelectedLocationID"
+    static let savedLocations = "WatchSavedLocations"
+    static let lastLatitude = "WatchLastLatitude"
+    static let lastLongitude = "WatchLastLongitude"
+    static let lastCity = "WatchLastCity"
+    static let lastTemperature = "WatchLastTemperature"
+    static let lastCondition = "WatchLastCondition"
+    static let lastEmoji = "WatchLastEmoji"
+    static let lastHighTemp = "WatchLastHighTemp"
+    static let lastLowTemp = "WatchLastLowTemp"
+    static let lastCacheTimestamp = "WatchLastCacheTimestamp"
+    static let windSpeedUnit = "Breezy.windSpeedUnit"
+    static let pressureUnit = "Breezy.pressureUnit"
+    static let visibilityUnit = "Breezy.visibilityUnit"
+    static let shouldFollowGPS = "Breezy.shouldFollowGPS"
+    static let showMainHighlights = "WatchShowMainHighlights"
+    static let showMainSunSchedule = "WatchShowMainSunSchedule"
+    static let showRefreshStatus = "WatchShowRefreshStatus"
+    static let showDayMetrics = "WatchShowDayMetrics"
+    static let showDaySunSchedule = "WatchShowDaySunSchedule"
+    static let showDayHourlyChart = "WatchShowDayHourlyChart"
+    static let showDayHourlyForecast = "WatchShowDayHourlyForecast"
 }

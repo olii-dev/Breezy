@@ -61,11 +61,11 @@ struct ContentView: View {
                 } else if let error = viewModel.error {
                     ErrorView(error: error, viewModel: viewModel)
                 } else {
-                    NoDataView()
+                    NoDataView().environmentObject(viewModel)
                 }
             }
             .refreshable {
-                await viewModel.loadWeather()
+                await viewModel.refresh()
             }
         }
         .onAppear {
@@ -110,6 +110,25 @@ struct CurrentOverviewView: View {
                             .padding(.top, 4)
                     }
                 }
+
+                Button {
+                    viewModel.playHaptic(.click)
+                    Task {
+                        await viewModel.refresh()
+                    }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise.circle.fill")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .foregroundColor(theme.textColor)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(theme.textColor.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 8)
                 
                 // Settings Button (always at bottom)
                 NavigationLink(destination: SettingsView().environmentObject(viewModel)) {
@@ -121,6 +140,9 @@ struct CurrentOverviewView: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .simultaneousGesture(TapGesture().onEnded {
+                    viewModel.playHaptic(.click)
+                })
                 .padding(.top, 20)
                 .padding(.bottom, 20)
             }
@@ -151,6 +173,9 @@ struct MainInfoSection: View {
                 .padding(.top, 10)
             }
             .buttonStyle(.plain)
+            .simultaneousGesture(TapGesture().onEnded {
+                viewModel.playHaptic(.click)
+            })
             
             // Huge Icon
             if viewModel.useMinimalistIcons {
@@ -226,6 +251,9 @@ struct DailyForecastView: View {
                             WatchDailyForecastRow(day: day, rangeLow: globalMin, rangeHigh: globalMax, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
                         }
                         .buttonStyle(.plain)
+                        .simultaneousGesture(TapGesture().onEnded {
+                            viewModel.playHaptic(.click)
+                        })
                         
                         Divider().background(theme.textColor.opacity(0.15))
                     }
@@ -313,7 +341,7 @@ struct LocationPermissionView: View {
             
             Button("Allow Location") {
                 Task {
-                    await viewModel.loadWeather()
+                    await viewModel.refresh()
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -356,7 +384,7 @@ struct ErrorView: View {
                 .padding(.horizontal, 8)
             Button("Retry") {
                 Task {
-                    await viewModel.loadWeather()
+                    await viewModel.refresh()
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -368,6 +396,8 @@ struct ErrorView: View {
 }
 
 struct NoDataView: View {
+    @EnvironmentObject var viewModel: WatchWeatherViewModel
+
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "cloud")
@@ -376,9 +406,14 @@ struct NoDataView: View {
             Text("No weather data")
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.white.opacity(0.8))
-            Text("Pull to refresh")
-                .font(.caption2)
-                .foregroundColor(.white.opacity(0.6))
+            Button("Refresh") {
+                Task {
+                    await viewModel.refresh()
+                }
+            }
+            .font(.caption2.weight(.semibold))
+            .buttonStyle(.borderedProminent)
+            .tint(.white.opacity(0.9))
         }
         .padding()
     }

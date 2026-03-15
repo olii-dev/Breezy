@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var draggingWidget: DashboardWidget?
     @State private var showingWidgetGallery = false
     @State private var configuringWidget: DashboardWidget?
+    @State private var pendingWidgetRemoval: DashboardWidget?
 
 
     var body: some View {
@@ -118,16 +119,18 @@ struct ContentView: View {
                     ToolbarItem(placement: .navigationBarLeading) {
                         if isEditMode {
                             Button {
+                                HapticsManager.shared.impact(style: .light)
                                 showingWidgetGallery = true
                             } label: {
                                 Image(systemName: "plus")
                                     .fontWeight(.bold)
                                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                                     .padding(8)
-                                    .background(Circle().fill(.ultraThinMaterial))
+                                    .background(Circle().fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             }
                         } else {
                             Button(action: {
+                                HapticsManager.shared.impact(style: .light)
                                 showingLocationPicker = true
                             }) {
                                 HStack(spacing: 5) {
@@ -144,6 +147,7 @@ struct ContentView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         if isEditMode {
                             Button("Done") {
+                                HapticsManager.shared.selectionChanged()
                                 withAnimation {
                                     isEditMode = false
                                 }
@@ -154,6 +158,7 @@ struct ContentView: View {
                             let theme = viewModel.currentTheme(colorScheme: colorScheme)
                             HStack(spacing: 12) {
                                 Button {
+                                    HapticsManager.shared.impact(style: .light)
                                     showingTimeMachine = true
                                 } label: {
                                     Image(systemName: "clock.arrow.circlepath")
@@ -164,6 +169,7 @@ struct ContentView: View {
                                 .accessibilityLabel("Time Machine")
                                 
                                 Button {
+                                    HapticsManager.shared.impact(style: .light)
                                     showingSettings = true
                                 } label: {
                                     Image(systemName: "gearshape.fill")
@@ -245,6 +251,26 @@ struct ContentView: View {
                     if let weather = viewModel.weather {
                         // Main weather display
                         NewWeatherHeaderView(weather: weather, viewModel: viewModel)
+
+                        if viewModel.isShowingStaleWeather, let lastUpdated = viewModel.lastUpdatedDate {
+                            WeatherStatusBanner(
+                                lastUpdated: lastUpdated,
+                                isStale: viewModel.isShowingStaleWeather,
+                                detail: viewModel.staleWeatherMessage,
+                                textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity
+                            )
+                            .padding(.horizontal, DesignSystem.spacingM)
+                        }
+
+                        if let severeAssessment = viewModel.severeWeatherAssessment {
+                            SevereWeatherBanner(
+                                assessment: severeAssessment,
+                                textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity
+                            )
+                            .padding(.horizontal, DesignSystem.spacingM)
+                        }
                         
                         // Render widgets in user-defined order
                         ForEach(dashboardWidgets) { widget in
@@ -252,12 +278,10 @@ struct ContentView: View {
                                 sectionId: widget.id,
                                 isEditMode: isEditMode,
                                 onRemove: {
-                                    withAnimation {
-                                        dashboardWidgets.removeAll { $0.id == widget.id }
-                                        saveDashboard()
-                                    }
+                                    HapticsManager.shared.impact(style: .heavy)
+                                    pendingWidgetRemoval = widget
                                 },
-                                onConfigure: widget.type == .deepDetails ? {
+                                onConfigure: widget.type.supportsConfiguration ? {
                                     configuringWidget = widget
                                 } : nil,
                                 content: {
@@ -265,7 +289,19 @@ struct ContentView: View {
                                 }
                             )
                             .contentShape(Rectangle()) // Ensure entire area is valid for drag
+                            .simultaneousGesture(
+                                LongPressGesture(minimumDuration: 0.9, maximumDistance: 50)
+                                    .onEnded { _ in
+                                        if !isEditMode {
+                                            HapticsManager.shared.impact(style: .heavy)
+                                            withAnimation(.spring()) {
+                                                isEditMode = true
+                                            }
+                                        }
+                                    }
+                            )
                             .onDrag {
+                                HapticsManager.shared.impact(style: .light)
                                 self.draggingWidget = widget
                                 return NSItemProvider(object: widget.id.uuidString as NSString)
                             } preview: {
@@ -321,6 +357,29 @@ struct ContentView: View {
                     }
                 }
         )
+        .alert("Remove Widget?", isPresented: Binding(
+            get: { pendingWidgetRemoval != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingWidgetRemoval = nil
+                }
+            }
+        )) {
+            Button("Cancel", role: .cancel) {
+                pendingWidgetRemoval = nil
+            }
+            Button("Remove", role: .destructive) {
+                HapticsManager.shared.notification(type: .error)
+                guard let pendingWidgetRemoval else { return }
+                withAnimation {
+                    dashboardWidgets.removeAll { $0.id == pendingWidgetRemoval.id }
+                    saveDashboard()
+                }
+                self.pendingWidgetRemoval = nil
+            }
+        } message: {
+            Text("This removes the widget from your dashboard, but you can add it back anytime from the widget gallery.")
+        }
     }
     
     // MARK: - Dashboard Rendering Functions
@@ -330,7 +389,7 @@ struct ContentView: View {
         if let data = CloudStorage.shared.data(forKey: "Breezy.DashboardWidgets") {
             if let decoded = try? JSONDecoder().decode([DashboardWidget].self, from: data) {
                 // Filter out any widgets that might have invalid types if decoding succeeded but enum changed
-                dashboardWidgets = decoded
+                dashboardWidgets = withNarrativeWidgetIfNeeded(decoded)
                 return
             }
         }
@@ -347,6 +406,7 @@ struct ContentView: View {
                     case .sunMoon: return nil
                     }
                 }
+                dashboardWidgets = withNarrativeWidgetIfNeeded(dashboardWidgets)
                 saveDashboard()
                 UserDefaults.standard.removeObject(forKey: "Breezy.SectionOrder") // Clean up
                 return
@@ -354,8 +414,16 @@ struct ContentView: View {
         }
         
         // Fallback to defaults
-        print("Using default dashboard config")
         dashboardWidgets = DashboardWidget.defaultDashboard
+    }
+
+    private func withNarrativeWidgetIfNeeded(_ widgets: [DashboardWidget]) -> [DashboardWidget] {
+        guard !widgets.contains(where: { $0.type == .forecastNarrative }) else { return widgets }
+
+        var updated = widgets
+        let insertIndex = (updated.firstIndex(where: { $0.type == .dailyForecast }).map { $0 + 1 }) ?? updated.count
+        updated.insert(DashboardWidget(id: UUID(), type: .forecastNarrative), at: insertIndex)
+        return updated
     }
     
     private func saveDashboard() {
@@ -372,12 +440,22 @@ struct ContentView: View {
             NewHourlyCardView(
                 hourlyData: weather.hourlyForecast,
                 allHourlyData: weather.allHourlyData,
-                viewModel: viewModel
+                viewModel: viewModel,
+                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                density: widget.config?["density"] ?? "regular"
             )
             .padding(.horizontal, DesignSystem.spacingM)
             
         case .dailyForecast:
             NewDailyForecastView(forecast: weather.dailyForecast, viewModel: viewModel)
+                .padding(.horizontal, DesignSystem.spacingM)
+
+        case .forecastNarrative:
+            ForecastNarrativeWidget(
+                weather: weather,
+                viewModel: viewModel,
+                showsExpandedDetail: widget.config?["style"] != "compact"
+            )
                 .padding(.horizontal, DesignSystem.spacingM)
             
         case .deepDetails:
@@ -389,6 +467,10 @@ struct ContentView: View {
             
         case .rainSummary:
             RainSummaryWidget(weather: weather, viewModel: viewModel)
+                .padding(.horizontal, DesignSystem.spacingM)
+
+        case .rainfallToday:
+            RainfallTodayWidget(weather: weather, viewModel: viewModel)
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .windSummary:
@@ -415,7 +497,7 @@ struct ContentView: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                         .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
                 )
                 .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
@@ -430,7 +512,12 @@ struct ContentView: View {
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .uvIndex:
-            UVIndexWidget(weather: weather, viewModel: viewModel)
+            UVIndexWidget(
+                weather: weather,
+                viewModel: viewModel,
+                style: widget.config?["style"] ?? "standard",
+                showsCategory: (widget.config?["showCategory"] ?? "true") == "true"
+            )
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .feelsLike:
@@ -453,7 +540,9 @@ struct ContentView: View {
                         sunrise: sunriseDate,
                         sunset: sunsetDate,
                         currentTime: Date(),
-                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                        style: widget.config?["style"] ?? "full",
+                        showsCountdown: (widget.config?["showCountdown"] ?? "true") == "true"
                     )
                     .padding(.top, 16)
                     .padding(.bottom, 16)
@@ -461,7 +550,7 @@ struct ContentView: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                         .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
                 )
                 .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
@@ -470,61 +559,26 @@ struct ContentView: View {
             
         case .moonPhase:
             if let today = weather.dailyForecast.first, let phase = today.moonPhase {
-                VStack(alignment: .leading, spacing: 0) {
-                    Label("Moon Phase", systemImage: "moon.stars.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                        
-                    HStack(spacing: 24) {
-                        MoonPhaseView2(
-                            phase: phase,
-                            size: 70,
-                            color: viewModel.currentTheme(colorScheme: colorScheme).textColor
-                        )
-                        
-                        Divider()
-                            .frame(height: 60)
-                            .background(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.2))
-                        
-                        VStack(alignment: .leading, spacing: 14) {
-                            if let rise = today.moonrise {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "arrow.up.circle.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                                    VStack(alignment: .leading, spacing: 0) {
-                                        Text("Moonrise").font(.caption2).opacity(0.7)
-                                        Text(rise).font(.subheadline.bold())
-                                    }
-                                }
-                            }
-                            if let set = today.moonset {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "arrow.down.circle.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                                    VStack(alignment: .leading, spacing: 0) {
-                                        Text("Moonset").font(.caption2).opacity(0.7)
-                                        Text(set).font(.subheadline.bold())
-                                    }
-                                }
-                            }
-                        }
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                        
-                        Spacer()
-                    }
-                    .padding(20)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                        .fill(.ultraThinMaterial.opacity(0.35))
-                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                let moonCard = MoonPhaseCardView(
+                    phase: phase,
+                    moonrise: today.moonrise,
+                    moonset: today.moonset,
+                    style: widget.config?["style"] ?? "full",
+                    size: widget.config?["size"] ?? "medium",
+                    textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                    glassOpacity: viewModel.glassOpacity,
+                    showsDisclosure: !isEditMode
                 )
-                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
                 .padding(.horizontal, DesignSystem.spacingM)
+
+                if isEditMode {
+                    moonCard
+                } else {
+                    NavigationLink(destination: AstronomyDetailView(weather: weather, viewModel: viewModel)) {
+                        moonCard
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             
@@ -546,13 +600,145 @@ struct ContentView: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                        .fill(.ultraThinMaterial.opacity(0.35))
+                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                         .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
                 )
                 .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
                 .padding(.horizontal, DesignSystem.spacingM)
             }
+
+        case .windGraph:
+            WindGraphWidget(
+                weather: weather,
+                viewModel: viewModel,
+                hoursWindow: Int(widget.config?["rangeHours"] ?? "24") ?? 24
+            )
+                .padding(.horizontal, DesignSystem.spacingM)
+            
+        case .minutePrecipitation:
+            RainGraphWidget(
+                weather: weather,
+                viewModel: viewModel,
+                minuteWindow: Int(widget.config?["rangeMinutes"] ?? "60") ?? 60
+            )
+                .padding(.horizontal, DesignSystem.spacingM)
+
+        case .hourlyTemperatures:
+            HourlyTemperaturesWidget(weather: weather, viewModel: viewModel)
+                .padding(.horizontal, DesignSystem.spacingM)
+
+        case .humidityStrip:
+            HumidityStripWidget(
+                weather: weather,
+                viewModel: viewModel,
+                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24
+            )
+            .padding(.horizontal, DesignSystem.spacingM)
+
+        case .precipitationTimeline:
+            PrecipitationTimelineWidget(weather: weather, viewModel: viewModel)
+                .padding(.horizontal, DesignSystem.spacingM)
+
+        case .visibilityCard:
+            VisibilityWidget(weather: weather, viewModel: viewModel)
+                .padding(.horizontal, DesignSystem.spacingM)
+
+        case .cloudCoverCard:
+            CloudCoverWidget(weather: weather, viewModel: viewModel)
+                .padding(.horizontal, DesignSystem.spacingM)
+
+        case .windHistory:
+            WindHistoryWidget(
+                weather: weather,
+                viewModel: viewModel,
+                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24
+            )
+            .padding(.horizontal, DesignSystem.spacingM)
         }
+    }
+}
+
+struct WeatherStatusBanner: View {
+    let lastUpdated: Date
+    let isStale: Bool
+    let detail: String?
+    let textColor: Color
+    let glassOpacity: Double
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: isStale ? "clock.badge.exclamationmark.fill" : "clock.fill")
+                .foregroundColor(isStale ? .orange : textColor.opacity(0.8))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(isStale ? "Showing saved weather" : "Weather updated")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(textColor)
+
+                Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
+                    .font(.caption2)
+                    .foregroundColor(textColor.opacity(0.75))
+
+                if let detail {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundColor(textColor.opacity(0.68))
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                        .stroke((isStale ? Color.orange : textColor).opacity(0.18), lineWidth: 0.5)
+                )
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isStale ? "Showing saved weather" : "Weather updated")
+    }
+}
+
+struct SevereWeatherBanner: View {
+    let assessment: SevereWeatherAssessment
+    let textColor: Color
+    let glassOpacity: Double
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: assessment.symbol)
+                .foregroundColor(.red.opacity(0.9))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(assessment.headline)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(textColor)
+
+                Text(assessment.detail)
+                    .font(.caption2)
+                    .foregroundColor(textColor.opacity(0.8))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                        .stroke(Color.red.opacity(0.22), lineWidth: 0.7)
+                )
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Severe weather possible. \(assessment.detail)")
     }
 }
 
@@ -639,6 +825,39 @@ struct HourlyForecastChartView: View {
     @State private var dragX: CGFloat? = nil
     @State private var isDragging: Bool = false
     
+    private func hourlyChartContent(dataSource: [HourlyForecast], minHour: Int, maxHour: Int, nowHour: Int) -> some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        
+        return Chart(dataSource) { hour in
+            // Precipitation Background
+            if let precip = hour.precipitationChance {
+                BarMark(x: .value("Hour", hour.hourValue), y: .value("Precipitation", precip * 10))
+                    .foregroundStyle(DesignSystem.skyBlue.opacity(0.15))
+            }
+
+            AreaMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(LinearGradient(gradient: Gradient(colors: [Color.white.opacity(0.15), Color.clear]), startPoint: .top, endPoint: .bottom))
+            
+            LineMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(theme.textColor)
+                .lineStyle(StrokeStyle(lineWidth: 2.5))
+            
+            if hour.hourValue % 3 == 0 && hour.hourValue != minHour && hour.hourValue != maxHour {
+                PointMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                    .symbolSize(0.1)
+                    .foregroundStyle(Color.clear)
+            }
+            
+            if hour.hourValue == selectedHourValue || hour.hourValue == nowHour {
+                PointMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                    .symbolSize(symbolSize(for: hour, selectedHourValue: selectedHourValue))
+                    .foregroundStyle(symbolColor(for: hour, selectedHourValue: selectedHourValue, theme: theme))
+            }
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Today")
@@ -650,7 +869,7 @@ struct HourlyForecastChartView: View {
             
             ZStack {
                 RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                    .fill(.ultraThinMaterial.opacity(0.35))
+                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                     .overlay(
                         RoundedRectangle(cornerRadius: DesignSystem.radiusL)
                             .stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5)
@@ -666,79 +885,7 @@ struct HourlyForecastChartView: View {
                 let maxHour = dataSource.map { $0.hourValue }.max() ?? 23
                 let nowHour = Calendar.current.component(.hour, from: Date())
 
-                Chart(dataSource) { hour in
-                    // Subtle area fill
-                    AreaMark(
-                        x: .value("Hour", hour.hourValue),
-                        y: .value("Temperature", hour.temperatureRaw)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.white.opacity(0.15), Color.clear]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-
-                    // Main temperature line
-                    LineMark(
-                        x: .value("Hour", hour.hourValue),
-                        y: .value("Temperature", hour.temperatureRaw)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5))
-
-                    // Only show labels for major ticks; do not render point markers for every hour
-                    let chartAxisStride = 3
-                    // Avoid rendering labels that would stick outside the rounded card at the very edges
-                    if hour.hourValue % chartAxisStride == 0 && hour.hourValue != minHour && hour.hourValue != maxHour {
-                        PointMark(
-                            x: .value("Hour", hour.hourValue),
-                            y: .value("Temperature", hour.temperatureRaw)
-                        )
-                        .symbolSize(0.1)
-                        .foregroundStyle(Color.clear)
-                        .annotation(position: .top, alignment: .center, spacing: 4) {
-                            Text(viewModel.formattedTemperature(hour.temperatureRaw))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                        }
-                    }
-
-                    // Show a visible dot for selected hour or 'Now' hour
-                    if hour.hourValue == selectedHourValue || hour.hourValue == nowHour {
-                        PointMark(
-                            x: .value("Hour", hour.hourValue),
-                            y: .value("Temperature", hour.temperatureRaw)
-                        )
-                        .symbolSize(hour.hourValue == selectedHourValue ? 100 : 60)
-                        .foregroundStyle(hour.hourValue == selectedHourValue ? Color.yellow : viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                    }
-
-                    // Highlight the current hour with a subtle vertical rule and 'Now' label inside the Chart
-                    RuleMark(x: .value("Now", nowHour))
-                        .foregroundStyle(Color.yellow.opacity(0.9))
-                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4,6]))
-                        .annotation(position: .top, alignment: .center) {
-                            if let currentTemp = viewModel.weather?.hourlyForecast.first(where: { $0.hourValue == nowHour })?.temperatureRaw {
-                                VStack(spacing: 2) {
-                                    Text("Now")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundColor(.yellow)
-                                    Text(viewModel.formattedTemperature(currentTemp))
-                                        .font(.caption2)
-                                        .foregroundColor(.yellow)
-                                }
-                            } else if let currentTempStr = viewModel.weather?.temperature {
-                                // Fallback to current temperature string
-                                Text("Now: \(currentTempStr)")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundColor(.yellow)
-                            }
-                        }
-                }
+                hourlyChartContent(dataSource: dataSource, minHour: minHour, maxHour: maxHour, nowHour: nowHour)
 
                 // Expand x-axis domain slightly so the curve visually reaches the card edges
                 .chartXScale(domain: {
@@ -752,7 +899,7 @@ struct HourlyForecastChartView: View {
                     AxisMarks(values: .stride(by: 3)) { value in
                         AxisValueLabel {
                             if let hourInt = value.as(Int.self), hourInt >= 0 && hourInt < 24 {
-                                Text(hourInt == 0 ? "12 AM" : hourInt < 12 ? "\(hourInt) AM" : hourInt == 12 ? "12 PM" : "\(hourInt - 12) PM")
+                                Text(format12HourTime(hourInt))
                                     .font(.system(size: 11))
                                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                             }
@@ -763,68 +910,157 @@ struct HourlyForecastChartView: View {
                 .frame(height: 180)
                 .padding(.vertical, 20)
                 .padding(.horizontal, 12)
-
-                // Overlay for handling drag gestures and displaying tooltip (interactive scrubbing)
-                .overlay {
-                    GeometryReader { g in
-                        Rectangle()
-                            .fill(Color.clear)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        isDragging = true
-                                        let localX = value.location.x - 12 // account for chart horizontal padding
-                                        let width = max(1, g.size.width - 24)
-                                        let ratio = min(max(localX / width, 0), 1)
-                                        let idx = Int(round(ratio * CGFloat(max(dataSource.count - 1, 0))))
-                                        if dataSource.indices.contains(idx) {
-                                            selectedHourValue = dataSource[idx].hourValue
-                                            dragX = value.location.x
-                                        }
-                                    }
-                                    .onEnded { _ in
-                                        isDragging = false
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                            selectedHourValue = nil
-                                            dragX = nil
-                                        }
-                                    }
-                            )
-                            .overlay(alignment: .topLeading) {
-                                    if let x = dragX, let selVal = selectedHourValue, let selected = dataSource.first(where: { $0.hourValue == selVal }) {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(selected.time)
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                                        Text(viewModel.formattedTemperature(selected.temperatureRaw, decimals: 1))
-                                            .font(.headline)
-                                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                                        HStack(spacing: 8) {
-                                            Text(selected.emoji)
-                                            if let precip = selected.precipitationChance {
-                                                Text("\(Int(precip * 100))%")
-                                            }
-                                            if let wind = selected.windSpeed {
-                                                Text(wind)
-                                            }
-                                        }
-                                        .font(.caption2)
-                                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.85))
-                                    }
-                                    .padding(8)
-                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.6)))
-                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.12), lineWidth: 0.5))
-                                    .frame(maxWidth: 180)
-                                    .position(x: min(max(x, 60), g.size.width - 60), y: 24)
-                                    .transition(.opacity)
-                                }
-                            }
-                    }
-                }
+                .overlay { chartDragOverlay(dataSource: dataSource) }
             }
         }
         .padding(.top, 8)
+    }
+    
+    private func symbolSize(for hour: HourlyForecast, selectedHourValue: Int?) -> Double {
+        return hour.hourValue == selectedHourValue ? 100 : 60
+    }
+    
+    private func symbolColor(for hour: HourlyForecast, selectedHourValue: Int?, theme: WeatherTheme) -> Color {
+        return hour.hourValue == selectedHourValue ? Color.yellow : theme.textColor
+    }
+    
+    private func format12HourTime(_ hour: Int) -> String {
+        if hour == 0 {
+            return "12 AM"
+        } else if hour < 12 {
+            return "\(hour) AM"
+        } else if hour == 12 {
+            return "12 PM"
+        } else {
+            return "\(hour - 12) PM"
+        }
+    }
+    
+    private func chartDragOverlay(dataSource: [HourlyForecast]) -> some View {
+        GeometryReader { g in
+            Rectangle()
+                .fill(Color.clear)
+                .contentShape(Rectangle())
+                .gesture(chartDragGesture(dataSource: dataSource, geometryWidth: g.size.width))
+                .overlay(alignment: .topLeading) {
+                    chartTooltipContent(dataSource: dataSource, geometryWidth: g.size.width)
+                }
+        }
+    }
+    
+    private func chartDragGesture(dataSource: [HourlyForecast], geometryWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                isDragging = true
+                let localX = value.location.x - 12
+                let width = max(1, geometryWidth - 24)
+                let ratio = min(max(localX / width, 0), 1)
+                let idx = Int(round(ratio * CGFloat(max(dataSource.count - 1, 0))))
+                if dataSource.indices.contains(idx) {
+                    let newSelVal = dataSource[idx].hourValue
+                    if selectedHourValue != newSelVal {
+                        selectedHourValue = newSelVal
+                        HapticsManager.shared.selectionChanged()
+                    }
+                    dragX = value.location.x
+                }
+            }
+            .onEnded { _ in
+                isDragging = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    selectedHourValue = nil
+                    dragX = nil
+                }
+            }
+    }
+    
+    private func chartTooltipContent(dataSource: [HourlyForecast], geometryWidth: CGFloat) -> some View {
+        GeometryReader { g in
+            if let x = dragX, let selVal = selectedHourValue, let selected = dataSource.first(where: { $0.hourValue == selVal }) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(selected.time)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+
+                        if let emoji = selected.emoji {
+                            Text(emoji)
+                        }
+                    }
+                    if let condition = selected.condition {
+                        Text(condition)
+                            .font(.caption2)
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
+                    }
+                    Text(viewModel.formattedTemperature(selected.temperatureRaw, decimals: 1))
+                        .font(.headline)
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+
+                    FlowLayout(spacing: 6) {
+                        if let precip = selected.precipitationChance {
+                            TooltipMetricChip(label: "Rain", value: "\(Int(precip * 100))%")
+                        }
+
+                        if let amount = selected.precipitationAmount, amount > 0.05 {
+                            TooltipMetricChip(label: "Amount", value: viewModel.formattedPrecipitationAmount(amount))
+                        }
+
+                        if let windValue = selected.windSpeed {
+                            TooltipMetricChip(label: "Wind", value: windValue)
+                        }
+
+                        if let gust = selected.windGust, gust > 0 {
+                            TooltipMetricChip(label: "Gust", value: viewModel.formattedWindSpeedValue(gust))
+                        }
+
+                        if let humidity = selected.humidity {
+                            TooltipMetricChip(label: "Humidity", value: "\(humidity)%")
+                        }
+
+                        if let uv = selected.uvIndex, uv > 0 {
+                            TooltipMetricChip(label: "UV", value: "\(uv)")
+                        }
+                    }
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+                .frame(maxWidth: 220)
+                .position(x: min(max(x, 60), geometryWidth - 60), y: 24)
+                .transition(.opacity)
+            }
+        }
+    }
+    
+    private func hourlyTemperatureChartContent() -> some View {
+        let dataSource = (allHourlyData?.isEmpty == false) ? (allHourlyData!) : hourlyData
+        let minHour = dataSource.map { $0.hourValue }.min() ?? 0
+        let maxHour = dataSource.map { $0.hourValue }.max() ?? 23
+        let nowHour = Calendar.current.component(.hour, from: Date())
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        
+        return Chart(dataSource) { hour in
+            AreaMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(LinearGradient(gradient: Gradient(colors: [Color.white.opacity(0.15), Color.clear]), startPoint: .top, endPoint: .bottom))
+            
+            LineMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(theme.textColor)
+                .lineStyle(StrokeStyle(lineWidth: 2.5))
+            
+            if hour.hourValue % 3 == 0 && hour.hourValue != minHour && hour.hourValue != maxHour {
+                PointMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                    .symbolSize(0.1)
+                    .foregroundStyle(Color.clear)
+            }
+            
+            if hour.hourValue == selectedHourValue || hour.hourValue == nowHour {
+                PointMark(x: .value("Hour", hour.hourValue), y: .value("Temperature", hour.temperatureRaw))
+                    .symbolSize(symbolSize(for: hour, selectedHourValue: selectedHourValue))
+                    .foregroundStyle(symbolColor(for: hour, selectedHourValue: selectedHourValue, theme: theme))
+            }
+        }
     }
 }
 
@@ -845,7 +1081,7 @@ struct HourDetailSheet: View {
                 .ignoresSafeArea()
                 
                 VStack(spacing: 24) {
-                    Text(hour.emoji)
+                    Text(hour.emoji ?? "☁️")
                         .font(.system(size: 80))
                     
                     Text(hour.time)
@@ -857,7 +1093,7 @@ struct HourDetailSheet: View {
                         .font(.system(size: 64, weight: .light))
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                     
-                    Text(hour.condition)
+                    Text(hour.condition ?? "Unknown")
                         .font(.title2)
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.9))
                 }
@@ -880,6 +1116,10 @@ struct DailyForecastListView: View {
     let forecast: [DailyForecast]
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+
+    private var forecastRows: [(index: Int, day: DailyForecast)] {
+        Array(forecast.enumerated()).map { (index: $0.offset, day: $0.element) }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -889,9 +1129,9 @@ struct DailyForecastListView: View {
                 .padding(.horizontal)
             
             VStack(spacing: 8) {
-                ForEach(forecast) { day in
-                    NavigationLink(destination: DailyForecastDetailView(day: day, viewModel: viewModel)) {
-                        DailyForecastRowView(day: day, viewModel: viewModel)
+                ForEach(forecastRows, id: \.index) { row in
+                    NavigationLink(destination: DailyForecastDetailView(day: row.day, viewModel: viewModel).id("\(row.day.id)-\(row.index)")) {
+                        DailyForecastRowView(day: row.day, viewModel: viewModel)
                     }
                     .buttonStyle(PlainButtonStyle())
                     .modernCard(padding: 0, cornerRadius: DesignSystem.radiusL)
@@ -1015,7 +1255,8 @@ struct TodayHighlightsView: View {
                                 title: item.title,
                                 value: item.value,
                                 subtitle: nil,
-                                textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                                textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                                viewModel: viewModel
                             )
                             .frame(width: max(100, cardWidth), height: 86)
                         }
@@ -1035,6 +1276,7 @@ struct HighlightCard: View {
     let value: String
     let subtitle: String?
     let textColor: Color
+    @ObservedObject var viewModel: WeatherViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1060,7 +1302,7 @@ struct HighlightCard: View {
         .padding(8)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                    .fill(.ultraThinMaterial.opacity(0.45))
+                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                     .overlay(
                         RoundedRectangle(cornerRadius: DesignSystem.radiusM)
                             .stroke(textColor.opacity(0.2), lineWidth: 0.5)
@@ -1123,7 +1365,7 @@ struct NewWeatherHeaderView: View {
                 .padding(.vertical, 8)
                 .background(
                     Capsule()
-                        .fill(.ultraThinMaterial.opacity(0.3))
+                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                         .overlay(
                             Capsule()
                                 .stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.2), lineWidth: 1)
@@ -1163,8 +1405,23 @@ struct NewHourlyCardView: View {
     let hourlyData: [HourlyForecast]
     let allHourlyData: [HourlyForecast]?
     @ObservedObject var viewModel: WeatherViewModel
+    let rangeHours: Int
+    let density: String
     @Environment(\.colorScheme) var colorScheme
-    @State private var scrollViewId = UUID()
+
+    private var tileWidth: CGFloat {
+        density == "compact" ? 52 : 60
+    }
+
+    private var tileSpacing: CGFloat {
+        density == "compact" ? DesignSystem.spacingXS : DesignSystem.spacingS
+    }
+
+    private var titleText: String {
+        let hoursToShow = allHourlyData ?? hourlyData
+        let displayed = min(rangeHours, hoursToShow.count)
+        return "\(displayed)-Hour Forecast"
+    }
     
     // Find the index of the current hour (or closest hour)
     private var currentHourIndex: Int {
@@ -1212,45 +1469,44 @@ struct NewHourlyCardView: View {
         
         return nil
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("24-Hour Forecast", systemImage: "chart.xyaxis.line")
+            Label(titleText, systemImage: "chart.xyaxis.line")
                 .font(.caption.weight(.bold))
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-            
+
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: DesignSystem.spacingS) {
-                        // Show all available hourly data (up to 24 hours)
+                    HStack(spacing: tileSpacing) {
                         let hoursToShow = allHourlyData ?? hourlyData
                         let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                        
-                        ForEach(0..<min(24, hoursToShow.count), id: \.self) { index in
+
+                        ForEach(0..<min(rangeHours, hoursToShow.count), id: \.self) { index in
                             let hour = hoursToShow[index]
                             VStack(spacing: 8) {
                                 Text(hour.time)
                                     .font(.caption.weight(index == currentHourIndex ? .bold : .medium))
                                     .foregroundColor(theme.textColor.opacity(index == currentHourIndex ? 1.0 : 0.75))
-                                
+
                                 if viewModel.useMinimalistIcons {
-                                    Image(systemName: viewModel.weatherIcon(for: hour.condition))
+                                    Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud"))
                                         .font(.title3)
                                         .foregroundColor(theme.textColor)
                                         .symbolRenderingMode(.hierarchical)
                                         .frame(height: 28)
                                 } else {
-                                    Text(hour.emoji)
+                                    Text(hour.emoji ?? "☁️")
                                         .font(.title3)
                                         .frame(height: 28)
                                 }
-                                
+
                                 Text(viewModel.formattedTemperature(hour.temperatureRaw))
                                     .font(.body.weight(index == currentHourIndex ? .bold : .semibold))
                                     .foregroundColor(theme.textColor)
                             }
-                            .frame(width: 60)
-                            .id(index) // Ensure ID matches the index
+                            .frame(width: tileWidth)
+                            .id(index)
                             .padding(.vertical, DesignSystem.spacingS)
                             .background(
                                 RoundedRectangle(cornerRadius: DesignSystem.radiusS)
@@ -1279,12 +1535,268 @@ struct NewHourlyCardView: View {
             }
         }
     }
+
+}
+
+struct MoonPhaseCardView: View {
+    let phase: MoonPhase
+    let moonrise: String?
+    let moonset: String?
+    let style: String
+    let size: String
+    let textColor: Color
+    let glassOpacity: Double
+    let showsDisclosure: Bool
+
+    private var moonSize: CGFloat {
+        switch size {
+        case "small": return 54
+        case "large": return 92
+        default: return 70
+        }
+    }
+
+    private var isCompact: Bool {
+        style == "compact"
+    }
+
+    private var illuminationText: String {
+        "Illumination \(Int((phase.illumination * 100).rounded()))%"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Label("Moon Phase", systemImage: "moon.stars.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(textColor.opacity(0.6))
+
+                Spacer()
+
+                if showsDisclosure {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(textColor.opacity(0.45))
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 16)
+
+            if isCompact {
+                HStack(spacing: 16) {
+                    MoonPhaseView2(
+                        phase: phase,
+                        size: moonSize,
+                        color: textColor
+                    )
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(phase.phase)
+                            .font(.headline)
+                            .foregroundColor(textColor)
+
+                        Text(illuminationText)
+                            .font(.caption)
+                            .foregroundColor(textColor.opacity(0.72))
+
+                        if let eventSummary {
+                            Text(eventSummary)
+                                .font(.caption)
+                                .foregroundColor(textColor.opacity(0.72))
+                                .lineLimit(2)
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding(20)
+            } else {
+                HStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        MoonPhaseView2(
+                            phase: phase,
+                            size: moonSize,
+                            color: textColor
+                        )
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(phase.phase)
+                                .font(.headline)
+                                .foregroundColor(textColor)
+
+                            Text(illuminationText)
+                                .font(.caption)
+                                .foregroundColor(textColor.opacity(0.72))
+
+                            if let eventSummary {
+                                Text(eventSummary)
+                                    .font(.caption2)
+                                    .foregroundColor(textColor.opacity(0.68))
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+
+                    Divider()
+                        .frame(height: 88)
+                        .background(textColor.opacity(0.2))
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        if let rise = moonrise {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(textColor.opacity(0.6))
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text("Moonrise").font(.caption2).opacity(0.7)
+                                    Text(rise).font(.subheadline.bold())
+                                }
+                            }
+                        }
+                        if let set = moonset {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(textColor.opacity(0.6))
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text("Moonset").font(.caption2).opacity(0.7)
+                                    Text(set).font(.subheadline.bold())
+                                }
+                            }
+                        }
+                    }
+                    .foregroundColor(textColor)
+
+                    Spacer()
+                }
+                .padding(20)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
+                .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(textColor.opacity(0.18), lineWidth: 0.5))
+        )
+        .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+    }
+
+    private var eventSummary: String? {
+        switch (moonrise, moonset) {
+        case let (rise?, set?):
+            return "Rise \(rise) · Set \(set)"
+        case let (rise?, nil):
+            return "Rise \(rise)"
+        case let (nil, set?):
+            return "Set \(set)"
+        default:
+            return nil
+        }
+    }
+}
+
+struct HourlyInsightPill: View {
+    let icon: String
+    let title: String
+    let value: String
+    let textColor: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                Text(value)
+                    .font(.caption.weight(.medium))
+            }
+        }
+        .foregroundColor(textColor)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.12))
+        )
+    }
+}
+
+struct HourlyForecastStripTile: View {
+    let hour: HourlyForecast
+    let isCurrent: Bool
+    @ObservedObject var viewModel: WeatherViewModel
+    let textColor: Color
+
+    private var chanceLabel: String? {
+        guard let precipitationChance = hour.precipitationChance, precipitationChance >= 0.2 else { return nil }
+        return "\(Int(precipitationChance * 100))%"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(hour.time)
+                .font(.caption.weight(isCurrent ? .bold : .medium))
+                .foregroundColor(textColor.opacity(isCurrent ? 1 : 0.74))
+
+            Group {
+                if viewModel.useMinimalistIcons {
+                    Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud"))
+                        .font(.title3)
+                        .foregroundColor(textColor)
+                        .symbolRenderingMode(.hierarchical)
+                } else {
+                    Text(hour.emoji ?? "☁️")
+                        .font(.title3)
+                }
+            }
+            .frame(height: 28)
+
+            Text(viewModel.formattedTemperature(hour.temperatureRaw))
+                .font(.body.weight(isCurrent ? .bold : .semibold))
+                .foregroundColor(textColor)
+
+            Text(hour.condition ?? "Forecast")
+                .font(.caption2)
+                .foregroundColor(textColor.opacity(0.68))
+                .lineLimit(2)
+                .frame(height: 28, alignment: .topLeading)
+
+            VStack(alignment: .leading, spacing: 6) {
+                if let chanceLabel {
+                    Label(chanceLabel, systemImage: "drop.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(DesignSystem.skyBlue)
+                }
+
+                if let windSpeed = hour.windSpeed {
+                    Label(windSpeed, systemImage: "wind")
+                        .font(.caption2)
+                        .foregroundColor(textColor.opacity(0.7))
+                        .lineLimit(1)
+                }
+            }
+        }
+        .frame(width: 104, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                .fill(isCurrent ? Color.white.opacity(0.2) : Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                        .stroke(textColor.opacity(isCurrent ? 0.28 : 0.12), lineWidth: 0.8)
+                )
+        )
+    }
 }
 
 struct NewDailyForecastView: View {
     let forecast: [DailyForecast]
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+
+    private var forecastRows: [(index: Int, day: DailyForecast)] {
+        Array(forecast.prefix(10).enumerated()).map { (index: $0.offset, day: $0.element) }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1293,9 +1805,9 @@ struct NewDailyForecastView: View {
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
             
             VStack(spacing: DesignSystem.spacingXS) {
-                ForEach(forecast.prefix(10)) { day in
-                    NavigationLink(destination: DailyForecastDetailView(day: day, viewModel: viewModel)) {
-                        SimpleDailyRow(day: day, viewModel: viewModel)
+                ForEach(forecastRows, id: \.index) { row in
+                    NavigationLink(destination: DailyForecastDetailView(day: row.day, viewModel: viewModel).id("\(row.day.id)-\(row.index)")) {
+                        SimpleDailyRow(day: row.day, viewModel: viewModel)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
@@ -1359,12 +1871,10 @@ struct MetricsPillsView: View {
     
     var body: some View {
         let pills = buildPills()
+        let columnCount = max(1, min(pills.count, 3))
+        let columns = Array(repeating: GridItem(.flexible()), count: columnCount)
         
-        LazyVGrid(columns: [
-            GridItem(.flexible()),
-            GridItem(.flexible()),
-            GridItem(.flexible())
-        ], spacing: DesignSystem.spacingS) {
+        LazyVGrid(columns: columns, spacing: DesignSystem.spacingS) {
             ForEach(pills, id: \.title) { pill in
                 VStack(spacing: 6) {
                     // Show emoji or SF Symbol based on setting
@@ -1396,9 +1906,8 @@ struct MetricsPillsView: View {
         var pills: [(String, String, String, String)] = []
         let visibleList = customMetrics ?? Array(viewModel.visibleMetrics)
         
-        // Iterate through all metrics, but only add if they are visible AND have data
-        for metric in WeatherMetric.allCases {
-            guard visibleList.contains(metric) else { continue }
+        // Preserve the user's configured order and include only metrics with data.
+        for metric in visibleList {
             
             switch metric {
             case .wind:
@@ -1457,6 +1966,206 @@ struct MetricsPillsView: View {
 
 // MARK: - New Widgets
 
+struct ForecastNarrativeWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    let showsExpandedDetail: Bool
+    @Environment(\.colorScheme) var colorScheme
+
+    private var narrative: WeatherViewModel.ForecastNarrativeSummary {
+        viewModel.forecastNarrativeSummary ?? .init(
+            headline: "Mostly steady weather through the next few days.",
+            detail: "No single rain, wind, or temperature swing dominates the outlook right now."
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Forecast Story", systemImage: "text.justify.left")
+                .font(.caption.weight(.bold))
+                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+
+            Text(narrative.headline)
+                .font(.headline)
+                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if showsExpandedDetail, let detail = narrative.detail {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+
+struct HourlyTemperaturesWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+    @State private var selectedHourID: String? = nil
+
+    private var hours: [HourlyForecast] {
+        weather.allHourlyData ?? weather.hourlyForecast
+    }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+            Label("Hourly Temperatures", systemImage: "thermometer.sun.fill")
+                .font(.caption.weight(.bold))
+                .foregroundColor(theme.textColor.opacity(0.6))
+                .padding(.horizontal)
+                .padding(.top, 16)
+
+            if hours.isEmpty {
+                Text("No hourly data available.")
+                    .font(.caption)
+                    .foregroundColor(theme.textColor.opacity(0.6))
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
+            } else {
+                hourlyChart(theme: theme)
+                    .frame(height: 160)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 16)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .stroke(theme.textColor.opacity(0.18), lineWidth: 0.5)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+    }
+
+    @ViewBuilder
+    private func hourlyChart(theme: WeatherTheme) -> some View {
+        let interpolation: InterpolationMethod = hours.count >= 4 ? .catmullRom : .linear
+        let temps = hours.map(\.temperatureRaw)
+        let minTemp = temps.min() ?? 0
+        let maxTemp = temps.max() ?? 100
+        let padding = max(2, (maxTemp - minTemp) * 0.15)
+        let range = (minTemp - padding)...(maxTemp + padding)
+        let stride = hours.count <= 6 ? 1 : hours.count <= 12 ? 2 : 3
+        let labelHourValues: [Int] = {
+            let values = hours.map(\.hourValue)
+            return values.enumerated().compactMap { index, v in
+                (index == 0 || index == values.count - 1 || index % stride == 0) ? v : nil
+            }
+        }()
+
+        Chart {
+            ForEach(hours) { hour in
+                AreaMark(
+                    x: .value("Hour", hour.hourValue),
+                    yStart: .value("Baseline", range.lowerBound),
+                    yEnd: .value("Temperature", hour.temperatureRaw)
+                )
+                .interpolationMethod(interpolation)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.22), Color.white.opacity(0.02)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+                LineMark(
+                    x: .value("Hour", hour.hourValue),
+                    y: .value("Temperature", hour.temperatureRaw)
+                )
+                .interpolationMethod(interpolation)
+                .foregroundStyle(Color.white.opacity(0.96))
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            }
+
+            if let selID = selectedHourID, let hour = hours.first(where: { $0.id == selID }) {
+                RuleMark(x: .value("Selected", Double(hour.hourValue)))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
+                    .foregroundStyle(theme.textColor.opacity(0.35))
+                    .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(viewModel.formattedTemperature(hour.temperatureRaw))
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(theme.textColor)
+                            Text(hour.time)
+                                .font(.caption2.weight(.medium))
+                                .foregroundColor(theme.textColor.opacity(0.72))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.textColor.opacity(0.1), lineWidth: 0.5))
+                    }
+            }
+        }
+        .chartXScale(domain: (hours.first?.hourValue ?? 0)...(hours.last?.hourValue ?? 23))
+        .chartYScale(domain: range)
+        .chartXAxis {
+            AxisMarks(values: labelHourValues) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                    .foregroundStyle(theme.textColor.opacity(0.12))
+                AxisValueLabel {
+                    if let hour = value.as(Int.self), let match = hours.first(where: { $0.hourValue == hour }) {
+                        Text(match.time)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(theme.textColor.opacity(0.72))
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                    .foregroundStyle(theme.textColor.opacity(0.12))
+                AxisValueLabel {
+                    if let temp = value.as(Double.self) {
+                        Text(viewModel.formattedTemperature(temp))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(theme.textColor.opacity(0.72))
+                    }
+                }
+            }
+        }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                guard let plotFrame = proxy.plotFrame else { return }
+                                let origin = geometry[plotFrame].origin
+                                let locationX = value.location.x - origin.x
+                                if let hourInt: Int = proxy.value(atX: locationX) {
+                                    let nearest = hours.min { abs($0.hourValue - hourInt) < abs($1.hourValue - hourInt) }
+                                    if nearest?.id != selectedHourID {
+                                        HapticsManager.shared.impact(style: .light)
+                                    }
+                                    selectedHourID = nearest?.id
+                                }
+                            }
+                            .onEnded { _ in
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    selectedHourID = nil
+                                }
+                            }
+                    )
+            }
+        }
+    }
+}
+
 struct RainSummaryWidget: View {
     let weather: WeatherInfo
     @ObservedObject var viewModel: WeatherViewModel
@@ -1473,6 +2182,12 @@ struct RainSummaryWidget: View {
                     Text(soon)
                         .font(.headline)
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+
+                    if let detail = viewModel.rainSoonDetail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.72))
+                    }
                 } else {
                     Text("No rain expected soon")
                         .font(.subheadline)
@@ -1489,11 +2204,21 @@ struct RainSummaryWidget: View {
                                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
                         }
                         
-                        if let accumulated = weather.metrics?.rainChance {
+                        if let rainfall = weather.metrics?.todayRainfall {
                             VStack(alignment: .leading) {
-                                Text(accumulated)
+                                Text(rainfall)
                                     .font(.title3.weight(.bold))
-                                Text("Accumulation")
+                                Text("Today total")
+                                    .font(.caption2)
+                                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                            }
+                        }
+
+                        if let intensity = weather.metrics?.todayMaxRainIntensity {
+                            VStack(alignment: .leading) {
+                                Text(intensity)
+                                    .font(.title3.weight(.bold))
+                                Text("Peak rate")
                                     .font(.caption2)
                                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
                             }
@@ -1504,6 +2229,967 @@ struct RainSummaryWidget: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .softGlassCard()
+    }
+}
+
+struct RainfallTodayWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+
+    @Environment(\.colorScheme) var colorScheme
+    @State private var selectedHourID: String? = nil
+    @State private var isDragging: Bool = false
+    private var todayChance: String {
+        weather.dailyForecast.first?.chanceOfRain ?? "0%"
+    }
+
+    private var totalRainfall: String {
+        weather.metrics?.todayRainfall ?? "0 \(viewModel.precipitationUnit.symbol)"
+    }
+
+    private var peakIntensity: String {
+        weather.metrics?.todayMaxRainIntensity ?? "No heavy bursts"
+    }
+
+    var body: some View {
+        let textColor = viewModel.currentTheme(colorScheme: colorScheme).textColor
+
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Rainfall Today", systemImage: "drop.fill")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(totalRainfall)
+                        .font(.system(size: 30, weight: .semibold, design: viewModel.typography.design))
+                        .foregroundColor(textColor)
+                    Text("Accumulated so far today")
+                        .font(.caption)
+                        .foregroundColor(textColor.opacity(0.68))
+                }
+
+                Spacer(minLength: 0)
+
+                Text(todayChance)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(textColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+                    )
+            }
+
+            HStack(spacing: 12) {
+                WeatherStatBlock(title: "Peak rate", value: peakIntensity, textColor: textColor)
+                WeatherStatBlock(title: "Rain chance", value: todayChance, textColor: textColor)
+            }
+
+            if let rainDetail = viewModel.rainSoonDetail, let rainHeadline = viewModel.rainSoonLabel {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(rainHeadline)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(textColor)
+                    Text(rainDetail)
+                        .font(.caption2)
+                        .foregroundColor(textColor.opacity(0.68))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+
+struct RainGraphWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    let minuteWindow: Int
+    @Environment(\.colorScheme) var colorScheme
+
+    private var minuteForecast: [MinuteForecast] {
+        Array((weather.metrics?.minuteForecast ?? []).prefix(minuteWindow))
+    }
+
+    private var peakMinuteSummary: String? {
+        guard let peak = minuteForecast.enumerated().max(by: { $0.element.precipitationChance < $1.element.precipitationChance }) else {
+            return nil
+        }
+
+        let chance = Int(peak.element.precipitationChance * 100)
+        guard chance > 0 else { return nil }
+        return "Peak chance reaches \(chance)% in about \(peak.offset) min."
+    }
+
+    var body: some View {
+        let textColor = viewModel.currentTheme(colorScheme: colorScheme).textColor
+
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Rain Graph", systemImage: "chart.bar.fill")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            if let rainHeadline = viewModel.rainSoonLabel {
+                Text(rainHeadline)
+                    .font(.headline)
+                    .foregroundColor(textColor)
+            } else {
+                Text("Next \(minuteWindow) minutes")
+                    .font(.headline)
+                    .foregroundColor(textColor)
+            }
+
+            if let peakMinuteSummary {
+                Text(peakMinuteSummary)
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.72))
+            } else {
+                Text("No stronger rain signal stands out across the next hour right now.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.72))
+            }
+
+            MinutePrecipitationChartView(minuteData: minuteForecast, textColor: textColor, maxMinutes: minuteWindow)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+
+struct WindGraphWidget: View {
+    private struct WindPoint: Identifiable {
+        let id = UUID()
+        let index: Int
+        let time: String
+        let speed: Double
+    }
+
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    let hoursWindow: Int
+    @Environment(\.colorScheme) var colorScheme
+    @State private var selectedWindIndex: Int?
+
+    private var windPoints: [WindPoint] {
+        Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(hoursWindow).enumerated()).compactMap { index, hour in
+            guard let speed = numericWindSpeed(from: hour.windSpeed) else { return nil }
+            return WindPoint(index: index, time: hour.time, speed: speed)
+        }
+    }
+
+    private var peakWindPoint: WindPoint? {
+        windPoints.max(by: { $0.speed < $1.speed })
+    }
+
+    private var selectedWindPoint: WindPoint? {
+        guard let selectedWindIndex, windPoints.indices.contains(selectedWindIndex) else { return nil }
+        return windPoints[selectedWindIndex]
+    }
+
+    var body: some View {
+        let textColor = viewModel.currentTheme(colorScheme: colorScheme).textColor
+
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Wind Graph", systemImage: "chart.line.uptrend.xyaxis")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            if let peakWindPoint {
+                Text("Breeziest stretch is around \(peakWindPoint.time)")
+                    .font(.headline)
+                    .foregroundColor(textColor)
+
+                Text("Peak wind reaches about \(viewModel.formattedWindSpeedValue(peakWindPoint.speed)) across the next \(hoursWindow) hours.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.72))
+            } else {
+                Text("Wind trend")
+                    .font(.headline)
+                    .foregroundColor(textColor)
+
+                Text("Hourly wind data is not available for this forecast.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.72))
+            }
+
+            if windPoints.isEmpty {
+                Text("No hourly wind speeds available right now.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.6))
+                    .frame(maxWidth: .infinity, minHeight: 140)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                            .fill(Color.white.opacity(0.06))
+                    )
+            } else {
+                Chart {
+                    ForEach(windPoints) { point in
+                        AreaMark(
+                            x: .value("Hour", point.index),
+                            y: .value("Wind", point.speed)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [DesignSystem.skyBlue.opacity(0.35), DesignSystem.skyBlue.opacity(0.04)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+
+                        LineMark(
+                            x: .value("Hour", point.index),
+                            y: .value("Wind", point.speed)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(DesignSystem.skyBlue)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+                    }
+
+                    if let peakWindPoint {
+                        PointMark(
+                            x: .value("Peak Hour", peakWindPoint.index),
+                            y: .value("Peak Wind", peakWindPoint.speed)
+                        )
+                        .symbolSize(90)
+                        .foregroundStyle(textColor)
+                    }
+
+                    if let selectedWindPoint {
+                        RuleMark(x: .value("Selected Hour", selectedWindPoint.index))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
+                            .foregroundStyle(textColor.opacity(0.35))
+                            .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(selectedWindPoint.time)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundColor(textColor)
+                                    Text(viewModel.formattedWindSpeedValue(selectedWindPoint.speed))
+                                        .font(.headline)
+                                        .foregroundColor(textColor)
+                                }
+                                .padding(10)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(textColor.opacity(0.12), lineWidth: 0.5))
+                            }
+
+                        PointMark(
+                            x: .value("Selected Point", selectedWindPoint.index),
+                            y: .value("Selected Speed", selectedWindPoint.speed)
+                        )
+                        .symbolSize(110)
+                        .foregroundStyle(textColor)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: 6)) { value in
+                        AxisValueLabel {
+                            if let index = value.as(Int.self), windPoints.indices.contains(index) {
+                                Text(windPoints[index].time)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                            .foregroundStyle(textColor.opacity(0.15))
+                        AxisValueLabel {
+                            if let speed = value.as(Double.self) {
+                                Text(viewModel.formattedWindSpeedValue(speed))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
+                        }
+                    }
+                }
+                .chartYScale(domain: 0...(max((peakWindPoint?.speed ?? 0) * 1.2, 8)))
+                .frame(height: 170)
+                .padding(.top, 4)
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        guard let plotFrame = proxy.plotFrame else { return }
+                                        let origin = geometry[plotFrame].origin
+                                        let location = CGPoint(x: value.location.x - origin.x, y: value.location.y - origin.y)
+                                        if let index: Int = proxy.value(atX: location.x),
+                                           let snappedIndex = windPoints.firstIndex(where: { $0.index == index }) {
+                                            if snappedIndex != selectedWindIndex {
+                                                HapticsManager.shared.impact(style: .light)
+                                            }
+                                            selectedWindIndex = snappedIndex
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        selectedWindIndex = nil
+                                    }
+                            )
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+
+    private func numericWindSpeed(from windString: String?) -> Double? {
+        guard let windString else { return nil }
+        let cleaned = windString.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        return Double(cleaned)
+    }
+}
+
+// MARK: - Humidity Strip Widget
+
+struct HumidityStripWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    let rangeHours: Int
+    @Environment(\.colorScheme) var colorScheme
+    @State private var selectedHourID: String? = nil
+
+    private var hours: [HourlyForecast] {
+        Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(rangeHours))
+            .filter { $0.humidity != nil }
+    }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        let textColor = theme.textColor
+        VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+            Label("Humidity", systemImage: "humidity.fill")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+                .padding(.horizontal)
+                .padding(.top, 16)
+
+            if hours.isEmpty {
+                Text("Humidity data unavailable.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.6))
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
+            } else {
+                let stride = hours.count <= 6 ? 1 : hours.count <= 12 ? 2 : 3
+                let labelHourValues: [Int] = hours.map(\.hourValue).enumerated().compactMap { i, v in
+                    (i == 0 || i == hours.count - 1 || i % stride == 0) ? v : nil
+                }
+                let interpolation: InterpolationMethod = hours.count >= 4 ? .catmullRom : .linear
+                let selectedHour = selectedHourID.flatMap { id in hours.first { $0.id == id } }
+
+                Chart {
+                    ForEach(hours) { hour in
+                        AreaMark(
+                            x: .value("Hour", hour.hourValue),
+                            yStart: .value("Base", 0),
+                            yEnd: .value("Humidity", Double(hour.humidity ?? 0))
+                        )
+                        .interpolationMethod(interpolation)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [DesignSystem.skyBlue.opacity(0.35), DesignSystem.skyBlue.opacity(0.04)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+
+                        LineMark(
+                            x: .value("Hour", hour.hourValue),
+                            y: .value("Humidity", Double(hour.humidity ?? 0))
+                        )
+                        .interpolationMethod(interpolation)
+                        .foregroundStyle(DesignSystem.skyBlue)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    }
+
+                    if let sel = selectedHour {
+                        RuleMark(x: .value("Selected", sel.hourValue))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                            .foregroundStyle(textColor.opacity(0.35))
+                            .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("\(sel.humidity ?? 0)%")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundColor(textColor)
+                                    Text(sel.time)
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundColor(textColor.opacity(0.72))
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(textColor.opacity(0.1), lineWidth: 0.5))
+                            }
+                    }
+                }
+                .chartXScale(domain: (hours.first?.hourValue ?? 0)...(hours.last?.hourValue ?? 23))
+                .chartYScale(domain: 0...100)
+                .chartXAxis {
+                    AxisMarks(values: labelHourValues) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                            .foregroundStyle(textColor.opacity(0.12))
+                        AxisValueLabel {
+                            if let h = value.as(Int.self), let match = hours.first(where: { $0.hourValue == h }) {
+                                Text(match.time)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(textColor.opacity(0.72))
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                            .foregroundStyle(textColor.opacity(0.12))
+                        AxisValueLabel {
+                            if let pct = value.as(Int.self) {
+                                Text("\(pct)%")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(textColor.opacity(0.72))
+                            }
+                        }
+                    }
+                }
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        guard let plotFrame = proxy.plotFrame else { return }
+                                        let locationX = value.location.x - geometry[plotFrame].origin.x
+                                        if let hourInt: Int = proxy.value(atX: locationX) {
+                                            let nearest = hours.min { abs($0.hourValue - hourInt) < abs($1.hourValue - hourInt) }
+                                            if nearest?.id != selectedHourID {
+                                                HapticsManager.shared.impact(style: .light)
+                                            }
+                                            selectedHourID = nearest?.id
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                            selectedHourID = nil
+                                        }
+                                    }
+                            )
+                    }
+                }
+
+                .frame(height: 160)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 16)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(textColor.opacity(0.18), lineWidth: 0.5))
+        )
+        .shadow(color: .black.opacity(0.15), radius: 18, x: 0, y: 10)
+    }
+}
+
+// MARK: - Precipitation Timeline Widget
+
+struct PrecipitationTimelineWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+
+    private struct DayRain: Identifiable {
+        let id: String
+        let shortName: String
+        let chance: Int
+    }
+
+    private var days: [DayRain] {
+        weather.dailyForecast.map { day in
+            let raw = day.chanceOfRain ?? "0"
+            let numeric = Int(raw.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)) ?? 0
+            let short = String(day.dayName.prefix(3))
+            return DayRain(id: day.id, shortName: short, chance: numeric)
+        }
+    }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        let textColor = theme.textColor
+
+        VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+            Label("Precipitation Forecast", systemImage: "chart.bar.xaxis")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+                .padding(.horizontal)
+                .padding(.top, 16)
+
+            if days.isEmpty {
+                Text("No forecast data.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.6))
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
+            } else {
+                Chart {
+                    ForEach(days) { day in
+                        BarMark(
+                            x: .value("Day", day.shortName),
+                            y: .value("Chance", day.chance)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [DesignSystem.skyBlue.opacity(0.85), DesignSystem.skyBlue.opacity(0.5)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .cornerRadius(6)
+                        .annotation(position: .top) {
+                            Text(day.chance > 0 ? "\(day.chance)%" : "")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(textColor.opacity(0.75))
+                        }
+                    }
+                }
+                .chartYScale(domain: 0...100)
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                            .foregroundStyle(textColor.opacity(0.12))
+                        AxisValueLabel {
+                            if let pct = value.as(Int.self) {
+                                Text("\(pct)%")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(textColor.opacity(0.65))
+                            }
+                        }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks { value in
+                        AxisValueLabel {
+                            if let name = value.as(String.self) {
+                                Text(name)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(textColor.opacity(0.72))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 160)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 16)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(textColor.opacity(0.18), lineWidth: 0.5))
+        )
+        .shadow(color: .black.opacity(0.15), radius: 18, x: 0, y: 10)
+    }
+}
+
+// MARK: - Visibility Widget
+
+struct VisibilityWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+
+    private var visibilityCategory: String {
+        guard let raw = weather.metrics?.visibility else { return "" }
+        let digits = raw.components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted).joined()
+        let numeric = Double(digits) ?? 0
+        let isKm = raw.lowercased().contains("km")
+        let km = isKm ? numeric : numeric * 1.609
+        switch km {
+        case ..<1: return "Poor"
+        case 1..<5: return "Moderate"
+        case 5..<10: return "Good"
+        default: return "Excellent"
+        }
+    }
+
+    private var categoryColor: Color {
+        switch visibilityCategory {
+        case "Poor": return .red.opacity(0.85)
+        case "Moderate": return .orange.opacity(0.9)
+        case "Good": return DesignSystem.skyBlue
+        default: return .green.opacity(0.85)
+        }
+    }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        let textColor = theme.textColor
+
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Visibility", systemImage: "eye.fill")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            if let vis = weather.metrics?.visibility {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(vis)
+                        .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
+                        .foregroundColor(textColor)
+                    if !visibilityCategory.isEmpty {
+                        Text(visibilityCategory)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(categoryColor.opacity(0.2)))
+                            .overlay(Capsule().stroke(categoryColor, lineWidth: 0.5))
+                            .foregroundColor(categoryColor)
+                    }
+                }
+            } else {
+                Text("Visibility data unavailable.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.6))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+
+// MARK: - Cloud Cover Widget
+
+struct CloudCoverWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+
+    private var parsedPercent: Int? {
+        guard let raw = weather.metrics?.cloudCover else { return nil }
+        return Int(raw.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces))
+    }
+
+    private var skyCondition: String {
+        guard let pct = parsedPercent else { return "" }
+        switch pct {
+        case 0...20: return "Clear"
+        case 21...40: return "Mostly Clear"
+        case 41...70: return "Partly Cloudy"
+        case 71...90: return "Mostly Cloudy"
+        default: return "Overcast"
+        }
+    }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        let textColor = theme.textColor
+
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Cloud Cover", systemImage: "cloud.fill")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            if let pct = parsedPercent {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text("\(pct)%")
+                        .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
+                        .foregroundColor(textColor)
+                    Text(skyCondition)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(textColor.opacity(0.12)))
+                        .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 0.5))
+                        .foregroundColor(textColor.opacity(0.85))
+                }
+            } else {
+                Text("Cloud cover data unavailable.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.6))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+
+// MARK: - Wind History Widget
+
+struct WindHistoryWidget: View {
+    private struct WindPoint: Identifiable {
+        let id = UUID()
+        let index: Int
+        let time: String
+        let sustained: Double
+        let gust: Double?
+    }
+
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    let rangeHours: Int
+    @Environment(\.colorScheme) var colorScheme
+    @State private var selectedIndex: Int? = nil
+
+    private func numericSpeed(_ s: String?) -> Double? {
+        guard let s else { return nil }
+        let cleaned = s.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        return Double(cleaned)
+    }
+
+    private var windPoints: [WindPoint] {
+        Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(rangeHours).enumerated()).compactMap { index, hour in
+            guard let speed = numericSpeed(hour.windSpeed) else { return nil }
+            return WindPoint(index: index, time: hour.time, sustained: speed, gust: hour.windGust)
+        }
+    }
+
+    private var selected: WindPoint? {
+        guard let selectedIndex, windPoints.indices.contains(selectedIndex) else { return nil }
+        return windPoints[selectedIndex]
+    }
+
+    private var peakSpeed: Double { windPoints.map(\.sustained).max() ?? 0 }
+    private var peakGust: Double { windPoints.compactMap(\.gust).max() ?? 0 }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        let textColor = theme.textColor
+
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Wind History", systemImage: "lines.measurement.horizontal")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            if windPoints.isEmpty {
+                Text("Wind data unavailable.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.6))
+            } else {
+                Chart {
+                    ForEach(windPoints) { point in
+                        LineMark(
+                            x: .value("Hour", point.index),
+                            y: .value("Sustained", point.sustained),
+                            series: .value("Type", "Sustained")
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(DesignSystem.skyBlue)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+
+                        if let gust = point.gust {
+                            LineMark(
+                                x: .value("Hour", point.index),
+                                y: .value("Gusts", gust),
+                                series: .value("Type", "Gusts")
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(Color.orange.opacity(0.85))
+                            .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                        }
+                    }
+
+                    if let sel = selected {
+                        RuleMark(x: .value("Selected", sel.index))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
+                            .foregroundStyle(textColor.opacity(0.35))
+                            .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(sel.time)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundColor(textColor)
+                                    Text(viewModel.formattedWindSpeedValue(sel.sustained))
+                                        .font(.headline)
+                                        .foregroundColor(textColor)
+                                    if let gust = sel.gust {
+                                        Text("Gust: \(viewModel.formattedWindSpeedValue(gust))")
+                                            .font(.caption2)
+                                            .foregroundColor(.orange.opacity(0.85))
+                                    }
+                                }
+                                .padding(10)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(textColor.opacity(0.12), lineWidth: 0.5))
+                            }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: 6)) { value in
+                        AxisValueLabel {
+                            if let idx = value.as(Int.self), windPoints.indices.contains(idx) {
+                                Text(windPoints[idx].time)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                            .foregroundStyle(textColor.opacity(0.15))
+                        AxisValueLabel {
+                            if let speed = value.as(Double.self) {
+                                Text(viewModel.formattedWindSpeedValue(speed))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
+                        }
+                    }
+                }
+                .chartYScale(domain: 0...(max(peakGust, peakSpeed) * 1.2 + 2))
+                .frame(height: 160)
+                .padding(.top, 4)
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        guard let plotFrame = proxy.plotFrame else { return }
+                                        let origin = geometry[plotFrame].origin
+                                        if let idx: Int = proxy.value(atX: value.location.x - origin.x),
+                                           let snap = windPoints.firstIndex(where: { $0.index == idx }) {
+                                            if snap != selectedIndex {
+                                                HapticsManager.shared.impact(style: .light)
+                                            }
+                                            selectedIndex = snap
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                            selectedIndex = nil
+                                        }
+                                    }
+                            )
+                    }
+                }
+
+
+                HStack(spacing: 16) {
+                    HStack(spacing: 6) {
+                        Circle().fill(DesignSystem.skyBlue).frame(width: 8, height: 8)
+                        Text("Sustained")
+                            .font(.caption2)
+                            .foregroundColor(textColor.opacity(0.7))
+                    }
+                    if windPoints.contains(where: { $0.gust != nil }) {
+                        HStack(spacing: 6) {
+                            Circle().fill(Color.orange.opacity(0.85)).frame(width: 8, height: 8)
+                            Text("Gusts")
+                                .font(.caption2)
+                                .foregroundColor(textColor.opacity(0.7))
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+struct WeatherStatBlock: View {
+    let title: String
+    let value: String
+    let textColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(textColor.opacity(0.62))
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(textColor)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                .fill(Color.white.opacity(0.08))
+        )
+    }
+}
+
+struct TooltipMetricChip: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .opacity(0.7)
+            Text(value)
+                .fontWeight(.semibold)
+        }
+        .font(.caption2)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.08))
+        )
+        .foregroundColor(.white.opacity(0.9))
+    }
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .greatestFiniteMagnitude
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > maxWidth, currentX > 0 {
+                currentX = 0
+                currentY += lineHeight + spacing
+                lineHeight = 0
+            }
+
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+
+        return CGSize(width: min(maxWidth, proposal.width ?? currentX), height: currentY + lineHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var currentX = bounds.minX
+        var currentY = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+
+            if currentX + size.width > bounds.maxX, currentX > bounds.minX {
+                currentX = bounds.minX
+                currentY += lineHeight + spacing
+                lineHeight = 0
+            }
+
+            subview.place(
+                at: CGPoint(x: currentX, y: currentY),
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
     }
 }
 
@@ -1544,6 +3230,7 @@ struct EditableSectionContainer<Content: View>: View {
     let onRemove: () -> Void
     var onConfigure: (() -> Void)? = nil
     let content: () -> Content
+    @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -1553,25 +3240,32 @@ struct EditableSectionContainer<Content: View>: View {
                 .scaleEffect(isEditMode ? 0.98 : 1.0)
             
             if isEditMode {
-                HStack(spacing: 8) {
+                HStack(spacing: 0) {
                     if let onConfigure = onConfigure {
                         Button(action: onConfigure) {
                             Image(systemName: "slider.horizontal.3")
-                                .font(.body)
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.white)
-                                .padding(8)
-                                .background(Circle().fill(.blue))
+                                .frame(width: 44, height: 36)
                         }
+                        Rectangle()
+                            .fill(Color.white.opacity(0.2))
+                            .frame(width: 0.5, height: 22)
                     }
-                    
+
                     Button(action: onRemove) {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.title2)
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, .red)
-                            .background(Circle().fill(.white).padding(2))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.red.opacity(0.9))
+                            .frame(width: 44, height: 36)
                     }
                 }
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial.opacity(glassOpacity))
+                        .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5))
+                )
+                .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
                 .padding(8)
                 .transition(.scale.combined(with: .opacity))
                 .zIndex(2)
@@ -1587,6 +3281,7 @@ struct WidgetDropDelegate: DropDelegate {
     let onSave: () -> Void
     
     func performDrop(info: DropInfo) -> Bool {
+        HapticsManager.shared.impact(style: .medium)
         draggingItem = nil
         onSave()
         return true
@@ -1599,6 +3294,7 @@ struct WidgetDropDelegate: DropDelegate {
               let to = list.firstIndex(where: { $0.id == item.id }) else { return }
         
         if list[to].id != draggingItem.id {
+            HapticsManager.shared.impact(style: .light)
             withAnimation(.snappy) {
                 list.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
             }
@@ -1618,61 +3314,111 @@ struct WidgetGalleryView: View {
     @Environment(\.colorScheme) var colorScheme
     let onAdd: (WidgetType) -> Void
     
+    private let columns = [
+        GridItem(.flexible(), spacing: DesignSystem.spacingS),
+        GridItem(.flexible(), spacing: DesignSystem.spacingS)
+    ]
+    
     var body: some View {
-        NavigationStack {
-            ZStack {
-                let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
+        ZStack {
+            let theme = viewModel.currentTheme(colorScheme: colorScheme)
+            AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
+            
+            VStack(spacing: 0) {
+                // Custom Header
+                HStack {
+                    Spacer()
+                    Text("Widget Gallery")
+                        .font(.system(size: 17, weight: .semibold, design: viewModel.typography.design))
+                        .foregroundColor(theme.textColor)
+                    Spacer()
+                }
+                .overlay(alignment: .trailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundColor(theme.textColor.opacity(0.8))
+                            .font(.title2)
+                    }
+                    .padding(.trailing, DesignSystem.spacingM)
+                }
+                .padding(.top, 12)
+                .padding(.bottom, 8)
                 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        Text("Add a widget to your dashboard.")
-                            .font(.subheadline)
-                            .foregroundColor(theme.textColor.opacity(0.7))
-                            .padding(.horizontal)
-                        
-                        ForEach(WidgetType.allCases) { type in
-                            Button {
-                                onAdd(type)
-                            } label: {
-                                HStack(spacing: 16) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(.blue.opacity(0.2))
-                                            .frame(width: 44, height: 44)
-                                        Image(systemName: type.icon)
-                                            .font(.title3)
-                                            .foregroundColor(.blue)
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(type.rawValue)
-                                            .font(.headline)
-                                        Text(description(for: type))
-                                            .font(.caption)
-                                            .foregroundColor(theme.textColor.opacity(0.6))
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
-                                        .font(.title3)
-                                }
-                                .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(0.4)))
+                    VStack(alignment: .leading, spacing: DesignSystem.spacingL) {
+                        // Title Section
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Customise Dashboard")
+                                .font(.system(size: 28, weight: .bold, design: viewModel.typography.design))
                                 .foregroundColor(theme.textColor)
+                            
+                            Text("Tap a widget to add it to your main view.")
+                                .font(.system(size: 16, weight: .medium, design: viewModel.typography.design))
+                                .foregroundColor(theme.textColor.opacity(0.7))
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, DesignSystem.spacingS)
+                        
+                        // Categorized Grid
+                        ForEach(WidgetCategory.allCases) { category in
+                            VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                                Text(category.rawValue.uppercased())
+                                    .font(.system(size: 13, weight: .bold, design: viewModel.typography.design))
+                                    .tracking(1.2)
+                                    .foregroundColor(theme.textColor.opacity(0.6))
+                                    .padding(.horizontal)
+                                
+                                LazyVGrid(columns: columns, spacing: DesignSystem.spacingS) {
+                                    ForEach(WidgetType.allCases.filter { $0.category == category }) { type in
+                                        Button {
+                                            onAdd(type)
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                                                ZStack {
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .fill(DesignSystem.skyBlue.opacity(0.15))
+                                                        .frame(width: 44, height: 44)
+                                                    Image(systemName: type.icon)
+                                                        .font(.system(size: 22, weight: .medium))
+                                                        .foregroundColor(DesignSystem.skyBlue)
+                                                }
+                                                
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(type.rawValue)
+                                                        .font(.system(size: 16, weight: .bold, design: viewModel.typography.design))
+                                                        .foregroundColor(theme.textColor)
+                                                        .multilineTextAlignment(.leading)
+                                                    
+                                                    Text(description(for: type))
+                                                        .font(.system(size: 12, weight: .medium, design: viewModel.typography.design))
+                                                        .foregroundColor(theme.textColor.opacity(0.5))
+                                                        .multilineTextAlignment(.leading)
+                                                        .lineLimit(2)
+                                                        .fixedSize(horizontal: false, vertical: true)
+                                                }
+                                            }
+                                            .padding(DesignSystem.spacingM)
+                                            .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                                                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                            )
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                .padding(.horizontal)
                             }
                         }
                     }
-                    .padding()
-                }
-            }
-            .navigationTitle("Widget Gallery")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                    .padding(.bottom, 40)
                 }
             }
         }
@@ -1680,17 +3426,27 @@ struct WidgetGalleryView: View {
     
     private func description(for type: WidgetType) -> String {
         switch type {
-        case .hourlyForecast: return "24-hour weather breakdown"
-        case .dailyForecast: return "Next 10 days of weather"
-        case .deepDetails: return "Customizable grid of weather metrics"
-        case .rainSummary: return "Focus on upcoming precipitation"
-        case .windSummary: return "Current wind speed and direction"
-        case .radar: return "Live weather radar with precipitation overlay"
-        case .uvIndex: return "Current UV Index and safety advice"
-        case .feelsLike: return "Real Feel temperature analysis"
-        case .sunPath: return "Sun position, sunrise, and sunset times"
-        case .moonPhase: return "Current moon phase and illumination"
-        case .uvIndexCurve: return "Daily UV intensity chart"
+        case .hourlyForecast: return "Hourly strip, adjustable range"
+        case .dailyForecast: return "10-day forecast"
+        case .forecastNarrative: return "Forecast narrative"
+        case .deepDetails: return "Metrics grid"
+        case .rainSummary: return "Rain outlook"
+        case .rainfallToday: return "Today's rainfall"
+        case .minutePrecipitation: return "Next-hour rain graph"
+        case .windSummary: return "Wind speed & direction"
+        case .windGraph: return "Wind speed chart"
+        case .radar: return "Live radar"
+        case .uvIndex: return "UV index"
+        case .feelsLike: return "Feels like temperature"
+        case .sunPath: return "Sun arc & countdown"
+        case .moonPhase: return "Moon phase"
+        case .uvIndexCurve: return "UV curve chart"
+        case .hourlyTemperatures: return "Daily hourly temperature chart"
+        case .humidityStrip: return "Hourly humidity chart"
+        case .precipitationTimeline: return "7-day rain probability bars"
+        case .visibilityCard: return "Current visibility & category"
+        case .cloudCoverCard: return "Cloud cover percentage"
+        case .windHistory: return "Sustained vs gust wind chart"
         }
     }
 }
@@ -1701,6 +3457,35 @@ struct WidgetConfigView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
     let onSave: (DashboardWidget) -> Void
+
+    private var configDescription: String {
+        switch widget.type {
+        case .hourlyForecast:
+            return "Choose how many hours this forecast card shows and how dense the layout should feel."
+        case .deepDetails:
+            return "Select which metrics to display in this Deep Details card."
+        case .windSummary:
+            return "Choose how wind should be presented on your dashboard."
+        case .forecastNarrative:
+            return "Pick whether the forecast story stays compact or includes extra context."
+        case .minutePrecipitation:
+            return "Choose how much short-range rain detail this card should show."
+        case .windGraph:
+            return "Pick how far ahead the wind chart should look."
+        case .humidityStrip:
+            return "Choose how many hours of humidity data to display."
+        case .windHistory:
+            return "Pick how far ahead to show sustained vs gust wind speeds."
+        case .uvIndex:
+            return "Control how prominent the UV reading is and whether the category label stays visible."
+        case .sunPath:
+            return "Switch between the full sun arc and a quieter compact layout, with optional live countdown."
+        case .moonPhase:
+            return "Adjust the moon card density and the size of the moon visualization."
+        default:
+            return "Adjust this widget."
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -1710,6 +3495,55 @@ struct WidgetConfigView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        Text(configDescription)
+                            .font(.subheadline)
+                            .foregroundColor(theme.textColor.opacity(0.7))
+                            .padding(.horizontal)
+
+                        if widget.type == .hourlyForecast {
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Forecast Range")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Forecast Range", selection: Binding(
+                                        get: { widget.config?["rangeHours"] ?? "24" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["rangeHours"] = newValue
+                                        }
+                                    )) {
+                                        Text("12 hr").tag("12")
+                                        Text("24 hr").tag("24")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Layout Density")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Layout Density", selection: Binding(
+                                        get: { widget.config?["density"] ?? "regular" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["density"] = newValue
+                                        }
+                                    )) {
+                                        Text("Compact").tag("compact")
+                                        Text("Regular").tag("regular")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+
                         // Wind Widget Specific Config
                         if widget.type == .windSummary {
                             VStack(alignment: .leading, spacing: 8) {
@@ -1732,43 +3566,290 @@ struct WidgetConfigView: View {
                                 .padding(.horizontal)
                             }
                         }
-                        
-                        Text("Select which metrics to display in this Deep Details card.")
-                            .font(.subheadline)
-                            .foregroundColor(theme.textColor.opacity(0.7))
-                            .padding(.horizontal)
-                        
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignSystem.spacingS) {
-                            ForEach(WeatherMetric.allCases) { metric in
-                                let isSelected = (widget.visibleMetrics ?? []).contains(metric)
-                                Button {
-                                    if isSelected {
-                                        widget.visibleMetrics?.removeAll { $0 == metric }
-                                    } else {
-                                        if widget.visibleMetrics == nil { widget.visibleMetrics = [] }
-                                        widget.visibleMetrics?.append(metric)
+
+                        if widget.type == .forecastNarrative {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Story Density")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+
+                                Picker("Story Density", selection: Binding(
+                                    get: { widget.config?["style"] ?? "expanded" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
                                     }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: metric.icon)
-                                        Text(metric.rawValue)
-                                            .font(.caption.weight(.medium))
-                                        Spacer()
-                                        if isSelected {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.green)
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Expanded").tag("expanded")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        if widget.type == .deepDetails {
+                            let selectedMetrics = widget.visibleMetrics ?? Array(viewModel.visibleMetrics)
+
+                            VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                                Text("Pick metrics")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(theme.textColor.opacity(0.65))
+                                    .padding(.top, 4)
+
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignSystem.spacingS) {
+                                    ForEach(WeatherMetric.allCases) { metric in
+                                        let isSelected = selectedMetrics.contains(metric)
+                                        let canDeselect = selectedMetrics.count > 1
+
+                                        Button {
+                                            if widget.visibleMetrics == nil {
+                                                widget.visibleMetrics = selectedMetrics
+                                            }
+                                            if isSelected {
+                                                if canDeselect {
+                                                    widget.visibleMetrics?.removeAll(where: { $0 == metric })
+                                                }
+                                            } else {
+                                                widget.visibleMetrics?.append(metric)
+                                            }
+                                        } label: {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: metric.icon)
+                                                    .font(.caption)
+                                                    .foregroundColor(theme.textColor.opacity(0.75))
+                                                Text(metric.rawValue)
+                                                    .font(.caption)
+                                                    .foregroundColor(theme.textColor)
+                                                    .lineLimit(1)
+                                                Spacer(minLength: 4)
+                                                if isSelected {
+                                                    Image(systemName: "checkmark.circle.fill")
+                                                        .foregroundColor(canDeselect ? DesignSystem.skyBlue : theme.textColor.opacity(0.35))
+                                                        .font(.caption)
+                                                }
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 10)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                                                    .fill(isSelected ? DesignSystem.skyBlue.opacity(0.16) : Color.white.opacity(0.07))
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                                                            .stroke(isSelected ? DesignSystem.skyBlue.opacity(0.45) : Color.white.opacity(0.12), lineWidth: 0.8)
+                                                    )
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+
+                                if !selectedMetrics.isEmpty {
+                                    Text("Selected (drag to reorder)")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundColor(theme.textColor.opacity(0.65))
+
+                                    List {
+                                        ForEach(selectedMetrics) { metric in
+                                            HStack(spacing: 8) {
+                                                Image(systemName: metric.icon)
+                                                    .font(.caption)
+                                                    .foregroundColor(theme.textColor.opacity(0.75))
+                                                Text(metric.rawValue)
+                                                    .font(.caption)
+                                                    .foregroundColor(theme.textColor)
+                                                    .lineLimit(1)
+                                                Spacer(minLength: 4)
+                                                Button {
+                                                    if widget.visibleMetrics == nil {
+                                                        widget.visibleMetrics = selectedMetrics
+                                                    }
+                                                    if (widget.visibleMetrics?.count ?? 0) > 1 {
+                                                        widget.visibleMetrics?.removeAll(where: { $0 == metric })
+                                                    }
+                                                } label: {
+                                                    Image(systemName: "minus.circle.fill")
+                                                        .font(.caption)
+                                                        .foregroundColor((selectedMetrics.count > 1) ? DesignSystem.skyBlue : theme.textColor.opacity(0.35))
+                                                }
+                                                .buttonStyle(.plain)
+                                                .disabled(selectedMetrics.count <= 1)
+                                            }
+                                            .padding(.vertical, 10)
+                                            .listRowBackground(Color.white.opacity(0.06))
+                                        }
+                                        .onMove { from, to in
+                                            if widget.visibleMetrics == nil {
+                                                widget.visibleMetrics = selectedMetrics
+                                            }
+                                            widget.visibleMetrics?.move(fromOffsets: from, toOffset: to)
                                         }
                                     }
-                                    .padding()
-                                    .foregroundColor(theme.textColor)
-                                    .background(RoundedRectangle(cornerRadius: DesignSystem.radiusS).fill(.ultraThinMaterial.opacity(0.4)))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: DesignSystem.radiusS)
-                                            .stroke(isSelected ? Color.green : Color.clear, lineWidth: 1)
-                                    )
+                                    .environment(\.editMode, .constant(.active))
+                                    .listStyle(.plain)
+                                    .scrollContentBackground(.hidden)
+                                    .frame(height: max(84, CGFloat(selectedMetrics.count) * 60))
+                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusS))
                                 }
                             }
                         }
+                        if widget.type == .humidityStrip || widget.type == .windHistory {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Forecast Range")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+
+                                Picker("Forecast Range", selection: Binding(
+                                    get: { widget.config?["rangeHours"] ?? "24" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["rangeHours"] = newValue
+                                    }
+                                )) {
+                                    Text("12 hr").tag("12")
+                                    Text("24 hr").tag("24")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        if widget.type == .uvIndex {
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Visual Style")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Visual Style", selection: Binding(
+                                        get: { widget.config?["style"] ?? "standard" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["style"] = newValue
+                                        }
+                                    )) {
+                                        Text("Minimal").tag("minimal")
+                                        Text("Standard").tag("standard")
+                                        Text("Emphasis").tag("emphasis")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Category Label")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Category Label", selection: Binding(
+                                        get: { widget.config?["showCategory"] ?? "true" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["showCategory"] = newValue
+                                        }
+                                    )) {
+                                        Text("Show").tag("true")
+                                        Text("Hide").tag("false")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+
+                        if widget.type == .sunPath {
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Layout Style")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Layout Style", selection: Binding(
+                                        get: { widget.config?["style"] ?? "full" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["style"] = newValue
+                                        }
+                                    )) {
+                                        Text("Full").tag("full")
+                                        Text("Minimal").tag("minimal")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Live Countdown")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Live Countdown", selection: Binding(
+                                        get: { widget.config?["showCountdown"] ?? "true" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["showCountdown"] = newValue
+                                        }
+                                    )) {
+                                        Text("Show").tag("true")
+                                        Text("Hide").tag("false")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+
+                        if widget.type == .moonPhase {
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Detail Level")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Detail Level", selection: Binding(
+                                        get: { widget.config?["style"] ?? "full" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["style"] = newValue
+                                        }
+                                    )) {
+                                        Text("Compact").tag("compact")
+                                        Text("Full").tag("full")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Moon Size")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+
+                                    Picker("Moon Size", selection: Binding(
+                                        get: { widget.config?["size"] ?? "medium" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["size"] = newValue
+                                        }
+                                    )) {
+                                        Text("Small").tag("small")
+                                        Text("Medium").tag("medium")
+                                        Text("Large").tag("large")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+                        
                     }
                     .padding()
                 }

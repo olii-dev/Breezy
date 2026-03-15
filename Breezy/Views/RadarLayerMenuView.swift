@@ -120,10 +120,10 @@ struct RadarLayerMenuView: View {
     private func layerDescription(for layer: RadarLayer) -> String {
         switch layer {
         case .precipitation: return "Rain and snow intensity"
-        case .clouds: return "Cloud coverage percentage"
-        case .temperature: return "Temperature distribution"
-        case .pressure: return "Atmospheric pressure"
         case .wind: return "Wind speed patterns"
+        case .clouds: return "Cloud cover density"
+        case .temperature: return "Global temperature map"
+        case .pressure: return "Atmospheric pressure"
         }
     }
 }

@@ -11,30 +11,30 @@ import MapKit
 
 enum RadarLayer: String, CaseIterable, Identifiable {
     case precipitation = "precipitation_new"
+    case wind = "wind_new"
     case clouds = "clouds_new"
     case temperature = "temp_new"
     case pressure = "pressure_new"
-    case wind = "wind_new"
     
     var id: String { rawValue }
     
     var displayName: String {
         switch self {
         case .precipitation: return "Precipitation"
+        case .wind: return "Wind Speed"
         case .clouds: return "Clouds"
         case .temperature: return "Temperature"
-        case .pressure: return "Pressure"
-        case .wind: return "Wind Speed"
+        case .pressure: return "Sea Level Pressure"
         }
     }
     
     var icon: String {
         switch self {
         case .precipitation: return "cloud.rain.fill"
-        case .clouds: return "cloud.fill"
-        case .temperature: return "thermometer"
-        case .pressure: return "gauge"
         case .wind: return "wind"
+        case .clouds: return "cloud.fill"
+        case .temperature: return "thermometer.medium"
+        case .pressure: return "gauge.medium"
         }
     }
     
@@ -51,41 +51,6 @@ enum RadarLayer: String, CaseIterable, Identifiable {
                 (10, "#5050E1", "10"),
                 (50, "#1414FF", "50+ mm/h")
             ]
-        case .clouds:
-            // % coverage - Official OWM scale
-            return [
-                (0, "#00000000", "0%"),
-                (10, "#FDFDFF", "10%"),
-                (30, "#FAFAFF", "30%"),
-                (50, "#F7F7FF", "50%"),
-                (70, "#F4F4FF", "70%"),
-                (100, "#F0F0FF", "100%")
-            ]
-        case .temperature:
-            // °C - Official OWM scale
-            return [
-                (-65, "#821692", "< -40°C"),
-                (-30, "#8257DB", "-30°C"),
-                (-20, "#208CEC", "-20°C"),
-                (-10, "#20C4E8", "-10°C"),
-                (0, "#23DDDD", "0°C"),
-                (10, "#C2FF28", "10°C"),
-                (20, "#FFF028", "20°C"),
-                (25, "#FFC228", "25°C"),
-                (30, "#FC8014", "30°C+")
-            ]
-        case .pressure:
-            // Pa - Official OWM scale
-            return [
-                (940, "#0073FF", "< 980"),
-                (960, "#00AAFF", "980"),
-                (980, "#4BD0D6", "1000"),
-                (1000, "#8DE7C7", "1013"),
-                (1010, "#B0F720", "1020"),
-                (1020, "#F0B800", "1030"),
-                (1040, "#FB5515", "1040"),
-                (1060, "#F3363B", "> 1050 hPa")
-            ]
         case .wind:
             // m/s - Official OWM scale
             return [
@@ -95,6 +60,32 @@ enum RadarLayer: String, CaseIterable, Identifiable {
                 (25, "#3F213B", "25"),
                 (50, "#744CAC", "50"),
                 (100, "#4600AF", "100+ m/s")
+            ]
+        case .clouds:
+            return [
+                (0, "#FFFFFF00", "0"),
+                (10, "#FFFFFF33", "10"),
+                (30, "#FFFFFF66", "30"),
+                (50, "#FFFFFF99", "50"),
+                (70, "#FFFFFFCC", "70"),
+                (100, "#FFFFFFFF", "100%")
+            ]
+        case .temperature:
+            return [
+                (-40, "#821692", "-40"),
+                (-20, "#8257DB", "-20"),
+                (0, "#2080E1", "0"),
+                (20, "#FCE702", "20"),
+                (40, "#FF8C00", "40"),
+                (60, "#FF0000", "60°C")
+            ]
+        case .pressure:
+            return [
+                (950, "#0000FF", "950"),
+                (980, "#00FFFF", "980"),
+                (1013, "#00FF00", "1013"),
+                (1040, "#FFFF00", "1040"),
+                (1070, "#FF0000", "1070 hPa")
             ]
         }
     }
