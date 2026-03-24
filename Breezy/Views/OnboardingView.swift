@@ -46,6 +46,7 @@ struct OnboardingView: View {
     @State private var isRequestingLocation = false
     @State private var isFinishing = false
     @State private var showManualSearch = false
+    @State private var shakeError = false
     @FocusState private var searchFieldFocused: Bool
     @AppStorage("Breezy.typography") private var typographyRaw: String = WeatherFont.system.rawValue
 
@@ -193,7 +194,7 @@ struct OnboardingView: View {
                 Spacer()
 
                 Text("\(currentStep.rawValue + 1) of \(Step.allCases.count)")
-                    .font(.footnote.weight(.semibold))
+                    .font(FontScale.footnote.weight(.semibold))
                     .foregroundColor(theme.textColor.opacity(0.82))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -507,8 +508,9 @@ struct OnboardingView: View {
         VStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Appearance")
-                    .font(.headline)
+                    .font(FontScale.headline)
                     .foregroundColor(theme.textColor)
+                    .accessibilityAddTraits(.isHeader)
 
                 HStack(spacing: 10) {
                     ForEach(AppearanceMode.allCases) { mode in
@@ -541,8 +543,9 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 Text("Theme Style")
-                    .font(.headline)
+                    .font(FontScale.headline)
                     .foregroundColor(theme.textColor)
+                    .accessibilityAddTraits(.isHeader)
 
                 Button {
                     HapticsManager.shared.selectionChanged()
@@ -616,10 +619,15 @@ struct OnboardingView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .scaleEffect(viewModel.selectedPresetThemeName == preset.name && viewModel.themeMode == .preset ? ScaleConstants.selectionScale : 1.0)
+                            .animation(AnimationConstants.standardSpring, value: viewModel.selectedPresetThemeName)
+                            .animation(AnimationConstants.standardSpring, value: viewModel.themeMode)
                         }
                     }
-                    .padding(.horizontal, 2)
+                    .scrollTargetLayout()
                 }
+                .scrollTargetBehavior(.paging)
+                .contentMargins(16, for: .scrollContent)
             }
             .padding(18)
             .background(onboardingCardBackground(theme: theme))
@@ -633,21 +641,33 @@ struct OnboardingView: View {
                 HapticsManager.shared.impact(style: .light)
                 requestCurrentLocation()
             } label: {
-                locationChoiceCard(
-                    title: isRequestingLocation ? "Checking your location..." : "Use Current Location",
-                    subtitle: "Best for forecasts that follow you automatically.",
-                    icon: "location.fill",
-                    accent: .blue,
-                    isSelected: selectedLocationChoice == .current,
-                    theme: theme
-                )
+                ZStack {
+                    locationChoiceCard(
+                        title: isRequestingLocation ? "Checking your location..." : "Use Current Location",
+                        subtitle: "Best for forecasts that follow you automatically.",
+                        icon: "location.fill",
+                        accent: .blue,
+                        isSelected: selectedLocationChoice == .current,
+                        theme: theme
+                    )
+                    .opacity(isRequestingLocation ? 0.5 : 1.0)
+                    
+                    if isRequestingLocation {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(1.2)
+                    }
+                }
             }
             .buttonStyle(.plain)
+            .scaleEffect(selectedLocationChoice == .current ? 1.02 : 1.0)
+            .animation(AnimationConstants.standardSpring, value: selectedLocationChoice)
+            .animation(Animation.easeOut(duration: AnimationConstants.quick), value: isRequestingLocation)
 
             VStack(spacing: 12) {
                 Button {
                     HapticsManager.shared.impact(style: .light)
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(AnimationConstants.standardSpring) {
                         showManualSearch = true
                         selectedLocationChoice = .manual
                         selectedLocation = nil
@@ -664,6 +684,9 @@ struct OnboardingView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .scaleEffect(selectedLocationChoice == .manual || showManualSearch ? 1.02 : 1.0)
+                .animation(AnimationConstants.standardSpring, value: selectedLocationChoice)
+                .animation(AnimationConstants.standardSpring, value: showManualSearch)
 
                 if showManualSearch {
                     manualLocationSearch(theme: theme)
@@ -697,12 +720,21 @@ struct OnboardingView: View {
                 .background(onboardingCardBackground(theme: theme))
             }
 
-            if let errorText = locationHelper.locationError, selectedLocation == nil {
-                Text(errorText)
-                    .font(.caption)
-                    .foregroundColor(theme.textColor.opacity(0.74))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 8)
+            Group {
+                if let errorText = locationHelper.locationError, selectedLocation == nil {
+                    shakeableContent(if: shakeError) {
+                        Text(errorText)
+                            .font(FontScale.caption)
+                            .foregroundColor(theme.textColor.opacity(0.74))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 8)
+                            .transition(.opacity)
+                            .id(errorText)
+                    }
+                }
+            }
+            .onChange(of: locationHelper) { _, _ in
+                shakeError = false
             }
         }
     }
@@ -994,6 +1026,10 @@ struct OnboardingView: View {
             Toggle("", isOn: isOn)
                 .labelsHidden()
                 .tint(accent)
+                .onChange(of: isOn.wrappedValue) { oldValue, newValue in
+                    HapticsManager.shared.impact(style: .light)
+                }
+                .accessibilityHint("Double tap to enable or disable \(title)")
         }
         .padding(14)
         .background(
@@ -1020,6 +1056,61 @@ struct OnboardingView: View {
                 .foregroundColor(theme.textColor)
                 .multilineTextAlignment(.trailing)
         }
+    }
+}
+
+struct StaggeredAnimationModifier: ViewModifier {
+    let index: Int
+    @State private var isVisible = false
+    
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : 20)
+            .animation(
+                Animation.easeOut(duration: 0.4)
+                    .delay(Double(index) * StaggerDelay.step),
+                value: isVisible
+            )
+            .onAppear {
+                isVisible = true
+            }
+    }
+}
+
+struct ShakeModifier: ViewModifier {
+    @State private var offset: CGFloat = 0
+    
+    func body(content: Content) -> some View {
+        content
+            .offset(x: offset)
+            .onAppear {
+                withAnimation(Animation.easeInOut(duration: 0.05).repeatCount(6, autoreverses: true)) {
+                    offset = 10
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    offset = 0
+                }
+            }
+    }
+}
+
+@ViewBuilder
+private func shakeableContent(if shouldShake: Bool, @ViewBuilder content: () -> some View) -> some View {
+    if shouldShake {
+        content().shake()
+    } else {
+        content()
+    }
+}
+
+extension View {
+    func staggeredAnimation(index: Int) -> some View {
+        modifier(StaggeredAnimationModifier(index: index))
+    }
+    
+    func shake() -> some View {
+        modifier(ShakeModifier())
     }
 }
 

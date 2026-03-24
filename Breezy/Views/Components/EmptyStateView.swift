@@ -40,8 +40,10 @@ struct EmptyStateView: View {
                     .font(.system(size: 60))
                     .foregroundStyle(iconGradient)
                     .symbolEffect(.pulse, isActive: state == .loading)
+                    .offset(y: state == .loading ? 0 : 4)
             }
             .padding(.bottom, 8)
+            .animation(AnimationConstants.bouncySpring.repeatForever(autoreverses: true), value: state != .loading)
             
             VStack(spacing: 12) {
                 Text(title)
@@ -71,6 +73,9 @@ struct EmptyStateView: View {
                                 .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                         )
                 }
+                .scaleEffect(state != .loading ? 1.0 : 0.9)
+                .opacity(state != .loading ? 1.0 : 0.0)
+                .animation(AnimationConstants.standardSpring, value: state)
                 .padding(.top, 16)
             }
             

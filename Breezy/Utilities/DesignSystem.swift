@@ -143,6 +143,51 @@ struct AnimatedGradientBackground: View {
 }
 
 
+// MARK: - Animation System
+
+enum AnimationConstants {
+    static let instant: Double = 0.15
+    static let quick: Double = 0.25
+    static let normal: Double = 0.35
+    static let slow: Double = 0.5
+    static let verySlow: Double = 1.0
+    
+    static let responsiveSpring = Animation.spring(response: 0.25, dampingFraction: 0.7)
+    static let standardSpring = Animation.spring(response: 0.35, dampingFraction: 0.8)
+    static let gentleSpring = Animation.spring(response: 0.5, dampingFraction: 0.85)
+    static let bouncySpring = Animation.spring(response: 0.4, dampingFraction: 0.6)
+    
+    static let easeIn = Animation.easeIn(duration: normal)
+    static let easeOut = Animation.easeOut(duration: normal)
+    static let easeInOut = Animation.easeInOut(duration: normal)
+    
+    static let fadeMove = AnyTransition.opacity.combined(with: .move(edge: .trailing))
+    static let fadeScale = AnyTransition.opacity.combined(with: .scale(scale: 0.95))
+}
+
+enum StaggerDelay {
+    static let step: Double = 0.08
+}
+
+enum ScaleConstants {
+    static let selectionScale: Double = 1.05
+    static let pressScale: Double = 0.95
+}
+
+enum FontScale {
+    static let largeTitle = Font.largeTitle.weight(.bold)
+    static let title1 = Font.title.weight(.bold)
+    static let title2 = Font.title2.weight(.semibold)
+    static let title3 = Font.title3.weight(.semibold)
+    static let headline = Font.headline
+    static let subheadline = Font.subheadline
+    static let body = Font.body
+    static let callout = Font.callout
+    static let footnote = Font.footnote
+    static let caption = Font.caption
+    static let caption2 = Font.caption2
+}
+
 // MARK: - Jiggle Effect for Edit Mode
 
 struct JiggleModifier: ViewModifier {

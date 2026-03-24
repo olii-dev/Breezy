@@ -79,16 +79,25 @@ struct SettingsView: View {
                                 Image(systemName: "info.circle.fill")
                                     .foregroundColor(theme.textColor.opacity(0.8))
                                 Text("About Breezy")
-                                    .font(.headline)
+                                    .font(FontScale.headline)
                                     .foregroundColor(theme.textColor)
                                 Spacer()
                             }
                             .padding(.horizontal, DesignSystem.spacingM)
+                            .accessibilityAddTraits(.isHeader)
                             
                             VStack(alignment: .leading, spacing: 12) {
-                                Text(Bundle.main.appVersionDisplayString)
-                                    .font(.caption)
-                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                HStack(spacing: 4) {
+                                    Text(Bundle.main.appVersionDisplayString)
+                                        .font(FontScale.caption)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .contentTransition(.numericText())
+                                    
+                                    Image(systemName: "sparkles")
+                                        .font(FontScale.caption2)
+                                        .foregroundColor(theme.textColor.opacity(0.5))
+                                        .symbolEffect(.pulse, options: .repeating, isActive: true)
+                                }
 
                                 NavigationLink {
                                     PrivacySupportView(
@@ -102,7 +111,7 @@ struct SettingsView: View {
                                             .foregroundColor(theme.textColor.opacity(0.75))
 
                                         Text("Privacy & Security")
-                                            .font(.subheadline.weight(.semibold))
+                                            .font(FontScale.subheadline.weight(.semibold))
                                             .foregroundColor(theme.textColor)
 
                                         Spacer()
@@ -497,12 +506,18 @@ struct DataSettingsView: View {
                             .padding(.leading, 8)
                         
                         VStack(spacing: DesignSystem.spacingS) {
-                            HStack {
-                                Label("Duration", systemImage: "clock.arrow.circlepath")
-                                    .foregroundColor(theme.textColor)
-                                Spacer()
-                                Stepper("\(viewModel.cacheDurationMinutes) min", value: $viewModel.cacheDurationMinutes, in: 1...1440)
-                                    .foregroundColor(theme.textColor)
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Label("Duration", systemImage: "clock.arrow.circlepath")
+                                        .foregroundColor(theme.textColor)
+                                    Spacer()
+                                    Stepper("\(viewModel.cacheDurationMinutes) min", value: $viewModel.cacheDurationMinutes, in: 1...1440)
+                                        .foregroundColor(theme.textColor)
+                                }
+                                
+                                Text("Between 1 min and 24 hours")
+                                    .font(FontScale.caption2)
+                                    .foregroundColor(theme.textColor.opacity(0.5))
                             }
                             .padding()
                             .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
@@ -691,7 +706,47 @@ struct NotificationSettingsView: View {
                             Divider()
                             
                             // Preferences
-                            SettingsToggleRow(title: "Critical Sound for Severe Weather", icon: "speaker.wave.3.fill", color: .red, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.useCriticalAlertsForSevere}, set: {notificationSettings.useCriticalAlertsForSevere=$0; saveNotificationSettings()}))
+                            HStack {
+                                Image(systemName: "speaker.wave.3.fill")
+                                    .foregroundColor(.red)
+                                    .frame(width: 24)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Critical Sound for Severe Weather")
+                                        .font(FontScale.subheadline.weight(.medium))
+                                        .foregroundColor(theme.textColor)
+                                    
+                                    Text("Bypasses Do Not Disturb for emergencies")
+                                        .font(FontScale.caption2)
+                                        .foregroundColor(theme.textColor.opacity(0.6))
+                                }
+                                
+                                Spacer()
+                                
+                                Toggle("", isOn: Binding(
+                                    get: { notificationSettings.useCriticalAlertsForSevere },
+                                    set: { 
+                                        notificationSettings.useCriticalAlertsForSevere = $0
+                                        saveNotificationSettings()
+                                    }
+                                ))
+                                .labelsHidden()
+                                .tint(.red)
+                                .onChange(of: notificationSettings.useCriticalAlertsForSevere) { _, _ in
+                                    HapticsManager.shared.impact(style: .light)
+                                }
+                                
+                                InfoButton(
+                                    color: .red,
+                                    title: "About Critical Alerts",
+                                    description: "Critical alerts produce a special sound that plays even when your phone is in silent mode or Do Not Disturb is on. Use them only for life-threatening weather events like tornadoes or flash floods."
+                                )
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                            )
                             
                             SettingsToggleRow(title: "Weekdays Only Daily Forecast", icon: "calendar", color: .purple, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.onlyWeekdayForecast}, set: {notificationSettings.onlyWeekdayForecast=$0; saveNotificationSettings()}))
                             
@@ -1005,9 +1060,8 @@ struct LocationSettingsView: View {
                             .frame(maxWidth: .infinity)
                             .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                         }
-                        
-                    }
-                    
+}
+
                     // Favourites
                     VStack(alignment: .leading, spacing: DesignSystem.spacingM) {
                         Text("FAVOURITES")
@@ -1286,6 +1340,30 @@ struct DesignStudioView: View {
         }
         .navigationTitle("Design Studio")
         .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+struct InfoButton: View {
+    let color: Color
+    let title: String
+    let description: String
+    
+    @State private var showingInfo = false
+    
+    var body: some View {
+        Button {
+            showingInfo = true
+        } label: {
+            Image(systemName: "info.circle")
+                .font(FontScale.caption2)
+                .foregroundColor(color.opacity(0.7))
+        }
+        .buttonStyle(.plain)
+        .alert(title, isPresented: $showingInfo) {
+            Button("Got it", role: .cancel) { }
+        } message: {
+            Text(description)
+        }
     }
 }
 

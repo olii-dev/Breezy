@@ -24,6 +24,7 @@ struct StudioHeader: View {
             Spacer()
         }
         .padding(.horizontal, 4)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -53,6 +54,7 @@ struct SettingsToggleRow: View {
                 .onChange(of: isOn) { _, _ in
                     HapticsManager.shared.impact(style: .light)
                 }
+                .accessibilityHint("Double tap to toggle")
         }
         .padding()
         .background(
