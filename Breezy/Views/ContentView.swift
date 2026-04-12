@@ -23,6 +23,8 @@ struct ContentView: View {
     @State private var gradientColors: [Color] = []
     @State private var isEditMode = false
     @State private var draggingWidget: DashboardWidget?
+    @State private var isInteractingWithChart = false
+    @State private var showShareCard = false
     @State private var showingWidgetGallery = false
     @State private var configuringWidget: DashboardWidget?
     @State private var pendingWidgetRemoval: DashboardWidget?
@@ -159,6 +161,17 @@ struct ContentView: View {
                             HStack(spacing: 12) {
                                 Button {
                                     HapticsManager.shared.impact(style: .light)
+                                    showShareCard = true
+                                } label: {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(theme.textColor)
+                                        .frame(width: 36, height: 36)
+                                }
+                                .accessibilityLabel("Share Weather")
+                                
+                                Button {
+                                    HapticsManager.shared.impact(style: .light)
                                     showingTimeMachine = true
                                 } label: {
                                     Image(systemName: "clock.arrow.circlepath")
@@ -219,6 +232,11 @@ struct ContentView: View {
                 }
                 .sheet(isPresented: $showingLocationPicker) {
                     LocationPickerView(viewModel: viewModel, locationHelper: locationHelper, isButtonBusy: $isButtonBusy)
+                }
+                .sheet(isPresented: $showShareCard) {
+                    if let weather = viewModel.weather {
+                        ShareWeatherCardView(weather: weather, viewModel: viewModel, colorScheme: colorScheme)
+                    }
                 }
                 .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
         }
@@ -349,7 +367,7 @@ struct ContentView: View {
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 1.5, maximumDistance: 50)
                 .onEnded { _ in
-                    if !isEditMode {
+                    if !isEditMode && !isInteractingWithChart {
                         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                         withAnimation(.spring()) {
                             isEditMode = true
@@ -466,11 +484,11 @@ struct ContentView: View {
             }
             
         case .rainSummary:
-            RainSummaryWidget(weather: weather, viewModel: viewModel)
+            RainSummaryWidget(weather: weather, viewModel: viewModel, config: widget.config)
                 .padding(.horizontal, DesignSystem.spacingM)
 
         case .rainfallToday:
-            RainfallTodayWidget(weather: weather, viewModel: viewModel)
+            RainfallTodayWidget(weather: weather, viewModel: viewModel, config: widget.config)
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .windSummary:
@@ -521,7 +539,7 @@ struct ContentView: View {
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .feelsLike:
-            FeelsLikeWidget(weather: weather, viewModel: viewModel)
+            FeelsLikeWidget(weather: weather, viewModel: viewModel, config: widget.config)
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .sunPath:
@@ -594,7 +612,9 @@ struct ContentView: View {
                     UVIndexCurveView(
                         hourlyForecast: hourly,
                         currentUV: weather.metrics?.uvIndex ?? 0,
-                        colorScheme: colorScheme
+                        colorScheme: colorScheme,
+                        rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                        showPeak: (widget.config?["showPeak"] ?? "true") == "true"
                     )
                     .padding(.bottom, 16)
                 }
@@ -611,7 +631,8 @@ struct ContentView: View {
             WindGraphWidget(
                 weather: weather,
                 viewModel: viewModel,
-                hoursWindow: Int(widget.config?["rangeHours"] ?? "24") ?? 24
+                hoursWindow: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                isChartInteracting: $isInteractingWithChart
             )
                 .padding(.horizontal, DesignSystem.spacingM)
             
@@ -624,34 +645,36 @@ struct ContentView: View {
                 .padding(.horizontal, DesignSystem.spacingM)
 
         case .hourlyTemperatures:
-            HourlyTemperaturesWidget(weather: weather, viewModel: viewModel)
+            HourlyTemperaturesWidget(weather: weather, viewModel: viewModel, isChartInteracting: $isInteractingWithChart, config: widget.config)
                 .padding(.horizontal, DesignSystem.spacingM)
 
         case .humidityStrip:
             HumidityStripWidget(
                 weather: weather,
                 viewModel: viewModel,
-                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24
+                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                isChartInteracting: $isInteractingWithChart
             )
             .padding(.horizontal, DesignSystem.spacingM)
 
         case .precipitationTimeline:
-            PrecipitationTimelineWidget(weather: weather, viewModel: viewModel)
+            PrecipitationTimelineWidget(weather: weather, viewModel: viewModel, config: widget.config)
                 .padding(.horizontal, DesignSystem.spacingM)
 
         case .visibilityCard:
-            VisibilityWidget(weather: weather, viewModel: viewModel)
+            VisibilityWidget(weather: weather, viewModel: viewModel, config: widget.config)
                 .padding(.horizontal, DesignSystem.spacingM)
 
         case .cloudCoverCard:
-            CloudCoverWidget(weather: weather, viewModel: viewModel)
+            CloudCoverWidget(weather: weather, viewModel: viewModel, config: widget.config)
                 .padding(.horizontal, DesignSystem.spacingM)
 
         case .windHistory:
             WindHistoryWidget(
                 weather: weather,
                 viewModel: viewModel,
-                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24
+                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                isChartInteracting: $isInteractingWithChart
             )
             .padding(.horizontal, DesignSystem.spacingM)
         }
@@ -1528,14 +1551,12 @@ struct NewHourlyCardView: View {
     }
     
     private func scrollToCurrentHour(proxy: ScrollViewProxy) {
-        // Auto-scroll to current hour with animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             withAnimation(.easeInOut(duration: 0.8)) {
                 proxy.scrollTo(currentHourIndex, anchor: .center)
             }
-        }
+}
     }
-
 }
 
 struct MoonPhaseCardView: View {
@@ -2009,9 +2030,17 @@ struct HourlyTemperaturesWidget: View {
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedHourID: String? = nil
+    var isChartInteracting: Binding<Bool>? = nil
+    var config: [String: String]?
+
+    private var rangeHours: Int { Int(config?["rangeHours"] ?? "0") ?? 0 }
 
     private var hours: [HourlyForecast] {
-        weather.allHourlyData ?? weather.hourlyForecast
+        let all = weather.allHourlyData ?? weather.hourlyForecast
+        if rangeHours > 0 {
+            return Array(all.prefix(rangeHours))
+        }
+        return all
     }
 
     var body: some View {
@@ -2144,6 +2173,7 @@ struct HourlyTemperaturesWidget: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
+                                isChartInteracting?.wrappedValue = true
                                 guard let plotFrame = proxy.plotFrame else { return }
                                 let origin = geometry[plotFrame].origin
                                 let locationX = value.location.x - origin.x
@@ -2156,6 +2186,7 @@ struct HourlyTemperaturesWidget: View {
                                 }
                             }
                             .onEnded { _ in
+                                isChartInteracting?.wrappedValue = false
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                                     selectedHourID = nil
                                 }
@@ -2170,28 +2201,32 @@ struct RainSummaryWidget: View {
     let weather: WeatherInfo
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
     
+    private var style: String { config?["style"] ?? "standard" }
+
     var body: some View {
+        let textColor = viewModel.currentTheme(colorScheme: colorScheme).textColor
         VStack(alignment: .leading, spacing: 10) {
             Label("Precipitation", systemImage: "cloud.rain.fill")
                 .font(.caption.weight(.bold))
-                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                .foregroundColor(textColor.opacity(0.6))
             
             VStack(alignment: .leading, spacing: 12) {
                 if let soon = viewModel.rainSoonLabel {
                     Text(soon)
                         .font(.headline)
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                        .foregroundColor(textColor)
 
-                    if let detail = viewModel.rainSoonDetail {
+                    if style != "compact", let detail = viewModel.rainSoonDetail {
                         Text(detail)
                             .font(.caption)
-                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.72))
+                            .foregroundColor(textColor.opacity(0.72))
                     }
                 } else {
                     Text("No rain expected soon")
                         .font(.subheadline)
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
+                        .foregroundColor(textColor.opacity(0.7))
                 }
                 
                 if let today = weather.dailyForecast.first {
@@ -2199,28 +2234,31 @@ struct RainSummaryWidget: View {
                         VStack(alignment: .leading) {
                             Text(today.chanceOfRain ?? "0%")
                                 .font(.title3.weight(.bold))
+                                .foregroundColor(textColor)
                             Text("Chance")
                                 .font(.caption2)
-                                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                                .foregroundColor(textColor.opacity(0.6))
                         }
                         
-                        if let rainfall = weather.metrics?.todayRainfall {
+                        if style != "compact", let rainfall = weather.metrics?.todayRainfall {
                             VStack(alignment: .leading) {
                                 Text(rainfall)
                                     .font(.title3.weight(.bold))
+                                    .foregroundColor(textColor)
                                 Text("Today total")
                                     .font(.caption2)
-                                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                                    .foregroundColor(textColor.opacity(0.6))
                             }
                         }
 
-                        if let intensity = weather.metrics?.todayMaxRainIntensity {
+                        if style == "detailed", let intensity = weather.metrics?.todayMaxRainIntensity {
                             VStack(alignment: .leading) {
                                 Text(intensity)
                                     .font(.title3.weight(.bold))
+                                    .foregroundColor(textColor)
                                 Text("Peak rate")
                                     .font(.caption2)
-                                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                                    .foregroundColor(textColor.opacity(0.6))
                             }
                         }
                     }
@@ -2235,10 +2273,13 @@ struct RainSummaryWidget: View {
 struct RainfallTodayWidget: View {
     let weather: WeatherInfo
     @ObservedObject var viewModel: WeatherViewModel
-
+    var config: [String: String]?
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedHourID: String? = nil
     @State private var isDragging: Bool = false
+    
+    private var style: String { config?["style"] ?? "standard" }
+
     private var todayChance: String {
         weather.dailyForecast.first?.chanceOfRain ?? "0%"
     }
@@ -2282,12 +2323,14 @@ struct RainfallTodayWidget: View {
                     )
             }
 
-            HStack(spacing: 12) {
-                WeatherStatBlock(title: "Peak rate", value: peakIntensity, textColor: textColor)
-                WeatherStatBlock(title: "Rain chance", value: todayChance, textColor: textColor)
+            if style != "minimal" {
+                HStack(spacing: 12) {
+                    WeatherStatBlock(title: "Peak rate", value: peakIntensity, textColor: textColor)
+                    WeatherStatBlock(title: "Rain chance", value: todayChance, textColor: textColor)
+                }
             }
 
-            if let rainDetail = viewModel.rainSoonDetail, let rainHeadline = viewModel.rainSoonLabel {
+            if style != "minimal", let rainDetail = viewModel.rainSoonDetail, let rainHeadline = viewModel.rainSoonLabel {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(rainHeadline)
                         .font(.caption.weight(.semibold))
@@ -2371,6 +2414,7 @@ struct WindGraphWidget: View {
     let hoursWindow: Int
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedWindIndex: Int?
+    var isChartInteracting: Binding<Bool>? = nil
 
     private var windPoints: [WindPoint] {
         Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(hoursWindow).enumerated()).compactMap { index, hour in
@@ -2518,6 +2562,7 @@ struct WindGraphWidget: View {
                             .gesture(
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
+                                        isChartInteracting?.wrappedValue = true
                                         guard let plotFrame = proxy.plotFrame else { return }
                                         let origin = geometry[plotFrame].origin
                                         let location = CGPoint(x: value.location.x - origin.x, y: value.location.y - origin.y)
@@ -2530,6 +2575,7 @@ struct WindGraphWidget: View {
                                         }
                                     }
                                     .onEnded { _ in
+                                        isChartInteracting?.wrappedValue = false
                                         selectedWindIndex = nil
                                     }
                             )
@@ -2556,6 +2602,7 @@ struct HumidityStripWidget: View {
     let rangeHours: Int
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedHourID: String? = nil
+    var isChartInteracting: Binding<Bool>? = nil
 
     private var hours: [HourlyForecast] {
         Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(rangeHours))
@@ -2667,6 +2714,7 @@ struct HumidityStripWidget: View {
                             .gesture(
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
+                                        isChartInteracting?.wrappedValue = true
                                         guard let plotFrame = proxy.plotFrame else { return }
                                         let locationX = value.location.x - geometry[plotFrame].origin.x
                                         if let hourInt: Int = proxy.value(atX: locationX) {
@@ -2678,6 +2726,7 @@ struct HumidityStripWidget: View {
                                         }
                                     }
                                     .onEnded { _ in
+                                        isChartInteracting?.wrappedValue = false
                                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                                             selectedHourID = nil
                                         }
@@ -2706,6 +2755,7 @@ struct PrecipitationTimelineWidget: View {
     let weather: WeatherInfo
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
 
     private struct DayRain: Identifiable {
         let id: String
@@ -2714,7 +2764,9 @@ struct PrecipitationTimelineWidget: View {
     }
 
     private var days: [DayRain] {
-        weather.dailyForecast.map { day in
+        let limit = Int(config?["rangeHours"] ?? "0") ?? 0
+        let forecast = limit > 0 ? Array(weather.dailyForecast.prefix(limit)) : weather.dailyForecast
+        return forecast.map { day in
             let raw = day.chanceOfRain ?? "0"
             let numeric = Int(raw.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)) ?? 0
             let short = String(day.dayName.prefix(3))
@@ -2806,6 +2858,7 @@ struct VisibilityWidget: View {
     let weather: WeatherInfo
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
 
     private var visibilityCategory: String {
         guard let raw = weather.metrics?.visibility else { return "" }
@@ -2871,6 +2924,7 @@ struct CloudCoverWidget: View {
     let weather: WeatherInfo
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
 
     private var parsedPercent: Int? {
         guard let raw = weather.metrics?.cloudCover else { return nil }
@@ -2937,6 +2991,7 @@ struct WindHistoryWidget: View {
     let rangeHours: Int
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedIndex: Int? = nil
+    var isChartInteracting: Binding<Bool>? = nil
 
     private func numericSpeed(_ s: String?) -> Double? {
         guard let s else { return nil }
@@ -3055,6 +3110,7 @@ struct WindHistoryWidget: View {
                             .gesture(
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
+                                        isChartInteracting?.wrappedValue = true
                                         guard let plotFrame = proxy.plotFrame else { return }
                                         let origin = geometry[plotFrame].origin
                                         if let idx: Int = proxy.value(atX: value.location.x - origin.x),
@@ -3066,6 +3122,7 @@ struct WindHistoryWidget: View {
                                         }
                                     }
                                     .onEnded { _ in
+                                        isChartInteracting?.wrappedValue = false
                                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                                             selectedIndex = nil
                                         }
@@ -3482,6 +3539,26 @@ struct WidgetConfigView: View {
             return "Switch between the full sun arc and a quieter compact layout, with optional live countdown."
         case .moonPhase:
             return "Adjust the moon card density and the size of the moon visualization."
+        case .dailyForecast:
+            return "Control how many days appear in the forecast and whether to show condition icons."
+        case .hourlyTemperatures:
+            return "Adjust the temperature chart range and visual style."
+        case .rainSummary:
+            return "Configure what rain information is displayed and how detailed it is."
+        case .rainfallToday:
+            return "Choose rainfall display units and detail level."
+        case .precipitationTimeline:
+            return "Set how many hours of precipitation chance to display."
+        case .feelsLike:
+            return "Choose how the feels-like temperature is presented."
+        case .uvIndexCurve:
+            return "Adjust the UV forecast curve range and display options."
+        case .visibilityCard:
+            return "Configure visibility display style and units."
+        case .cloudCoverCard:
+            return "Choose how cloud cover data is visualized."
+        case .radar:
+            return "Set the default radar map layer and zoom level."
         default:
             return "Adjust this widget."
         }
@@ -3845,6 +3922,284 @@ struct WidgetConfigView: View {
                                         Text("Large").tag("large")
                                     }
                                     .pickerStyle(.segmented)
+                                     .padding(.horizontal)
+                                 }
+                             }
+                         }
+                        
+                        if widget.type == .rainSummary {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Detail Level")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "standard" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Standard").tag("standard")
+                                    Text("Detailed").tag("detailed")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .rainfallToday {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Display Style")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "standard" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Minimal").tag("minimal")
+                                    Text("Standard").tag("standard")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .feelsLike {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Presentation")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "standard" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Standard").tag("standard")
+                                    Text("Emphasis").tag("emphasis")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .hourlyTemperatures {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Chart Range")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Range", selection: Binding(
+                                    get: { widget.config?["rangeHours"] ?? "24" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["rangeHours"] = newValue
+                                    }
+                                )) {
+                                    Text("All").tag("0")
+                                    Text("12 hr").tag("12")
+                                    Text("24 hr").tag("24")
+                                    Text("48 hr").tag("48")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .precipitationTimeline {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Forecast Days")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Days", selection: Binding(
+                                    get: { widget.config?["rangeDays"] ?? "0" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["rangeDays"] = newValue
+                                    }
+                                )) {
+                                    Text("All").tag("0")
+                                    Text("5 days").tag("5")
+                                    Text("7 days").tag("7")
+                                    Text("10 days").tag("10")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .uvIndexCurve {
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Chart Range")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+                                    Picker("Range", selection: Binding(
+                                        get: { widget.config?["rangeHours"] ?? "24" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["rangeHours"] = newValue
+                                        }
+                                    )) {
+                                        Text("12 hr").tag("12")
+                                        Text("24 hr").tag("24")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Peak Indicator")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+                                    Picker("Peak", selection: Binding(
+                                        get: { widget.config?["showPeak"] ?? "true" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["showPeak"] = newValue
+                                        }
+                                    )) {
+                                        Text("Show").tag("true")
+                                        Text("Hide").tag("false")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+                        
+                        if widget.type == .visibilityCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Display Style")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "standard" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Standard").tag("standard")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .cloudCoverCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Display Style")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "standard" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Standard").tag("standard")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .minutePrecipitation {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Time Range")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Range", selection: Binding(
+                                    get: { widget.config?["rangeMinutes"] ?? "60" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["rangeMinutes"] = newValue
+                                    }
+                                )) {
+                                    Text("30 min").tag("30")
+                                    Text("60 min").tag("60")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .windGraph {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Forecast Range")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Range", selection: Binding(
+                                    get: { widget.config?["rangeHours"] ?? "24" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["rangeHours"] = newValue
+                                    }
+                                )) {
+                                    Text("12 hr").tag("12")
+                                    Text("24 hr").tag("24")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+                        
+                        if widget.type == .dailyForecast {
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Day Range")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+                                    Picker("Days", selection: Binding(
+                                        get: { widget.config?["rangeDays"] ?? "10" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["rangeDays"] = newValue
+                                        }
+                                    )) {
+                                        Text("5 days").tag("5")
+                                        Text("7 days").tag("7")
+                                        Text("10 days").tag("10")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Condition Icons")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+                                    Picker("Icons", selection: Binding(
+                                        get: { widget.config?["showIcons"] ?? "true" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["showIcons"] = newValue
+                                        }
+                                    )) {
+                                        Text("Show").tag("true")
+                                        Text("Hide").tag("false")
+                                    }
+                                    .pickerStyle(.segmented)
                                     .padding(.horizontal)
                                 }
                             }
@@ -3870,6 +4225,220 @@ struct WidgetConfigView: View {
 
 #Preview {
     ContentView()
+}
+
+// MARK: - Share Weather Card
+
+struct ShareWeatherCardView: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    let colorScheme: ColorScheme
+    @Environment(\.dismiss) var dismiss
+    @State private var renderedImage: Image?
+    
+    private var theme: WeatherTheme {
+        viewModel.currentTheme(colorScheme: colorScheme)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
+                
+                VStack(spacing: 24) {
+                    Spacer()
+                    
+                    shareCardContent
+                        .padding(.horizontal, 24)
+                    
+                    Spacer()
+                    
+                    if let renderedImage {
+                        renderedImage
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .shadow(radius: 10)
+                    }
+                    
+                    ShareLink(
+                        item: renderedImage ?? Image(systemName: "photo"),
+                        preview: SharePreview("Weather in \(weather.location.city)", image: renderedImage ?? Image(systemName: "photo"))
+                    ) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("Share")
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        .foregroundStyle(theme.textColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                        )
+                        .padding(.horizontal, 24)
+                    }
+                    .padding(.bottom, 20)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(theme.textColor)
+                        .fontWeight(.bold)
+                }
+            }
+            .task { renderCard() }
+        }
+    }
+    
+    private var shareCardContent: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text(weather.location.city)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.textColor.opacity(0.7))
+                Spacer()
+                Text(Date(), style: .date)
+                    .font(.system(size: 12))
+                    .foregroundStyle(theme.textColor.opacity(0.5))
+            }
+            
+            HStack(alignment: .center, spacing: 16) {
+                if viewModel.useMinimalistIcons {
+                    Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
+                        .font(.system(size: 48))
+                        .foregroundStyle(theme.textColor)
+                } else {
+                    Text(weather.emoji)
+                        .font(.system(size: 48))
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(weather.temperature)
+                        .font(.system(size: 52, weight: .thin, design: viewModel.typography.design))
+                        .foregroundStyle(theme.textColor)
+                    
+                    Text(weather.condition)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(theme.textColor.opacity(0.85))
+                }
+                
+                Spacer()
+            }
+            
+            if let high = weather.highTemp, let low = weather.lowTemp {
+                HStack(spacing: 24) {
+                    Label(high, systemImage: "arrow.up")
+                        .font(.subheadline.weight(.medium))
+                    Label(low, systemImage: "arrow.down")
+                        .font(.subheadline.weight(.medium))
+                }
+                .foregroundStyle(theme.textColor.opacity(0.6))
+            }
+            
+            if let feelsLike = weather.feelsLike {
+                Text("Feels like \(feelsLike)")
+                    .font(.caption)
+                    .foregroundStyle(theme.textColor.opacity(0.5))
+            }
+        }
+        .padding(28)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(theme.textColor.opacity(0.15), lineWidth: 1)
+                )
+        )
+        .background(
+            ImageRendererView(content: AnyView(shareCardRenderable))
+                .opacity(0)
+        )
+    }
+    
+    @ViewBuilder
+    private var shareCardRenderable: some View {
+        ZStack {
+            LinearGradient(
+                colors: [theme.topColor, theme.bottomColor],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(width: 400, height: 300)
+            .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                HStack {
+                    Text(weather.location.city)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.textColor.opacity(0.7))
+                    Spacer()
+                    Text(Date(), style: .date)
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.textColor.opacity(0.5))
+                }
+                
+                HStack(alignment: .center, spacing: 16) {
+                    if viewModel.useMinimalistIcons {
+                        Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
+                            .font(.system(size: 48))
+                            .foregroundStyle(theme.textColor)
+                    } else {
+                        Text(weather.emoji)
+                            .font(.system(size: 48))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(weather.temperature)
+                            .font(.system(size: 52, weight: .thin))
+                            .foregroundStyle(theme.textColor)
+                        
+                        Text(weather.condition)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(theme.textColor.opacity(0.85))
+                    }
+                    
+                    Spacer()
+                }
+                
+                if let high = weather.highTemp, let low = weather.lowTemp {
+                    HStack(spacing: 24) {
+                        Label(high, systemImage: "arrow.up")
+                            .font(.subheadline.weight(.medium))
+                        Label(low, systemImage: "arrow.down")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .foregroundStyle(theme.textColor.opacity(0.6))
+                }
+                
+                HStack {
+                    Spacer()
+                    Text("Breezy")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme.textColor.opacity(0.3))
+                }
+            }
+            .padding(28)
+        }
+    }
+    
+    private func renderCard() {
+        let renderer = ImageRenderer(content: shareCardRenderable)
+        renderer.scale = 3.0
+        if let uiImage = renderer.uiImage {
+            renderedImage = Image(uiImage: uiImage)
+        }
+    }
+}
+
+struct ImageRendererView: View {
+    let content: AnyView
+    var body: some View { content }
 }
 
 

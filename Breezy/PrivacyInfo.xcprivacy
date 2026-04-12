@@ -16,22 +16,6 @@
 				<string>CA92.1</string>
 			</array>
 		</dict>
-		<dict>
-			<key>NSPrivacyAccessedAPIType</key>
-			<string>NSPrivacyAccessedAPICategoryLocation</string>
-			<key>NSPrivacyAccessedAPITypeReasons</key>
-			<array>
-				<string>3D52.1</string>
-			</array>
-		</dict>
-		<dict>
-			<key>NSPrivacyAccessedAPIType</key>
-			<string>NSPrivacyAccessedAPICategoryUserNotifications</string>
-			<key>NSPrivacyAccessedAPITypeReasons</key>
-			<array>
-				<string>54F2.1</string>
-			</array>
-		</dict>
 	</array>
 </dict>
 </plist>

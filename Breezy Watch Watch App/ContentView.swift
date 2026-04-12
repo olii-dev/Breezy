@@ -50,7 +50,13 @@ struct ContentView: View {
                         CurrentOverviewView(weather: weather)
                             .containerBackground(Color.clear, for: .tabView)
                         
+                        WatchChartsPageView(weather: weather)
+                            .containerBackground(Color.clear, for: .tabView)
+                        
                         DailyForecastView(daily: weather.dailyForecast)
+                            .containerBackground(Color.clear, for: .tabView)
+                        
+                        WatchTimeMachineView()
                             .containerBackground(Color.clear, for: .tabView)
                     }
                     .tabViewStyle(.page)

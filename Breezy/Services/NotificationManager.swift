@@ -484,6 +484,11 @@ class NotificationManager: NSObject, ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "Breezy.lastRainAlertTime") }
     }
     
+    private var lastRainAlertLocation: String? {
+        get { UserDefaults.standard.string(forKey: "Breezy.lastRainAlertLocation") }
+        set { UserDefaults.standard.set(newValue, forKey: "Breezy.lastRainAlertLocation") }
+    }
+    
     private var previousRainPrediction: Bool {
         get { UserDefaults.standard.bool(forKey: "Breezy.previousRainPrediction") }
         set { UserDefaults.standard.set(newValue, forKey: "Breezy.previousRainPrediction") }
@@ -517,7 +522,7 @@ class NotificationManager: NSObject, ObservableObject {
         
         // If rain is expected, check cooldown before alerting
         if willRain {
-            guard shouldSendRainAlert() else { return }
+            guard shouldSendRainAlert(location: weather.location.city) else { return }
             
             // Calculate approximate minutes until rain
             let now = Calendar.current.component(.hour, from: Date())
@@ -525,13 +530,18 @@ class NotificationManager: NSObject, ObservableObject {
             
             sendMinuteRainAlert(minutesUntil: minutesUntil, location: weather.location.city)
             lastRainAlertTime = Date()
+            lastRainAlertLocation = weather.location.city
         }
     }
     
-    private func shouldSendRainAlert() -> Bool {
+    private func shouldSendRainAlert(location: String) -> Bool {
         guard let lastAlert = lastRainAlertTime else { return true }
         let cooldownSeconds = TimeInterval(settings.rainAlertCooldownMinutes * 60)
-        return Date().timeIntervalSince(lastAlert) >= cooldownSeconds
+        
+        if lastRainAlertLocation == location {
+            return Date().timeIntervalSince(lastAlert) >= cooldownSeconds
+        }
+        return Date().timeIntervalSince(lastAlert) >= 3600
     }
     
     private func sendMinuteRainAlert(minutesUntil: Int, location: String) {

@@ -13,6 +13,8 @@ struct UVIndexCurveView: View {
     let hourlyForecast: [HourlyForecast]
     let currentUV: Int
     let colorScheme: ColorScheme
+    var rangeHours: Int = 24
+    var showPeak: Bool = true
     @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
     @AppStorage("Breezy.typography") private var typographyRaw: String = WeatherFont.system.rawValue
 
@@ -21,7 +23,7 @@ struct UVIndexCurveView: View {
     }
 
     private var chartHours: [HourlyForecast] {
-        hourlyForecast
+        let filtered = hourlyForecast
             .filter { ($0.uvIndex ?? 0) >= 0 }
             .filter { (0...23).contains($0.hourValue) }
             .sorted { lhs, rhs in
@@ -30,6 +32,7 @@ struct UVIndexCurveView: View {
                 }
                 return lhs.hourValue < rhs.hourValue
             }
+        return Array(filtered.prefix(rangeHours))
     }
     
     // UV Categories for color coding

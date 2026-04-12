@@ -1,0 +1,266 @@
+import SwiftUI
+import Charts
+import WeatherKit
+import CoreLocation
+
+struct WatchTimeMachineView: View {
+    @EnvironmentObject var viewModel: WatchWeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+    @State private var selectedDate = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
+    @State private var historicalData: WatchHistoricalDay?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    
+    private let minDate = Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1))!
+    
+    var body: some View {
+        let theme = viewModel.currentTheme(isSystemDark: colorScheme == .dark)
+        
+        ScrollView {
+            VStack(spacing: 10) {
+                Text("TIME MACHINE")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(theme.textColor.opacity(0.6))
+                    .padding(.top, 4)
+                
+                DatePicker("Date", selection: $selectedDate, in: minDate...Date(), displayedComponents: .date)
+                    .labelsHidden()
+                    .scaleEffect(x: 1.0, y: 1.3, anchor: .center)
+                
+                Button {
+                    fetchHistory()
+                } label: {
+                    HStack(spacing: 6) {
+                        if isLoading {
+                            ProgressView()
+                                .tint(theme.textColor)
+                        } else {
+                            Image(systemName: "clock.arrow.circlepath")
+                        }
+                        Text("Fetch")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(theme.textColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(theme.textColor.opacity(0.12))
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                .disabled(isLoading)
+                
+                if let data = historicalData {
+                    historicalResultView(data: data, theme: theme)
+                } else if let errorMessage {
+                    VStack(spacing: 8) {
+                        Image(systemName: "cloud.slash")
+                            .font(.system(size: 24))
+                            .foregroundColor(theme.textColor.opacity(0.4))
+                        Text(errorMessage)
+                            .font(.caption2)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                    }
+                    .padding(12)
+                    .background(theme.textColor.opacity(0.08))
+                    .cornerRadius(10)
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 28))
+                            .foregroundColor(theme.textColor.opacity(0.3))
+                        Text("Select a date to see past weather")
+                            .font(.caption2)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(theme.textColor.opacity(0.5))
+                        Text("Data available from Aug 2021")
+                            .font(.system(size: 9))
+                            .foregroundColor(theme.textColor.opacity(0.4))
+                    }
+                    .padding(16)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 20)
+        }
+        .focusable()
+    }
+    
+    @ViewBuilder
+    private func historicalResultView(data: WatchHistoricalDay, theme: WatchWeatherTheme) -> some View {
+        VStack(spacing: 8) {
+            Text(formatDate(data.date).uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(theme.textColor.opacity(0.5))
+            
+            HStack(spacing: 12) {
+                if viewModel.useMinimalistIcons {
+                    Image(systemName: data.iconName)
+                        .font(.system(size: 32))
+                        .foregroundColor(theme.textColor)
+                } else {
+                    Text(data.emoji)
+                        .font(.system(size: 32))
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(data.condition)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(theme.textColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    
+                    HStack(spacing: 10) {
+                        Text("H: \(data.highTemp)")
+                        Text("L: \(data.lowTemp)")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(theme.textColor.opacity(0.7))
+                }
+            }
+            
+            if !data.hourlyTemps.isEmpty {
+                Chart {
+                    ForEach(data.hourlyTemps) { point in
+                        LineMark(
+                            x: .value("Hour", point.index),
+                            y: .value("Temp", point.temp)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(Color.orange)
+                        .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: 6)) { _ in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3))
+                            .foregroundStyle(theme.textColor.opacity(0.1))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { _ in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3))
+                            .foregroundStyle(theme.textColor.opacity(0.1))
+                    }
+                }
+                .frame(height: 60)
+                .padding(.top, 4)
+            }
+            
+            if let precip = data.precipChance {
+                HStack {
+                    Image(systemName: "cloud.rain.fill")
+                        .font(.caption2)
+                    Text("Rain: \(precip)")
+                        .font(.system(size: 11))
+                }
+                .foregroundColor(theme.textColor.opacity(0.6))
+            }
+            
+            if let wind = data.maxWind {
+                HStack {
+                    Image(systemName: "wind")
+                        .font(.caption2)
+                    Text("Wind: \(wind)")
+                        .font(.system(size: 11))
+                }
+                .foregroundColor(theme.textColor.opacity(0.6))
+            }
+        }
+        .padding(12)
+        .background(theme.textColor.opacity(0.08))
+        .cornerRadius(12)
+    }
+    
+    private func fetchHistory() {
+        isLoading = true
+        errorMessage = nil
+        historicalData = nil
+        
+        Task {
+            do {
+                let result = try await fetchHistoricalWeather(for: selectedDate)
+                historicalData = result
+            } catch {
+                errorMessage = "No data available for this date. Historical data is generally only available from August 2021."
+            }
+            isLoading = false
+        }
+    }
+    
+    private func fetchHistoricalWeather(for date: Date) async throws -> WatchHistoricalDay {
+        let location: CLLocation
+        if let weather = viewModel.weather,
+           let lat = weather.metadata.latitude,
+           let lon = weather.metadata.longitude {
+            location = CLLocation(latitude: lat, longitude: lon)
+        } else {
+            let helper = WatchLocationHelper()
+            let gpsData = try await helper.requestLocationAndGetData()
+            location = CLLocation(latitude: gpsData.latitude, longitude: gpsData.longitude)
+        }
+        
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        let weatherService = WeatherService.shared
+        let daily = try await weatherService.weather(for: location, including: .daily(startDate: date, endDate: endOfDay))
+        let hourly = try await weatherService.weather(for: location, including: .hourly(startDate: startOfDay, endDate: endOfDay))
+        
+        let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup) ?? .standard
+        let tempUnitRaw = defaults.string(forKey: WatchAppStorageKey.temperatureUnit)
+        let isFahrenheit = tempUnitRaw == "fahrenheit"
+        let suffix = isFahrenheit ? "°F" : "°C"
+        
+        guard let dayForecast = daily.first else {
+            throw NSError(domain: "WatchTimeMachine", code: 1, userInfo: [NSLocalizedDescriptionKey: "No data"])
+        }
+        
+        let highVal = isFahrenheit ? dayForecast.highTemperature.converted(to: UnitTemperature.fahrenheit).value : dayForecast.highTemperature.converted(to: UnitTemperature.celsius).value
+        let lowVal = isFahrenheit ? dayForecast.lowTemperature.converted(to: UnitTemperature.fahrenheit).value : dayForecast.lowTemperature.converted(to: UnitTemperature.celsius).value
+        
+        let hourlyTemps: [WatchTempPoint] = hourly.enumerated().compactMap { index, hour in
+            let temp = isFahrenheit ? hour.temperature.converted(to: UnitTemperature.fahrenheit).value : hour.temperature.converted(to: UnitTemperature.celsius).value
+            return WatchTempPoint(index: index, temp: temp)
+        }
+        
+        let condition = WatchWeatherConditionConverter.description(from: dayForecast.condition)
+        
+        return WatchHistoricalDay(
+            date: date,
+            condition: condition,
+            emoji: WatchWeatherIconHelper.emoji(for: condition),
+            iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
+            highTemp: String(format: "%.0f%@", highVal, suffix),
+            lowTemp: String(format: "%.0f%@", lowVal, suffix),
+            precipChance: dayForecast.precipitationChance > 0 ? String(format: "%.0f%%", dayForecast.precipitationChance * 100) : nil,
+            maxWind: nil,
+            hourlyTemps: hourlyTemps
+        )
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        return formatter.string(from: date)
+    }
+}
+
+struct WatchHistoricalDay {
+    let date: Date
+    let condition: String
+    let emoji: String
+    let iconName: String
+    let highTemp: String
+    let lowTemp: String
+    let precipChance: String?
+    let maxWind: String?
+    let hourlyTemps: [WatchTempPoint]
+}
+
+struct WatchTempPoint: Identifiable {
+    let id = UUID()
+    let index: Int
+    let temp: Double
+}

@@ -93,18 +93,72 @@ struct TimeMachineView: View {
                         
                         // Error State
                         if let error = viewModel.historicalError {
-                            VStack(spacing: 12) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.largeTitle)
+                            VStack(spacing: 16) {
+                                Image(systemName: "cloud.slash")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(theme.textColor.opacity(0.5))
+                                
+                                Text("No Data Available")
+                                    .font(.headline)
                                     .foregroundStyle(theme.textColor)
+                                
                                 Text(error)
                                     .font(.subheadline)
                                     .multilineTextAlignment(.center)
-                                    .foregroundStyle(theme.textColor.opacity(0.8))
+                                    .foregroundStyle(theme.textColor.opacity(0.7))
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    dataAvailabilityRow(icon: "checkmark.circle.fill", text: "Data is available from August 2021", available: true)
+                                    dataAvailabilityRow(icon: "checkmark.circle.fill", text: "Works for most locations worldwide", available: true)
+                                    dataAvailabilityRow(icon: "xmark.circle.fill", text: "Dates before August 2021 are not supported", available: false)
+                                    dataAvailabilityRow(icon: "xmark.circle.fill", text: "Some remote locations may have gaps", available: false)
+                                }
+                                .padding(.top, 4)
                             }
-                            .padding(20)
-                            .background(Color.red.opacity(0.15))
-                            .cornerRadius(16)
+                            .padding(24)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(theme.textColor.opacity(0.12), lineWidth: 0.5)
+                                    )
+                            )
+                            .padding(.horizontal, 20)
+                        } else if viewModel.historicalWeather == nil && !viewModel.historicalLoading {
+                            VStack(spacing: 16) {
+                                Image(systemName: "calendar.badge.clock")
+                                    .font(.system(size: 48))
+                                    .foregroundStyle(theme.textColor.opacity(0.3))
+                                
+                                Text("Pick a date to travel back in time")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.textColor.opacity(0.8))
+                                
+                                Text("Historical weather data is available from August 2021 onwards for most locations.")
+                                    .font(.subheadline)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(theme.textColor.opacity(0.5))
+                                    .padding(.horizontal, 8)
+                                
+                                HStack(spacing: 12) {
+                                    quickDateButton(title: "Yesterday", date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!)
+                                    quickDateButton(title: "Last Week", date: Calendar.current.date(byAdding: .day, value: -7, to: Date())!)
+                                    quickDateButton(title: "Last Month", date: Calendar.current.date(byAdding: .month, value: -1, to: Date())!)
+                                }
+                                .padding(.top, 4)
+                            }
+                            .padding(24)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(theme.textColor.opacity(0.12), lineWidth: 0.5)
+                                    )
+                            )
                             .padding(.horizontal, 20)
                         }
                     }
@@ -134,6 +188,39 @@ struct TimeMachineView: View {
             .onChange(of: date2) { _, newValue in
                 storedDate2Epoch = newValue.timeIntervalSince1970
             }
+        }
+    }
+    
+    @ViewBuilder
+    private func dataAvailabilityRow(icon: String, text: String, available: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(available ? .green : theme.textColor.opacity(0.4))
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(theme.textColor.opacity(0.6))
+            Spacer()
+        }
+    }
+    
+    @ViewBuilder
+    private func quickDateButton(title: String, date: Date) -> some View {
+        Button {
+            date1 = date
+            Task {
+                await viewModel.fetchHistoricalWeather(for: date, slot: 1)
+            }
+        } label: {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(theme.textColor)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                )
         }
     }
     

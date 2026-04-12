@@ -11,30 +11,35 @@ struct FeelsLikeWidget: View {
     let weather: WeatherInfo
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
+    
+    private var style: String { config?["style"] ?? "standard" }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
+        let textColor = viewModel.currentTheme(colorScheme: colorScheme).textColor
+        VStack(alignment: .leading, spacing: style == "compact" ? 8 : 12) {
             HStack {
                 Image(systemName: "thermometer.medium")
-                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
+                    .foregroundColor(textColor.opacity(0.7))
                 Text("Feels Like")
                     .font(.caption.weight(.bold))
-                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                    .foregroundColor(textColor.opacity(0.6))
                 Spacer()
             }
             
             if let feelsLike = weather.feelsLike {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(feelsLike)
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                        .font(.system(size: style == "emphasis" ? 44 : style == "compact" ? 28 : 36, weight: .bold))
+                        .foregroundColor(textColor)
                     
-                    Text(impactDescription())
-                        .font(.subheadline)
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 4)
+                    if style != "compact" {
+                        Text(impactDescription())
+                            .font(.subheadline)
+                            .foregroundColor(textColor.opacity(0.8))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
+                    }
                 }
             } else {
                 Text("N/A")

@@ -283,11 +283,28 @@ struct AppearanceSettingsView: View {
                                         }
                                         .buttonStyle(.plain)
                                     }
-                                }
-                                .padding(.horizontal, 2)
+}
+                            .padding(.horizontal, 2)
+                             }
+                         }
+                        
+                        NavigationLink(destination: WatchCustomThemeBuilderView().environmentObject(viewModel)) {
+                            HStack {
+                                Image(systemName: "paintbrush.fill")
+                                    .foregroundColor(theme.textColor)
+                                Text("Custom Theme Builder")
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundColor(theme.textColor)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundColor(theme.textColor.opacity(0.5))
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
                         }
-                    }
+                        .buttonStyle(.plain)
+                     }
 
                     SettingsCard(title: "ICONS", textColor: theme.textColor) {
                         HStack(spacing: 8) {
@@ -417,6 +434,16 @@ struct DisplaySettingsView: View {
                                 subtitle: "Choose what appears on the main screen",
                                 textColor: theme.textColor,
                                 destination: WatchMetricsEditorView(viewModel: viewModel)
+                            )
+                            
+                            Divider().background(theme.textColor.opacity(0.2))
+
+                            SettingsDestinationRow(
+                                icon: "chart.bar.fill",
+                                title: "Charts",
+                                subtitle: "Toggle chart sections on/off",
+                                textColor: theme.textColor,
+                                destination: WatchChartsSettingsView().environmentObject(viewModel)
                             )
                         }
                     }
@@ -762,5 +789,62 @@ struct LayoutEditorView: View {
             }
         }
         .navigationTitle("Layout")
+    }
+}
+
+struct WatchChartsSettingsView: View {
+    @AppStorage("Breezy.watch.chartTemperature") private var showTemperature = true
+    @AppStorage("Breezy.watch.chartUV") private var showUV = true
+    @AppStorage("Breezy.watch.chartWind") private var showWind = true
+    @AppStorage("Breezy.watch.chartHumidity") private var showHumidity = true
+    @EnvironmentObject var viewModel: WatchWeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        let theme = viewModel.currentTheme(isSystemDark: colorScheme == .dark)
+
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [theme.topColor, theme.bottomColor]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 14) {
+                    SettingsCard(title: "CHART SECTIONS", textColor: theme.textColor) {
+                        VStack(spacing: 6) {
+                            chartToggle(icon: "thermometer.medium", title: "Temperature", isOn: $showTemperature)
+                            Divider().background(theme.textColor.opacity(0.2))
+                            chartToggle(icon: "sun.max.fill", title: "UV Index", isOn: $showUV)
+                            Divider().background(theme.textColor.opacity(0.2))
+                            chartToggle(icon: "wind", title: "Wind", isOn: $showWind)
+                            Divider().background(theme.textColor.opacity(0.2))
+                            chartToggle(icon: "humidity.fill", title: "Humidity & Cloud", isOn: $showHumidity)
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                }
+                .padding()
+            }
+        }
+        .navigationTitle("Charts")
+    }
+
+    private func chartToggle(icon: String, title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .frame(width: 20)
+                .foregroundColor(theme(for: colorScheme).textColor)
+            Toggle(title, isOn: isOn)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(theme(for: colorScheme).textColor)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func theme(for colorScheme: ColorScheme) -> WatchWeatherTheme {
+        viewModel.currentTheme(isSystemDark: colorScheme == .dark)
     }
 }
