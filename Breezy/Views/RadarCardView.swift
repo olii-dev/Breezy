@@ -9,7 +9,8 @@ import SwiftUI
 import MapKit
 
 struct RadarCardView: View {
-    @ObservedObject var viewModel: WeatherViewModel
+    @ObservedObject     var viewModel: WeatherViewModel
+    var locationHelper: LocationHelper? = nil
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedLayer: RadarLayer = .precipitation
     @State private var region: MKCoordinateRegion
@@ -17,8 +18,9 @@ struct RadarCardView: View {
     @State private var showLayerMenu = false
     @State private var isLoading = true
     
-    init(viewModel: WeatherViewModel) {
+    init(viewModel: WeatherViewModel, locationHelper: LocationHelper? = nil) {
         self.viewModel = viewModel
+        self.locationHelper = locationHelper
         
         // Initialize map region centered on current location
         let initialCoordinate = CLLocationCoordinate2D(
@@ -115,7 +117,7 @@ struct RadarCardView: View {
             showFullScreen = true
         }
         .fullScreenCover(isPresented: $showFullScreen) {
-            FullScreenRadarView(viewModel: viewModel)
+            FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
         }
         .sheet(isPresented: $showLayerMenu) {
             RadarLayerMenuView(selectedLayer: $selectedLayer)
@@ -144,6 +146,8 @@ struct RadarMapView: UIViewRepresentable {
     let layer: RadarLayer
     @Binding var isLoading: Bool
     let coordinate: CLLocationCoordinate2D
+    var userGPSLocation: CLLocationCoordinate2D?
+    var showGPSDot: Bool = false
     var isDark: Bool
     var mapStyle: WeatherViewModel.RadarMapStyle
     
@@ -169,10 +173,19 @@ struct RadarMapView: UIViewRepresentable {
         mapView.addOverlay(overlay, level: .aboveLabels)
         context.coordinator.beginLoading()
         
-        // Add location marker
+        // Add location marker (searched city)
         let annotation = MKPointAnnotation()
         annotation.coordinate = coordinate
+        annotation.title = "CityLocation"
         mapView.addAnnotation(annotation)
+        
+        // Add GPS dot if viewing a different city
+        if showGPSDot, let gps = userGPSLocation {
+            let gpsAnnotation = MKPointAnnotation()
+            gpsAnnotation.coordinate = gps
+            gpsAnnotation.title = "GPSLocation"
+            mapView.addAnnotation(gpsAnnotation)
+        }
         
         // Loading will be controlled by delegate methods
         return mapView
@@ -274,7 +287,9 @@ struct RadarMapView: UIViewRepresentable {
         
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let tileOverlay = overlay as? MKTileOverlay {
-                return MKTileOverlayRenderer(tileOverlay: tileOverlay)
+                let renderer = MKTileOverlayRenderer(tileOverlay: tileOverlay)
+                renderer.alpha = 0.8
+                return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
         }

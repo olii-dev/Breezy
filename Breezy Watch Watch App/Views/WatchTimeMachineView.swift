@@ -20,12 +20,12 @@ struct WatchTimeMachineView: View {
             VStack(spacing: 10) {
                 Text("TIME MACHINE")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(theme.textColor.opacity(0.6))
+                    .foregroundColor(theme.textColor.opacity(0.85))
                     .padding(.top, 4)
                 
                 DatePicker("Date", selection: $selectedDate, in: minDate...Date(), displayedComponents: .date)
                     .labelsHidden()
-                    .scaleEffect(x: 1.0, y: 1.3, anchor: .center)
+                    .scaleEffect(x: 1.0, y: 1.15, anchor: .center)
                 
                 Button {
                     fetchHistory()
@@ -43,7 +43,7 @@ struct WatchTimeMachineView: View {
                     .foregroundColor(theme.textColor)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(theme.textColor.opacity(0.12))
+                    .background(theme.textColor.opacity(0.15))
                     .cornerRadius(10)
                 }
                 .buttonStyle(.plain)
@@ -55,27 +55,27 @@ struct WatchTimeMachineView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "cloud.slash")
                             .font(.system(size: 24))
-                            .foregroundColor(theme.textColor.opacity(0.4))
+                            .foregroundColor(theme.textColor.opacity(0.75))
                         Text(errorMessage)
                             .font(.caption2)
                             .multilineTextAlignment(.center)
-                            .foregroundColor(theme.textColor.opacity(0.6))
+                            .foregroundColor(theme.textColor.opacity(0.8))
                     }
                     .padding(12)
-                    .background(theme.textColor.opacity(0.08))
+                    .background(theme.textColor.opacity(0.15))
                     .cornerRadius(10)
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "calendar.badge.clock")
                             .font(.system(size: 28))
-                            .foregroundColor(theme.textColor.opacity(0.3))
+                            .foregroundColor(theme.textColor.opacity(0.7))
                         Text("Select a date to see past weather")
                             .font(.caption2)
                             .multilineTextAlignment(.center)
-                            .foregroundColor(theme.textColor.opacity(0.5))
+                            .foregroundColor(theme.textColor.opacity(0.75))
                         Text("Data available from Aug 2021")
-                            .font(.system(size: 9))
-                            .foregroundColor(theme.textColor.opacity(0.4))
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.textColor.opacity(0.7))
                     }
                     .padding(16)
                 }
@@ -90,8 +90,8 @@ struct WatchTimeMachineView: View {
     private func historicalResultView(data: WatchHistoricalDay, theme: WatchWeatherTheme) -> some View {
         VStack(spacing: 8) {
             Text(formatDate(data.date).uppercased())
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(theme.textColor.opacity(0.5))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(theme.textColor.opacity(0.8))
             
             HStack(spacing: 12) {
                 if viewModel.useMinimalistIcons {
@@ -115,7 +115,7 @@ struct WatchTimeMachineView: View {
                         Text("L: \(data.lowTemp)")
                     }
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(theme.textColor.opacity(0.7))
+                    .foregroundColor(theme.textColor.opacity(0.85))
                 }
             }
             
@@ -133,14 +133,14 @@ struct WatchTimeMachineView: View {
                 }
                 .chartXAxis {
                     AxisMarks(values: .stride(by: 6)) { _ in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3))
-                            .foregroundStyle(theme.textColor.opacity(0.1))
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(theme.textColor.opacity(0.15))
                     }
                 }
                 .chartYAxis {
                     AxisMarks(position: .leading) { _ in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3))
-                            .foregroundStyle(theme.textColor.opacity(0.1))
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(theme.textColor.opacity(0.15))
                     }
                 }
                 .frame(height: 60)
@@ -154,7 +154,7 @@ struct WatchTimeMachineView: View {
                     Text("Rain: \(precip)")
                         .font(.system(size: 11))
                 }
-                .foregroundColor(theme.textColor.opacity(0.6))
+                .foregroundColor(theme.textColor.opacity(0.75))
             }
             
             if let wind = data.maxWind {
@@ -164,11 +164,11 @@ struct WatchTimeMachineView: View {
                     Text("Wind: \(wind)")
                         .font(.system(size: 11))
                 }
-                .foregroundColor(theme.textColor.opacity(0.6))
+                .foregroundColor(theme.textColor.opacity(0.75))
             }
         }
         .padding(12)
-        .background(theme.textColor.opacity(0.08))
+        .background(theme.textColor.opacity(0.12))
         .cornerRadius(12)
     }
     

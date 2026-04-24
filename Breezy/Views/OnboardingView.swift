@@ -234,7 +234,7 @@ struct OnboardingView: View {
                     Text(primaryButtonTitle)
                         .font(.headline.weight(.semibold))
                 }
-                .foregroundColor(colorScheme == .light ? .white : .black)
+                .foregroundColor(colorScheme == .light ? .black : .white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(
@@ -297,12 +297,12 @@ struct OnboardingView: View {
         switch selectedLocationChoice {
         case .current:
             viewModel.shouldFollowGPS = true
-            UserDefaults.standard.set(true, forKey: "Breezy.useGPSLocation")
+            UserDefaults.standard.set(true, forKey: "Breezy.shouldFollowGPS")
             UserDefaults.standard.removeObject(forKey: "Breezy.selectedLocation")
         case .manual:
             guard let selectedLocation else { return }
             viewModel.shouldFollowGPS = false
-            UserDefaults.standard.set(false, forKey: "Breezy.useGPSLocation")
+            UserDefaults.standard.set(false, forKey: "Breezy.shouldFollowGPS")
             if let encoded = try? JSONEncoder().encode(selectedLocation) {
                 UserDefaults.standard.set(encoded, forKey: "Breezy.selectedLocation")
             }
@@ -943,7 +943,7 @@ struct OnboardingView: View {
                     .frame(width: 58, height: 58)
                 Image(systemName: icon)
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(accent)
+                    .foregroundColor(theme.textColor)
             }
 
             VStack(alignment: .leading, spacing: 5) {

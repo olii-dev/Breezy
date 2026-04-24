@@ -12,6 +12,7 @@ struct FullScreenRadarView: View {
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
+    var locationHelper: LocationHelper? = nil
     @State private var selectedLayer: RadarLayer = .precipitation
     @State private var region: MKCoordinateRegion
     @State private var showLayerMenu = false
@@ -36,8 +37,9 @@ struct FullScreenRadarView: View {
         return distanceFromOrigin > 1500 || latitudeChanged || longitudeChanged
     }
     
-    init(viewModel: WeatherViewModel) {
+    init(viewModel: WeatherViewModel, locationHelper: LocationHelper? = nil) {
         self.viewModel = viewModel
+        self.locationHelper = locationHelper
         
         let initialCoordinate = CLLocationCoordinate2D(
             latitude: viewModel.currentLocation?.latitude ?? 0,
@@ -105,7 +107,6 @@ struct FullScreenRadarView: View {
                                     .font(.system(size: 15, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 44, height: 44)
-                                    .background(.ultraThinMaterial, in: Circle())
                             }
                             .transition(.scale.combined(with: .opacity))
                         }
@@ -148,7 +149,6 @@ struct FullScreenRadarView: View {
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
-                        .background(.ultraThinMaterial, in: Circle())
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -164,7 +164,6 @@ struct FullScreenRadarView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
 
                 Spacer(minLength: 8)
 
@@ -179,7 +178,6 @@ struct FullScreenRadarView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
-                        .background(.ultraThinMaterial, in: Circle())
                 }
                 .onChange(of: viewModel.mapStyle) { _, _ in
                     HapticsManager.shared.selectionChanged()
@@ -193,7 +191,6 @@ struct FullScreenRadarView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
-                        .background(.ultraThinMaterial, in: Circle())
                 }
             }
             .padding(.horizontal, 16)

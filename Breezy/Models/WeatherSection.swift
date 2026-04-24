@@ -37,6 +37,9 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
     // Maps
     case radar = "Weather Radar"
     
+    // Smart
+    case smartStack = "Smart Stack"
+    
     var id: String { rawValue }
     
     var icon: String {
@@ -62,6 +65,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
         case .sunPath: return "sun.and.horizon.fill"
         case .moonPhase: return "moon.stars.fill"
         case .uvIndexCurve: return "chart.xyaxis.line"
+        case .smartStack: return "square.3.layers.3d"
         }
     }
 }
@@ -140,12 +144,14 @@ extension WidgetType {
             return .astronomy
         case .radar:
             return .maps
+        case .smartStack:
+            return .forecasts
         }
     }
 
     var supportsConfiguration: Bool {
         switch self {
-        case .hourlyForecast, .deepDetails, .forecastNarrative, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .sunPath, .moonPhase, .humidityStrip, .windHistory:
+        case .hourlyForecast, .deepDetails, .forecastNarrative, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .sunPath, .moonPhase, .humidityStrip, .windHistory, .smartStack:
             return true
         default:
             return false

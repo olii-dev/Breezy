@@ -138,14 +138,15 @@ struct WidgetPreviewView: View {
     func width(for size: WidgetSize) -> CGFloat {
         switch size {
         case .small: return 160
-        case .medium, .large: return 340
+        case .medium: return 330
+        case .large: return 330
         }
     }
     
     func height(for size: WidgetSize) -> CGFloat {
         switch size {
         case .small, .medium: return 160
-        case .large: return 340
+        case .large: return 345
         }
     }
     

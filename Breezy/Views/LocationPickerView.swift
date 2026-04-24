@@ -123,7 +123,7 @@ struct LocationPickerView: View {
                     dismiss()
                     
                     // Save that GPS location is being used
-                    UserDefaults.standard.set(true, forKey: "Breezy.useGPSLocation")
+                    UserDefaults.standard.set(true, forKey: "Breezy.shouldFollowGPS")
                     UserDefaults.standard.removeObject(forKey: "Breezy.selectedLocation")
                 } catch {
                     viewModel.error = "Location failed"

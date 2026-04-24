@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var dashboardWidgets: [DashboardWidget] = DashboardWidget.defaultDashboard
     @State private var gradientColors: [Color] = []
     @State private var isEditMode = false
+    @AppStorage("Breezy.showEditModeButton") private var showEditModeButton = true
     @State private var draggingWidget: DashboardWidget?
     @State private var isInteractingWithChart = false
     @State private var showShareCard = false
@@ -55,14 +56,14 @@ struct ContentView: View {
                 }
                 .onChange(of: locationHelper.userLocation) { oldValue, newLocation in
                     // Only auto-update if using GPS location
-                    let useGPS = UserDefaults.standard.bool(forKey: "Breezy.useGPSLocation")
+                    let useGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
                     if useGPS, let location = newLocation {
                         Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
                     }
                 }
                 .onChange(of: locationHelper.significantLocationChange) { oldValue, newLocation in
                     // Auto-refresh on significant location changes (only if using GPS)
-                    let useGPS = UserDefaults.standard.bool(forKey: "Breezy.useGPSLocation")
+                    let useGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
                     if useGPS, let location = newLocation {
                         Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
                     }
@@ -255,7 +256,7 @@ struct ContentView: View {
             FloatingParticles()
             
             ScrollView(showsIndicators: false) {
-                VStack(spacing: DesignSystem.spacingXL) {
+                LazyVStack(spacing: DesignSystem.spacingXL) {
                     Spacer()
                         .frame(height: DesignSystem.spacingS)
 
@@ -308,7 +309,7 @@ struct ContentView: View {
                             )
                             .contentShape(Rectangle()) // Ensure entire area is valid for drag
                             .simultaneousGesture(
-                                LongPressGesture(minimumDuration: 0.9, maximumDistance: 50)
+                                LongPressGesture(minimumDuration: 1.25, maximumDistance: 50)
                                     .onEnded { _ in
                                         if !isEditMode {
                                             HapticsManager.shared.impact(style: .heavy)
@@ -349,7 +350,25 @@ struct ContentView: View {
                     }
                     
                     Spacer()
-                        .frame(height: DesignSystem.spacingXL)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if showEditModeButton && !isEditMode {
+                    Button {
+                        HapticsManager.shared.impact(style: .heavy)
+                        withAnimation(.spring()) {
+                            isEditMode = true
+                        }
+                    } label: {
+                        Image(systemName: "pencil.circle")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.5))
+                            .padding(8)
+                            .background(Circle().fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 16)
+                    .padding(.top, 8)
                 }
             }
             .refreshable {
@@ -365,7 +384,7 @@ struct ContentView: View {
             }
         }
         .simultaneousGesture(
-            LongPressGesture(minimumDuration: 1.5, maximumDistance: 50)
+            LongPressGesture(minimumDuration: 1.25, maximumDistance: 50)
                 .onEnded { _ in
                     if !isEditMode && !isInteractingWithChart {
                         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
@@ -526,7 +545,11 @@ struct ContentView: View {
             }
                 
         case .radar:
-            RadarCardView(viewModel: viewModel)
+            RadarCardView(viewModel: viewModel, locationHelper: locationHelper)
+                .padding(.horizontal, DesignSystem.spacingM)
+                
+        case .smartStack:
+            SmartStackWidget(viewModel: viewModel, weather: weather, widget: widget)
                 .padding(.horizontal, DesignSystem.spacingM)
                 
         case .uvIndex:
@@ -797,8 +820,9 @@ struct WeatherHeaderView: View {
                         .padding(.bottom, 4)
                 } else {
                     Text(weather.emoji)
-                        .font(.system(size: 48)) // Smaller emoji
+                        .font(.system(size: 48))
                         .padding(.bottom, 4)
+                        .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(4))
                 }
                 
                 Text(weather.temperature)
@@ -1189,8 +1213,9 @@ struct DailyForecastRowView: View {
                 Text(day.emoji)
                     .font(.title3)
                     .frame(width: 30)
+                    .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(2))
             }
-            
+             
             Text(day.condition)
                 .font(.caption)
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
@@ -1522,6 +1547,7 @@ struct NewHourlyCardView: View {
                                     Text(hour.emoji ?? "☁️")
                                         .font(.title3)
                                         .frame(height: 28)
+                                        .background(Circle().fill(theme.textColor.opacity(0.1)).padding(2))
                                 }
 
                                 Text(viewModel.formattedTemperature(hour.temperatureRaw))
@@ -1627,7 +1653,7 @@ struct MoonPhaseCardView: View {
                                 .lineLimit(2)
                         }
                     }
-
+                    
                     Spacer()
                 }
                 .padding(20)
@@ -1865,6 +1891,7 @@ struct SimpleDailyRow: View {
                 Text(day.emoji)
                     .font(.title3)
                     .frame(width: 30)
+                    .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(2))
             }
             
             Spacer()
@@ -1906,6 +1933,7 @@ struct MetricsPillsView: View {
                     } else {
                         Text(pill.emoji)
                             .font(.title3)
+                            .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(1))
                     }
                     
                     Text(pill.title)
@@ -2737,14 +2765,10 @@ struct HumidityStripWidget: View {
 
                 .frame(height: 160)
                 .padding(.horizontal, 12)
-                .padding(.bottom, 16)
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(textColor.opacity(0.18), lineWidth: 0.5))
-        )
+                 .padding(.bottom, 16)
+             }
+         }
+        .softGlassCard()
         .shadow(color: .black.opacity(0.15), radius: 18, x: 0, y: 10)
     }
 }
@@ -2766,10 +2790,13 @@ struct PrecipitationTimelineWidget: View {
     private var days: [DayRain] {
         let limit = Int(config?["rangeHours"] ?? "0") ?? 0
         let forecast = limit > 0 ? Array(weather.dailyForecast.prefix(limit)) : weather.dailyForecast
-        return forecast.map { day in
+        var seen = Set<String>()
+        return forecast.compactMap { day in
             let raw = day.chanceOfRain ?? "0"
             let numeric = Int(raw.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)) ?? 0
             let short = String(day.dayName.prefix(3))
+            guard !seen.contains(short) else { return nil }
+            seen.insert(short)
             return DayRain(id: day.id, shortName: short, chance: numeric)
         }
     }
@@ -3290,7 +3317,7 @@ struct EditableSectionContainer<Content: View>: View {
     @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
     
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .bottomLeading) {
             content()
                 .allowsHitTesting(!isEditMode)
                 .jiggle(enabled: isEditMode)
@@ -3302,7 +3329,7 @@ struct EditableSectionContainer<Content: View>: View {
                         Button(action: onConfigure) {
                             Image(systemName: "slider.horizontal.3")
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(.white.opacity(0.65))
                                 .frame(width: 44, height: 36)
                         }
                         Rectangle()
@@ -3313,7 +3340,7 @@ struct EditableSectionContainer<Content: View>: View {
                     Button(action: onRemove) {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.red.opacity(0.9))
+                            .foregroundColor(.red.opacity(0.6))
                             .frame(width: 44, height: 36)
                     }
                 }
@@ -3360,6 +3387,115 @@ struct WidgetDropDelegate: DropDelegate {
     
     func dropUpdated(info: DropInfo) -> DropProposal? {
         return DropProposal(operation: .move)
+    }
+}
+
+// MARK: - Smart Stack Widget
+
+struct SmartStackWidget: View {
+    @ObservedObject var viewModel: WeatherViewModel
+    let weather: WeatherInfo
+    let widget: DashboardWidget
+    @Environment(\.colorScheme) var colorScheme
+    @State private var currentIndex: Int = 0
+    @State private var timer: Timer?
+    
+    private var stackedTypes: [WidgetType] {
+        if let ids = widget.config?["widgets"] {
+            return ids.split(separator: ",").compactMap { WidgetType(rawValue: String($0)) }
+        }
+        return [.deepDetails, .hourlyForecast, .rainSummary]
+    }
+    
+    private var theme: WeatherTheme {
+        viewModel.currentTheme(colorScheme: colorScheme)
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            TabView(selection: $currentIndex) {
+                ForEach(Array(stackedTypes.enumerated()), id: \.offset) { index, type in
+                    stackedWidgetView(for: type)
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .animation(.easeInOut(duration: 0.5), value: currentIndex)
+            
+            HStack(spacing: 6) {
+                ForEach(0..<stackedTypes.count, id: \.self) { index in
+                    Circle()
+                        .fill(index == currentIndex ? theme.textColor : theme.textColor.opacity(0.3))
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .padding(.bottom, 12)
+        }
+        .softGlassCard(padding: 0, cornerRadius: DesignSystem.radiusL)
+        .onAppear { startTimer() }
+        .onDisappear { timer?.invalidate() }
+        .gesture(DragGesture(minimumDistance: 20).onEnded { value in
+            if value.translation.height < 0 && currentIndex < stackedTypes.count - 1 {
+                currentIndex += 1
+            } else if value.translation.height > 0 && currentIndex > 0 {
+                currentIndex -= 1
+            }
+            resetTimer()
+        })
+    }
+    
+    @ViewBuilder
+    private func stackedWidgetView(for type: WidgetType) -> some View {
+        switch type {
+        case .hourlyForecast:
+            NewHourlyCardView(
+                hourlyData: weather.hourlyForecast,
+                allHourlyData: weather.allHourlyData,
+                viewModel: viewModel,
+                rangeHours: 24,
+                density: "compact"
+            )
+        case .dailyForecast:
+            NewDailyForecastView(forecast: weather.dailyForecast, viewModel: viewModel)
+        case .forecastNarrative:
+            ForecastNarrativeWidget(weather: weather, viewModel: viewModel, showsExpandedDetail: false)
+        case .deepDetails:
+            let metrics = weather.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil)
+            MetricsPillsView(metrics: metrics, weather: weather, viewModel: viewModel, customMetrics: nil)
+        case .rainSummary:
+            RainSummaryWidget(weather: weather, viewModel: viewModel)
+        case .rainfallToday:
+            RainfallTodayWidget(weather: weather, viewModel: viewModel)
+        case .windSummary:
+            WindSummaryWidget(weather: weather, viewModel: viewModel)
+        case .uvIndex:
+            UVIndexWidget(weather: weather, viewModel: viewModel, style: "standard", showsCategory: true)
+        case .feelsLike:
+            FeelsLikeWidget(weather: weather, viewModel: viewModel, config: nil)
+        case .humidityStrip:
+            HumidityStripWidget(weather: weather, viewModel: viewModel, rangeHours: 24)
+        case .visibilityCard:
+            VisibilityWidget(weather: weather, viewModel: viewModel)
+        case .cloudCoverCard:
+            CloudCoverWidget(weather: weather, viewModel: viewModel)
+        default:
+            Text("Unsupported")
+                .foregroundColor(theme.textColor)
+        }
+    }
+    
+    private func startTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+            withAnimation {
+                currentIndex = (currentIndex + 1) % stackedTypes.count
+            }
+        }
+    }
+    
+    private func resetTimer() {
+        timer?.invalidate()
+        startTimer()
     }
 }
 
@@ -3504,6 +3640,7 @@ struct WidgetGalleryView: View {
         case .visibilityCard: return "Current visibility & category"
         case .cloudCoverCard: return "Cloud cover percentage"
         case .windHistory: return "Sustained vs gust wind chart"
+        case .smartStack: return "Auto-rotating widget stack"
         }
     }
 }

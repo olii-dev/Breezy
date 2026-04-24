@@ -166,7 +166,7 @@ class NotificationManager: NSObject, ObservableObject {
         let now = Date()
         guard let todaySchedule = calendar.date(bySettingHour: settings.dailyForecastHour, minute: settings.dailyForecastMinute, second: 0, of: now) else { return }
         
-        let isForTomorrow = now > todaySchedule
+        let isForTomorrow = now > todaySchedule && !calendar.isDateInToday(todaySchedule)
         
         // Select the correct weather data
         // If scheduling for tomorrow, use tomorrow's forecast (index 1)

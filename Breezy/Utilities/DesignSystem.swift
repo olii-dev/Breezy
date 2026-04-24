@@ -48,8 +48,14 @@ struct DesignSystem {
     // MARK: - Glass Effect (ultra-subtle)
     
     static func softGlassMaterial(opacity: Double = 0.15) -> some View {
-        Rectangle()
-            .fill(.ultraThinMaterial.opacity(opacity))
+        Group {
+            if opacity <= 0.01 {
+                Color.clear
+            } else {
+                Rectangle()
+                    .fill(.ultraThinMaterial.opacity(opacity))
+            }
+        }
     }
 }
 
@@ -82,6 +88,7 @@ struct SoftGlassCard: ViewModifier {
                 }
             )
             .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+            .drawingGroup()
     }
 }
 

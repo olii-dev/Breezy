@@ -4,6 +4,7 @@ struct ThemeGalleryView: View {
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
+    @State private var themeToDelete: WeatherTheme?
     
     let columns = [
         GridItem(.flexible()),
@@ -113,7 +114,7 @@ struct ThemeGalleryView: View {
                                 CustomThemeBuilderView(viewModel: viewModel)
                             } label: {
                                 CustomThemeCard(
-                                    isSelected: viewModel.themeMode == .custom,
+                                    isSelected: false,
                                     customTheme: viewModel.customTheme
                                 )
                             }
@@ -124,12 +125,72 @@ struct ThemeGalleryView: View {
                     }
                     .padding(.horizontal)
                     
+                    // Custom Themes Section
+                    if !viewModel.customThemes.isEmpty {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("MY THEMES")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(theme.textColor.opacity(0.6))
+                                .padding(.leading, 8)
+                            
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(viewModel.customThemes) { customTheme in
+                                    CustomThemeCard(
+                                        isSelected: viewModel.themeMode == .custom && viewModel.selectedCustomThemeID == customTheme.id,
+                                        customTheme: customTheme
+                                    )
+                                    .onTapGesture {
+                                        HapticsManager.shared.impact(style: .light)
+                                        withAnimation {
+                                            viewModel.selectedCustomThemeID = customTheme.id
+                                            viewModel.themeMode = .custom
+                                        }
+                                    }
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            themeToDelete = customTheme
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                        
+                                        NavigationLink {
+                                            CustomThemeBuilderView(viewModel: viewModel, editing: customTheme.id)
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
                     Spacer(minLength: 40)
                 }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
+        .alert("Delete \(themeToDelete?.name ?? "Theme")?", isPresented: Binding(
+            get: { themeToDelete != nil },
+            set: { if !$0 { themeToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) {
+                themeToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let theme = themeToDelete {
+                    HapticsManager.shared.notification(type: .warning)
+                    viewModel.customThemes.removeAll { $0.id == theme.id }
+                    if viewModel.selectedCustomThemeID == theme.id {
+                        viewModel.selectedCustomThemeID = viewModel.customThemes.first?.id
+                    }
+                }
+                themeToDelete = nil
+            }
+        } message: {
+            Text("This theme will be permanently deleted.")
+        }
     }
 }
 

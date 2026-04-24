@@ -9,7 +9,7 @@ import SwiftUI
 
 struct FloatingParticles: View {
     @State private var animate = false
-    let particleCount: Int = 8
+    let particleCount: Int = 4
     
     var body: some View {
         ZStack {

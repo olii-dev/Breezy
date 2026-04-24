@@ -1350,6 +1350,11 @@ struct CustomWidgetView: View {
         .containerBackground(for: .widget) {
             backgroundView
         }
+        .clipShape(ContainerRelativeShape())
+        .overlay(
+            ContainerRelativeShape()
+                .strokeBorder(Color.white.opacity(config.showBorder ? 0.3 : 0), lineWidth: 1)
+        )
     }
     
     // MARK: - Layouts (Duplicated from Preview for now, ideally shared in a helper)
@@ -1514,7 +1519,7 @@ struct CustomWidgetView: View {
             } else {
                 VStack(alignment: align, spacing: 1) {
                     Image(systemName: "thermometer.medium")
-                        .font(.system(size: 10))
+                        .font(font(size: 10, weight: .regular))
                     Text(entry.weather.temperature)
                         .font(font(size: 12, weight: .bold))
                 }
@@ -1526,22 +1531,22 @@ struct CustomWidgetView: View {
                 let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: isMin)
                 if isMin {
                     Image(systemName: icon)
-                        .font(.system(size: 40))
+                        .font(font(size: 40, weight: .regular))
                         .symbolRenderingMode(.hierarchical)
                 } else {
                     Text(icon)
-                        .font(.system(size: 40))
+                        .font(font(size: 40, weight: .regular))
                 }
             } else {
                 let isMin = config.iconStyle == .minimalist
                 let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: isMin)
                 if isMin {
                     Image(systemName: icon)
-                        .font(.system(size: 20))
+                        .font(font(size: 20, weight: .regular))
                         .symbolRenderingMode(.hierarchical)
                 } else {
                     Text(icon)
-                        .font(.system(size: 20))
+                        .font(font(size: 20, weight: .regular))
                 }
             }
             
@@ -3884,12 +3889,13 @@ struct CustomWidgetConfiguration: Identifiable, Codable, Equatable {
     var id: UUID
     var name: String
     var backgroundStyle: WidgetBackgroundStyle
-    var customColors: [CustomColor] // Strings for Codable
+    var customColors: [CustomColor]
     var fontStyle: WidgetFontStyle
     var metrics: [WidgetMetricPosition: WidgetMetricType]
     var iconStyle: WidgetIconStyle
     var widgetSize: WidgetSize
     var layoutStyle: WidgetLayout
+    var showBorder: Bool
     
     static var `default`: CustomWidgetConfiguration {
         CustomWidgetConfiguration(
@@ -3906,7 +3912,8 @@ struct CustomWidgetConfiguration: Identifiable, Codable, Equatable {
             ],
             iconStyle: .minimalist,
             widgetSize: .small,
-            layoutStyle: .standard
+            layoutStyle: .standard,
+            showBorder: false
         )
     }
 }

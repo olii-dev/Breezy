@@ -513,7 +513,7 @@ struct DailyForecastDetailView: View {
             sectionHeader(title: "At a Glance", theme: theme)
 
             HStack(spacing: DesignSystem.spacingS) {
-                if let rain = day.chanceOfRain {
+                if let rain = day.chanceOfRain, !viewModel.showPrecipitationChartInDayDetail {
                     QuickStatPill(
                         icon: "cloud.rain.fill",
                         emoji: "🌧️",

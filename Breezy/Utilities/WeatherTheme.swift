@@ -9,24 +9,34 @@ import SwiftUI
 import UIKit
 
 struct WeatherTheme: Codable, Identifiable {
-    var id: String {
-        // Generate a stable ID based on colors for custom themes, or use predefined name
-        return "\(topColor.description)-\(bottomColor.description)"
-    }
+    var id: String
+    var name: String
     
     let topColor: Color
     let bottomColor: Color
     let textColor: Color
     
+    var glassStyle: GlassStyle = .ultraThin
+    var cornerRadius: CornerRadiusStyle = .medium
+    var shadowIntensity: ShadowIntensity = .medium
+    var borderStyle: BorderStyle = .subtle
+    
     // Custom coding keys and init for Color serialization
     enum CodingKeys: String, CodingKey {
-        case topColor, bottomColor, textColor
+        case id, name, topColor, bottomColor, textColor
+        case glassStyle, cornerRadius, shadowIntensity, borderStyle
     }
     
-    init(topColor: Color, bottomColor: Color, textColor: Color) {
+    init(id: String = UUID().uuidString, name: String = "Custom", topColor: Color, bottomColor: Color, textColor: Color) {
+        self.id = id
+        self.name = name
         self.topColor = topColor
         self.bottomColor = bottomColor
         self.textColor = textColor
+        self.glassStyle = .ultraThin
+        self.cornerRadius = .medium
+        self.shadowIntensity = .medium
+        self.borderStyle = .subtle
     }
     
     var isDark: Bool {
@@ -48,6 +58,8 @@ struct WeatherTheme: Codable, Identifiable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Custom"
         let topData = try container.decode(Data.self, forKey: .topColor)
         let bottomData = try container.decode(Data.self, forKey: .bottomColor)
         let textData = try container.decode(Data.self, forKey: .textColor)
@@ -55,13 +67,23 @@ struct WeatherTheme: Codable, Identifiable {
         self.topColor = Color.fromData(topData) ?? .blue
         self.bottomColor = Color.fromData(bottomData) ?? .teal
         self.textColor = Color.fromData(textData) ?? .white
+        self.glassStyle = try container.decodeIfPresent(GlassStyle.self, forKey: .glassStyle) ?? .ultraThin
+        self.cornerRadius = try container.decodeIfPresent(CornerRadiusStyle.self, forKey: .cornerRadius) ?? .medium
+        self.shadowIntensity = try container.decodeIfPresent(ShadowIntensity.self, forKey: .shadowIntensity) ?? .medium
+        self.borderStyle = try container.decodeIfPresent(BorderStyle.self, forKey: .borderStyle) ?? .subtle
     }
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
         try container.encode(topColor.toData() ?? Data(), forKey: .topColor)
         try container.encode(bottomColor.toData() ?? Data(), forKey: .bottomColor)
         try container.encode(textColor.toData() ?? Data(), forKey: .textColor)
+        try container.encode(glassStyle, forKey: .glassStyle)
+        try container.encode(cornerRadius, forKey: .cornerRadius)
+        try container.encode(shadowIntensity, forKey: .shadowIntensity)
+        try container.encode(borderStyle, forKey: .borderStyle)
     }
     
     // Theme presets
@@ -221,4 +243,20 @@ struct WeatherTheme: Codable, Identifiable {
             )
         }
     }
+}
+
+enum GlassStyle: String, Codable, CaseIterable {
+    case ultraThin, thin, regular, thick
+}
+
+enum CornerRadiusStyle: String, Codable, CaseIterable {
+    case small, medium, large
+}
+
+enum ShadowIntensity: String, Codable, CaseIterable {
+    case subtle, medium, prominent
+}
+
+enum BorderStyle: String, Codable, CaseIterable {
+    case none, subtle, prominent
 }

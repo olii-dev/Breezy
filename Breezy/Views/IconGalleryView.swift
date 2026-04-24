@@ -61,8 +61,7 @@ struct IconGalleryView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 22))
-                        // Use dynamic color based on theme/scheme
-                        .foregroundStyle(colorScheme == .dark ? .white.opacity(0.7) : Color(hex: "7f8c8d"))
+                        .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                 }
             }
         }

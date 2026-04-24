@@ -14,6 +14,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
     @State private var showResetConfirmation = false
+    @AppStorage("Breezy.showEditModeButton") private var showEditModeButton = true
     
     var body: some View {
         NavigationStack {
@@ -171,10 +172,9 @@ struct SettingsView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                            .font(.title3)
                     }
                 }
             }
@@ -1107,6 +1107,7 @@ struct LocationSettingsView: View {
 struct DesignStudioView: View {
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    @AppStorage("Breezy.showEditModeButton") private var showEditModeButton = true
     
     var body: some View {
         ZStack {
@@ -1199,6 +1200,14 @@ struct DesignStudioView: View {
                             }
                             .padding()
                             .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                            
+                            SettingsToggleRow(
+                                title: "Edit Button",
+                                icon: "pencil.circle",
+                                color: .indigo,
+                                textColor: theme.textColor,
+                                isOn: $showEditModeButton
+                            )
                             
                             // App Icons Gallery Navigation
                             NavigationLink {
@@ -1340,6 +1349,7 @@ struct DesignStudioView: View {
         }
         .navigationTitle("Design Studio")
         .navigationBarTitleDisplayMode(.large)
+        .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
     }
 }
 

@@ -76,7 +76,8 @@ class WeatherViewModel: ObservableObject {
         
         if let data = UserDefaults.standard.data(forKey: "Breezy.customTheme"),
            let theme = try? JSONDecoder().decode(WeatherTheme.self, from: data) {
-            customTheme = theme
+            customThemes = [theme]
+            selectedCustomThemeID = theme.id
         }
         
         objectWillChange.send()
@@ -213,49 +214,40 @@ class WeatherViewModel: ObservableObject {
     }
     
     // Custom theme persistence using the new Codable color helper
-    @Published var customTheme: WeatherTheme = {
-        if let data = UserDefaults.standard.data(forKey: "Breezy.customTheme"),
-           let theme = try? JSONDecoder().decode(WeatherTheme.self, from: data) {
-            return theme
+    @Published var customThemes: [WeatherTheme] = {
+        if let data = UserDefaults.standard.data(forKey: "Breezy.customThemes"),
+           let themes = try? JSONDecoder().decode([WeatherTheme].self, from: data) {
+            return themes
         }
-        return WeatherTheme.defaultCustom
+        return []
     }() {
         didSet {
-            if let data = try? JSONEncoder().encode(customTheme) {
-                UserDefaults.standard.set(data, forKey: "Breezy.customTheme")
+            if let data = try? JSONEncoder().encode(customThemes) {
+                UserDefaults.standard.set(data, forKey: "Breezy.customThemes")
             }
             syncWatchContext()
             objectWillChange.send()
         }
     }
     
-    // Computed property to resolve the current active theme
-    var currentTheme: WeatherTheme {
-        let theme: WeatherTheme
-        switch themeMode {
-        case .custom:
-            theme = customTheme
-        case .preset:
-            if let preset = WeatherTheme.presets.first(where: { $0.name == selectedPresetThemeName }) {
-                let isDark = appearanceMode == .dark || (appearanceMode == .auto && UITraitCollection.current.userInterfaceStyle == .dark)
-                theme = isDark ? preset.dark : preset.light
-            } else {
-                theme = WeatherTheme.defaultCustom
-            }
-        case .auto:
-            let condition = weather?.condition ?? "Clear"
-            let isDark = appearanceMode == .dark || (appearanceMode == .auto && UITraitCollection.current.userInterfaceStyle == .dark)
-            theme = WeatherTheme.theme(for: condition, isDark: isDark)
+    @Published var selectedCustomThemeID: String? = UserDefaults.standard.string(forKey: "Breezy.selectedCustomThemeID") {
+        didSet {
+            UserDefaults.standard.set(selectedCustomThemeID, forKey: "Breezy.selectedCustomThemeID")
         }
-        
-        // SIDE EFFECT: Sync to CloudStorage for Watch
-        if let top = theme.topColor.toHex() { CloudStorage.shared.set(top, forKey: "Breezy.theme.top") }
-        if let bottom = theme.bottomColor.toHex() { CloudStorage.shared.set(bottom, forKey: "Breezy.theme.bottom") }
-        if let text = theme.textColor.toHex() { CloudStorage.shared.set(text, forKey: "Breezy.theme.text") }
-        
-        return theme
     }
     
+    var customTheme: WeatherTheme {
+        if let id = selectedCustomThemeID, let theme = customThemes.first(where: { $0.id == id }) {
+            return theme
+        }
+        if let first = customThemes.first {
+            return first
+        }
+        return WeatherTheme.defaultCustom
+    }
+    
+    // Computed property to resolve the current active theme
+
     private let weatherService = WeatherService.shared
     private let notificationManager = NotificationManager.shared
     private var previousWeather: WeatherInfo?
@@ -483,7 +475,8 @@ class WeatherViewModel: ObservableObject {
                let lastRainyDay = consecutiveTail(from: forecast, startingAt: firstRainyDay, matching: { day in
                    let chance = percentageValue(from: day.chanceOfRain) ?? 0
                    return chance >= 60 || containsRainLanguage(day.condition)
-               }) {
+               }),
+               firstRainyDay.dayName != lastRainyDay.dayName {
                 return ForecastNarrativeSummary(
                     headline: "A wetter stretch runs from \(dayLabel(for: firstRainyDay.dayName)) to \(dayLabel(for: lastRainyDay.dayName)).",
                     detail: peakChance > 0 ? "Confidence is strongest around \(dayLabel(for: wettestDay?.dayName ?? firstRainyDay.dayName)), where rain chances climb near \(peakChance)%. Expect fewer dry breaks during that run than elsewhere in the outlook." : "Those days carry the most persistent rain signal in the next 10 days, with fewer dry breaks showing up in between."
@@ -745,7 +738,8 @@ class WeatherViewModel: ObservableObject {
                     todayHourlyForecast: cached.hourlyForecast,
                     metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                     rainChance: rainChance,
-                    rainAmount: cached.metrics?.todayRainfall
+                    rainAmount: cached.metrics?.todayRainfall,
+                    dailyForecast: cached.dailyForecast
                 )
             } else {
                 WeatherCache.clear()
@@ -896,7 +890,8 @@ class WeatherViewModel: ObservableObject {
                 rainChance: todayRainChance.map { "\($0)%" },
                 rainAmount: metrics.todayRainfall,
                 conditionCode: conditionCode,
-                isDaylight: isDaylight
+                isDaylight: isDaylight,
+                dailyForecast: dailyForecastArray
             )
             
             // Check for minute precipitation alerts (with cooldown built-in)
@@ -1724,7 +1719,8 @@ class WeatherViewModel: ObservableObject {
         rainChance: String?,
         rainAmount: String?,
         conditionCode: String = "Clear",
-        isDaylight: Bool = true
+        isDaylight: Bool = true,
+        dailyForecast: [DailyForecast]
     ) {
         // Get current hour
         let calendar = Calendar.current
@@ -1791,7 +1787,14 @@ class WeatherViewModel: ObservableObject {
             maxTemp: highTemp,
             humidity: metrics.humidity.map { "\($0)%" },
             visibility: metrics.visibility,
-            dailyForecast: [],
+            dailyForecast: dailyForecast.map { day in
+                WidgetWeatherData.WidgetDailyForecast(
+                    dayName: day.dayName,
+                    highTemp: day.highTemp,
+                    lowTemp: day.lowTemp,
+                    condition: day.condition
+                )
+            },
             sunrise: nil,
             sunset: nil,
             moonPhase: nil,
@@ -1856,6 +1859,21 @@ class WeatherViewModel: ObservableObject {
     }
     
     private func syncWatchContext() {
+        let theme: WeatherTheme
+        switch themeMode {
+        case .custom:
+            theme = customTheme
+        case .preset:
+            if let preset = WeatherTheme.presets.first(where: { $0.name == selectedPresetThemeName }) {
+                theme = preset.light
+            } else {
+                theme = WeatherTheme.defaultCustom
+            }
+        case .auto:
+            let condition = weather?.condition ?? "Clear"
+            theme = WeatherTheme.theme(for: condition, isDark: false)
+        }
+
         WatchSessionManager.shared.updateContext(
             useMinimalistIcons: useMinimalistIcons,
             typography: typography,
@@ -1867,7 +1885,7 @@ class WeatherViewModel: ObservableObject {
             precipitationUnit: precipitationUnit,
             themeMode: themeMode,
             presetTheme: selectedPresetThemeName,
-            currentTheme: currentTheme,
+            currentTheme: theme,
             customTheme: customTheme,
             mapStyle: mapStyle
         )

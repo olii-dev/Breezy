@@ -167,6 +167,11 @@ struct WidgetBuilderView: View {
             }
             .padding(16)
             .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+            .onChange(of: draftConfig.layoutStyle) { oldValue, newValue in
+                if newValue == .minimal && draftConfig.metrics[.center] == nil {
+                    draftConfig.metrics[.center] = .temperature
+                }
+            }
         }
     }
     
