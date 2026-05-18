@@ -91,9 +91,8 @@ struct WidgetBuilderView: View {
                 .tracking(1)
             
             WidgetPreviewView(config: draftConfig)
-                .frame(width: previewWidth, height: previewHeight)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 8)
+                .padding(.bottom, draftConfig.widgetSize == .large ? 18 : 8)
+                .frame(maxWidth: .infinity, minHeight: previewHeight + (draftConfig.widgetSize == .large ? 28 : 12), alignment: .top)
                 .id(draftConfig.fontStyle) // Force redraw when font changes
                 .animation(.spring(response: 0.4, dampingFraction: 0.7), value: draftConfig.widgetSize)
         }

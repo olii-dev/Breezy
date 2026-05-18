@@ -14,34 +14,32 @@ struct WidgetPreviewView: View {
     // In the real widget, this would use real WeatherEntry data
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                VStack(spacing: 0) {
-                     // Date Header Removed as per user request
-                     Spacer().frame(height: 12)
- 
-                    // Content based on Layout Style
-                    switch config.layoutStyle {
-                    case .standard:
-                        standardLayout
-                    case .split:
-                        splitLayout
-                    case .list:
-                        listLayout
-                    case .minimal:
-                        minimalLayout
-                    }
+        ZStack {
+            VStack(spacing: 0) {
+                 // Date Header Removed as per user request
+                 Spacer().frame(height: 12)
+
+                // Content based on Layout Style
+                switch config.layoutStyle {
+                case .standard:
+                    standardLayout
+                case .split:
+                    splitLayout
+                case .list:
+                    listLayout
+                case .minimal:
+                    minimalLayout
                 }
             }
-            .frame(width: width(for: config.widgetSize), height: height(for: config.widgetSize))
-            .background(backgroundView) // Apply as background modifier
-            .clipShape(ContainerRelativeShape()) // Mimic widget shape
-            .overlay(
-                 RoundedRectangle(cornerRadius: 22, style: .continuous) // Approximate radius
-                    .strokeBorder(Color.white.opacity(0.3), lineWidth: config.showBorder ? 1 : 0)
-            )
-            .shadow(radius: 10)
         }
+        .frame(width: width(for: config.widgetSize), height: height(for: config.widgetSize))
+        .background(backgroundView)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.3), lineWidth: config.showBorder ? 1 : 0)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 6)
     }
     
     // MARK: - Layouts

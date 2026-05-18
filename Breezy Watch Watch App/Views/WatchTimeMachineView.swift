@@ -12,20 +12,56 @@ struct WatchTimeMachineView: View {
     @State private var errorMessage: String?
     
     private let minDate = Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1))!
+    private var isAtEarliestDate: Bool { Calendar.current.isDate(selectedDate, inSameDayAs: minDate) }
+    private var isAtLatestDate: Bool { Calendar.current.isDate(selectedDate, inSameDayAs: Date()) }
+    private var theme: WatchWeatherTheme {
+        viewModel.currentTheme(isSystemDark: colorScheme == .dark)
+    }
     
     var body: some View {
-        let theme = viewModel.currentTheme(isSystemDark: colorScheme == .dark)
-        
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 Text("TIME MACHINE")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(theme.textColor.opacity(0.85))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.textColor.opacity(0.9))
                     .padding(.top, 4)
                 
-                DatePicker("Date", selection: $selectedDate, in: minDate...Date(), displayedComponents: .date)
-                    .labelsHidden()
-                    .scaleEffect(x: 1.0, y: 1.15, anchor: .center)
+                VStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        dateStepperButton(systemName: "chevron.left", disabled: isAtEarliestDate) {
+                            shiftDate(by: -1)
+                        }
+
+                        VStack(spacing: 4) {
+                            Text(selectedDate, format: .dateTime.weekday(.wide))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(theme.textColor.opacity(0.72))
+
+                            Text(selectedDate, format: .dateTime.day().month(.abbreviated).year())
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .minimumScaleFactor(0.75)
+                                .lineLimit(1)
+                                .foregroundColor(theme.textColor)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        dateStepperButton(systemName: "chevron.right", disabled: isAtLatestDate) {
+                            shiftDate(by: 1)
+                        }
+                    }
+
+                    if !isAtLatestDate {
+                        Button("Jump to Today") {
+                            selectedDate = Calendar.current.startOfDay(for: Date())
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(theme.textColor.opacity(0.82))
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(12)
+                .background(theme.textColor.opacity(0.14))
+                .cornerRadius(14)
                 
                 Button {
                     fetchHistory()
@@ -38,13 +74,13 @@ struct WatchTimeMachineView: View {
                             Image(systemName: "clock.arrow.circlepath")
                         }
                         Text("Fetch")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                     }
                     .foregroundColor(theme.textColor)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(theme.textColor.opacity(0.15))
-                    .cornerRadius(10)
+                    .padding(.vertical, 12)
+                    .background(theme.textColor.opacity(0.2))
+                    .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
@@ -54,10 +90,10 @@ struct WatchTimeMachineView: View {
                 } else if let errorMessage {
                     VStack(spacing: 8) {
                         Image(systemName: "cloud.slash")
-                            .font(.system(size: 24))
+                            .font(.system(size: 28))
                             .foregroundColor(theme.textColor.opacity(0.75))
                         Text(errorMessage)
-                            .font(.caption2)
+                            .font(.system(size: 12, weight: .medium))
                             .multilineTextAlignment(.center)
                             .foregroundColor(theme.textColor.opacity(0.8))
                     }
@@ -67,14 +103,14 @@ struct WatchTimeMachineView: View {
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "calendar.badge.clock")
-                            .font(.system(size: 28))
+                            .font(.system(size: 30))
                             .foregroundColor(theme.textColor.opacity(0.7))
                         Text("Select a date to see past weather")
-                            .font(.caption2)
+                            .font(.system(size: 12, weight: .medium))
                             .multilineTextAlignment(.center)
                             .foregroundColor(theme.textColor.opacity(0.75))
                         Text("Data available from Aug 2021")
-                            .font(.system(size: 11))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(theme.textColor.opacity(0.7))
                     }
                     .padding(16)
@@ -186,6 +222,26 @@ struct WatchTimeMachineView: View {
             }
             isLoading = false
         }
+    }
+
+    private func shiftDate(by days: Int) {
+        let calendar = Calendar.current
+        let shifted = calendar.date(byAdding: .day, value: days, to: selectedDate) ?? selectedDate
+        let latest = calendar.startOfDay(for: Date())
+        selectedDate = min(max(shifted, minDate), latest)
+    }
+
+    private func dateStepperButton(systemName: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(theme.textColor.opacity(disabled ? 0.3 : 0.9))
+                .frame(width: 30, height: 30)
+                .background(theme.textColor.opacity(disabled ? 0.06 : 0.12))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
     }
     
     private func fetchHistoricalWeather(for date: Date) async throws -> WatchHistoricalDay {

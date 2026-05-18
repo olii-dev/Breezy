@@ -15,6 +15,9 @@
 
 # Build artifacts
 DerivedData/
+.DerivedData/
+.DerivedDataDevice/
+.website-build/
 build/
 *.ipa
 *.dSYM.zip

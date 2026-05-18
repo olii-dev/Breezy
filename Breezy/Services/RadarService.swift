@@ -8,6 +8,7 @@
 import Foundation
 import CoreLocation
 import MapKit
+import UIKit
 
 enum RadarLayer: String, CaseIterable, Identifiable {
     case precipitation = "precipitation_new"
@@ -134,6 +135,13 @@ class RadarService {
 
 class OpenWeatherTileOverlay: MKTileOverlay {
     let layer: RadarLayer
+    private static let transparentTileData: Data = {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 256, height: 256))
+        return renderer.pngData { context in
+            UIColor.clear.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 256, height: 256))
+        }
+    }()
     
     init(layer: RadarLayer) {
         self.layer = layer
@@ -148,5 +156,24 @@ class OpenWeatherTileOverlay: MKTileOverlay {
             y: path.y,
             zoom: path.z
         ) ?? URL(string: "http://about:blank")! // Ensure valid URL
+    }
+
+    override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, (any Error)?) -> Void) {
+        guard let tileURL = RadarService.shared.tileURL(layer: layer, x: path.x, y: path.y, zoom: path.z) else {
+            result(Self.transparentTileData, nil)
+            return
+        }
+
+        URLSession.shared.dataTask(with: tileURL) { data, response, _ in
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200..<300).contains(httpResponse.statusCode),
+                  let data,
+                  !data.isEmpty else {
+                result(Self.transparentTileData, nil)
+                return
+            }
+
+            result(data, nil)
+        }.resume()
     }
 }

@@ -116,17 +116,20 @@ struct LocationPickerView: View {
                 guard !isButtonBusy else { return }
                 isButtonBusy = true
                 HapticsManager.shared.impact(style: .medium)
+                let previousShouldFollowGPS = viewModel.shouldFollowGPS
                 do {
-                    viewModel.shouldFollowGPS = true
                     let locationData = try await locationHelper.requestLocationAndGetData()
+                    viewModel.shouldFollowGPS = true
+                    locationHelper.locationError = nil
+                    viewModel.error = nil
                     await viewModel.fetchWeather(for: locationData, isManualRefresh: true)
-                    dismiss()
                     
                     // Save that GPS location is being used
                     UserDefaults.standard.set(true, forKey: "Breezy.shouldFollowGPS")
                     UserDefaults.standard.removeObject(forKey: "Breezy.selectedLocation")
+                    dismiss()
                 } catch {
-                    viewModel.error = "Location failed"
+                    viewModel.shouldFollowGPS = previousShouldFollowGPS
                 }
                 isButtonBusy = false
             }
@@ -280,6 +283,8 @@ struct LocationPickerView: View {
             do {
                 viewModel.shouldFollowGPS = false
                 let locationData = try await searchService.getCoordinates(for: completion)
+                locationHelper.locationError = nil
+                viewModel.error = nil
                 RecentlyViewedStore.add(locationData)
                 await viewModel.fetchWeather(for: locationData, isManualRefresh: true)
                 dismiss()
@@ -288,7 +293,7 @@ struct LocationPickerView: View {
                 if let encoded = try? JSONEncoder().encode(locationData) {
                     UserDefaults.standard.set(encoded, forKey: "Breezy.selectedLocation")
                 }
-                UserDefaults.standard.set(false, forKey: "Breezy.useGPSLocation")
+                UserDefaults.standard.set(false, forKey: "Breezy.shouldFollowGPS")
             } catch {
                 viewModel.error = "Could not load location details."
             }

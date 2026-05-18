@@ -562,6 +562,9 @@ struct NotificationSettingsView: View {
     @State private var showResetConfirmation = false
     @State private var previousWindUnit: WindSpeedUnit?
     @State private var previousTempUnit: TemperatureUnit?
+    @State private var showSoundCustomization = false
+    @State private var showContentCustomization = false
+    @State private var showAddTimeSheet = false
     
     init(viewModel: WeatherViewModel) {
         self.viewModel = viewModel
@@ -664,6 +667,130 @@ struct NotificationSettingsView: View {
                     // Advanced Settings, Quiet Hours & Preferences
                     DisclosureGroup(isExpanded: $advancedExpanded) {
                         VStack(alignment: .leading, spacing: 16) {
+                            
+                            // MARK: - Sound Customization
+                            DisclosureGroup("Notification Sounds") {
+                                VStack(spacing: DesignSystem.spacingS) {
+                                    soundPicker(for: "Daily Forecast", selection: Binding(
+                                        get: { notificationSettings.dailyForecastSound },
+                                        set: { notificationSettings.dailyForecastSound = $0; saveNotificationSettings() }
+                                    ))
+                                    soundPicker(for: "Severe Weather", selection: Binding(
+                                        get: { notificationSettings.severeWeatherSound },
+                                        set: { notificationSettings.severeWeatherSound = $0; saveNotificationSettings() }
+                                    ))
+                                    soundPicker(for: "Rain Alerts", selection: Binding(
+                                        get: { notificationSettings.rainAlertSound },
+                                        set: { notificationSettings.rainAlertSound = $0; saveNotificationSettings() }
+                                    ))
+                                    soundPicker(for: "UV Alerts", selection: Binding(
+                                        get: { notificationSettings.uvAlertSound },
+                                        set: { notificationSettings.uvAlertSound = $0; saveNotificationSettings() }
+                                    ))
+                                    soundPicker(for: "Temperature Change", selection: Binding(
+                                        get: { notificationSettings.temperatureChangeSound },
+                                        set: { notificationSettings.temperatureChangeSound = $0; saveNotificationSettings() }
+                                    ))
+                                    soundPicker(for: "Wind Alerts", selection: Binding(
+                                        get: { notificationSettings.windAlertSound },
+                                        set: { notificationSettings.windAlertSound = $0; saveNotificationSettings() }
+                                    ))
+                                    soundPicker(for: "Rain Probability", selection: Binding(
+                                        get: { notificationSettings.precipitationProbabilitySound },
+                                        set: { notificationSettings.precipitationProbabilitySound = $0; saveNotificationSettings() }
+                                    ))
+                                }
+                                .padding()
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                            }
+                            
+                            // MARK: - Content Customization
+                            DisclosureGroup("Notification Content") {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    notificationContentEditor(
+                                        title: "Daily Forecast",
+                                        subtitle: "Choose which details appear in your scheduled forecast updates.",
+                                        preference: Binding(
+                                            get: { notificationSettings.dailyForecastContent },
+                                            set: {
+                                                notificationSettings.dailyForecastContent = $0
+                                                saveNotificationSettings()
+                                            }
+                                        ),
+                                        theme: theme
+                                    )
+
+                                    notificationContentEditor(
+                                        title: "Severe Weather Alerts",
+                                        subtitle: "Add the context you want when severe alerts fire.",
+                                        preference: Binding(
+                                            get: { notificationSettings.severeWeatherContent },
+                                            set: {
+                                                notificationSettings.severeWeatherContent = $0
+                                                saveNotificationSettings()
+                                            }
+                                        ),
+                                        theme: theme
+                                    )
+
+                                    notificationContentEditor(
+                                        title: "Rain, UV, Wind & Temperature Alerts",
+                                        subtitle: "Fine-tune the extra details included in immediate alerts.",
+                                        preference: Binding(
+                                            get: { notificationSettings.alertContent },
+                                            set: {
+                                                notificationSettings.alertContent = $0
+                                                saveNotificationSettings()
+                                            }
+                                        ),
+                                        theme: theme
+                                    )
+                                }
+                                .padding()
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                            }
+                            
+                            // MARK: - Multiple Daily Forecast Times
+                            DisclosureGroup("Daily Forecast Times") {
+                                VStack(spacing: DesignSystem.spacingS) {
+                                    ForEach(Array(notificationSettings.dailyForecastTimes.enumerated()), id: \.offset) { index, time in
+                                        HStack {
+                                            Text("\(String(format: "%02d:%02d", time.hour, time.minute))")
+                                                .foregroundColor(theme.textColor)
+                                            Spacer()
+                                            if notificationSettings.dailyForecastTimes.count > 1 {
+                                                Button(action: {
+                                                    HapticsManager.shared.selectionChanged()
+                                                    notificationSettings.dailyForecastTimes.remove(at: index)
+                                                    saveNotificationSettings()
+                                                }) {
+                                                    Image(systemName: "minus.circle.fill")
+                                                        .foregroundColor(.red)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    Button(action: { showAddTimeSheet = true }) {
+                                        HStack {
+                                            Image(systemName: "plus.circle.fill")
+                                            Text("Add Time")
+                                        }
+                                        .foregroundColor(.blue)
+                                    }
+                                }
+                                .padding()
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                                .sheet(isPresented: $showAddTimeSheet) {
+                                    AddForecastTimeView(settings: $notificationSettings) { newTime in
+                                        notificationSettings.dailyForecastTimes.append(newTime)
+                                        saveNotificationSettings()
+                                    }
+                                }
+                            }
+                            
+                            Divider()
+                            
                             // Quiet Hours
                             VStack(spacing: DesignSystem.spacingS) {
                                 SettingsToggleRow(title: "Enable Quiet Hours", icon: "moon.fill", color: .indigo, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.quietHoursEnabled}, set: {notificationSettings.quietHoursEnabled=$0; saveNotificationSettings()}))
@@ -1377,5 +1504,120 @@ struct InfoButton: View {
     }
 }
 
+// MARK: - Helper Views for Notification Customization
 
+@ViewBuilder
+private func soundPicker(for notificationType: String, selection: Binding<SoundOption>) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+        Text(notificationType)
+            .font(.caption)
+            .foregroundColor(.secondary)
+        Picker("", selection: selection) {
+            ForEach(SoundOption.allCases, id: \.self) { option in
+                Text(option.displayName).tag(option)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(.primary)
+    }
+}
 
+@ViewBuilder
+private func contentToggle(title: String, binding: Binding<Bool>, theme: WeatherTheme) -> some View {
+    Button {
+        binding.wrappedValue.toggle()
+        HapticsManager.shared.selectionChanged()
+    } label: {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundColor(theme.textColor)
+
+            Spacer()
+
+            Image(systemName: binding.wrappedValue ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(binding.wrappedValue ? DesignSystem.skyBlue : theme.textColor.opacity(0.35))
+        }
+        .padding(.vertical, 4)
+    }
+    .buttonStyle(.plain)
+}
+
+@ViewBuilder
+private func notificationContentEditor(
+    title: String,
+    subtitle: String,
+    preference: Binding<NotificationContentPreference>,
+    theme: WeatherTheme
+) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(theme.textColor)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(theme.textColor.opacity(0.6))
+        }
+
+        contentToggle(title: "Condition", binding: nestedContentBinding(preference, \.includeCondition), theme: theme)
+        contentToggle(title: "Temperature Range", binding: nestedContentBinding(preference, \.includeTemperatureRange), theme: theme)
+        contentToggle(title: "Humidity", binding: nestedContentBinding(preference, \.includeHumidity), theme: theme)
+        contentToggle(title: "Wind Speed", binding: nestedContentBinding(preference, \.includeWindSpeed), theme: theme)
+        contentToggle(title: "Feels Like", binding: nestedContentBinding(preference, \.includeFeelsLike), theme: theme)
+        contentToggle(title: "UV Index", binding: nestedContentBinding(preference, \.includeUVIndex), theme: theme)
+        contentToggle(title: "Rain Chance", binding: nestedContentBinding(preference, \.includeRainChance), theme: theme)
+        contentToggle(title: "Visibility", binding: nestedContentBinding(preference, \.includeVisibility), theme: theme)
+    }
+}
+
+private func nestedContentBinding(
+    _ preference: Binding<NotificationContentPreference>,
+    _ keyPath: WritableKeyPath<NotificationContentPreference, Bool>
+) -> Binding<Bool> {
+    Binding(
+        get: {
+            preference.wrappedValue[keyPath: keyPath]
+        },
+        set: { newValue in
+            var updated = preference.wrappedValue
+            updated[keyPath: keyPath] = newValue
+            preference.wrappedValue = updated
+        }
+    )
+}
+
+struct AddForecastTimeView: View {
+    @Binding var settings: NotificationSettings
+    @State private var selectedHour = 8
+    @State private var selectedMinute = 0
+    var onAdd: (ForecastTime) -> Void
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Select Time") {
+                    Picker("Hour", selection: $selectedHour) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Text("\(hour)").tag(hour)
+                        }
+                    }
+                    Picker("Minute", selection: $selectedMinute) {
+                        ForEach([0, 15, 30, 45], id: \.self) { minute in
+                            Text(String(format: "%02d", minute)).tag(minute)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Forecast Time")
+            .navigationBarItems(
+                leading: Button("Cancel") { onAdd(ForecastTime(hour: -1, minute: 0)) },
+                trailing: Button("Add") {
+                    onAdd(ForecastTime(hour: selectedHour, minute: selectedMinute))
+                }
+            )
+        }
+    }
+}

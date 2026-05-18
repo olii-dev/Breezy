@@ -71,13 +71,30 @@ class NotificationManager: NSObject, ObservableObject {
         let end = settings.quietHoursEnd
         
         // Handle cases where quiet hours span midnight
-        if start < end {
-            // Normal case: e.g., 22:00 - 07:00 next day
+        if start > end {
+            // Spans midnight: e.g., 22:00 - 07:00 next day
             return currentHour >= start || currentHour < end
         } else {
-            // Quiet hours within same day: e.g., 01:00 - 05:00
+            // Same day: e.g., 01:00 - 05:00
             return currentHour >= start && currentHour < end
         }
+    }
+    
+    // MARK: - Sound Helper
+    
+    private func getSound(for notificationType: String) -> UNNotificationSound? {
+        let soundOption: SoundOption
+        switch notificationType {
+        case "dailyForecast": soundOption = settings.dailyForecastSound
+        case "severeWeather": soundOption = settings.severeWeatherSound
+        case "rainAlert", "minuteRain", "rainCancelled": soundOption = settings.rainAlertSound
+        case "uvAlert": soundOption = settings.uvAlertSound
+        case "temperatureChange": soundOption = settings.temperatureChangeSound
+        case "windAlert": soundOption = settings.windAlertSound
+        case "precipitationProbability": soundOption = settings.precipitationProbabilitySound
+        default: soundOption = .default
+        }
+        return soundOption.unSound
     }
     
     // MARK: - Notification Categories
@@ -123,11 +140,35 @@ class NotificationManager: NSObject, ObservableObject {
             options: []
         )
         
+        let temperatureChangeCategory = UNNotificationCategory(
+            identifier: "TEMPERATURE_CHANGE",
+            actions: [viewAction, dismissAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        
+        let windAlertCategory = UNNotificationCategory(
+            identifier: "WIND_ALERT",
+            actions: [viewAction, dismissAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        
+        let precipitationProbabilityCategory = UNNotificationCategory(
+            identifier: "PRECIPITATION_PROBABILITY",
+            actions: [viewAction, dismissAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        
         notificationCenter.setNotificationCategories([
             weatherAlertCategory,
             dailyForecastCategory,
             rainAlertCategory,
-            uvAlertCategory
+            uvAlertCategory,
+            temperatureChangeCategory,
+            windAlertCategory,
+            precipitationProbabilityCategory
         ])
     }
     
@@ -154,79 +195,54 @@ class NotificationManager: NSObject, ObservableObject {
         
         guard authorizationStatus == .authorized else { return }
         
-        // Determine schedule time for today
+        // Cancel existing forecasts before scheduling new ones
+        cancelDailyForecast()
+        
         let calendar = Calendar.current
-        var dateComponents = DateComponents()
-        dateComponents.hour = settings.dailyForecastHour
-        dateComponents.minute = settings.dailyForecastMinute
-        
-        // Logic to determine if we should schedule for today or tomorrow
-        // and which weather data to use (Today's forecast or Tomorrow's)
-        
         let now = Date()
-        guard let todaySchedule = calendar.date(bySettingHour: settings.dailyForecastHour, minute: settings.dailyForecastMinute, second: 0, of: now) else { return }
         
-        let isForTomorrow = now > todaySchedule && !calendar.isDateInToday(todaySchedule)
-        
-        // Select the correct weather data
-        // If scheduling for tomorrow, use tomorrow's forecast (index 1)
-        // If scheduling for today, use today's forecast (index 0) or current weather
-        // Select the correct weather data
-        // If scheduling for tomorrow, use tomorrow's forecast (index 1)
-        // If scheduling for today, use today's forecast (index 0) or current weather
-        
-         if isForTomorrow {
-            // Check if we have tomorrow's forecast - Logic preserved for structure but unused variables removed
-             if weather.dailyForecast.count > 1 {
-                 // Logic simplified as we just need the index for the formatter
-            }
-        }
-        
-        let targetForecastIndex = isForTomorrow ? 1 : 0
-        let targetDateLabel = isForTomorrow ? "Tomorrow" : "Today"
-        
-        // Start building content
-        let content = UNMutableNotificationContent()
-        content.title = "\(targetDateLabel)'s Weather"
-        content.body = formatDailyForecastBody(weather: weather, temperatureUnit: temperatureUnit, dayIndex: targetForecastIndex)
-        content.sound = .default
-        content.categoryIdentifier = "DAILY_FORECAST"
-        content.userInfo = ["type": "dailyForecast"]
-        
-        // Create trigger
-        
-        if isForTomorrow {
-            // Add one day to weekday check if needed for debugging, but trigger handles patterns matching next occurence
-            if calendar.date(byAdding: .day, value: 1, to: now) != nil {
-               // Logic verification only
-            }
-        }
-        
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
-        
-        // Use a unique ID so we replace the old one
-        let request = UNNotificationRequest(
-            identifier: "dailyForecast",
-            content: content,
-            trigger: trigger
-        )
-        
-        notificationCenter.add(request) { error in
-            if let error = error {
-                print("Error scheduling daily forecast: \(error)")
+        // Schedule for each time in dailyForecastTimes
+        for (index, time) in settings.dailyForecastTimes.enumerated() {
+            var dateComponents = DateComponents()
+            dateComponents.hour = time.hour
+            dateComponents.minute = time.minute
+            
+            guard let scheduledTime = calendar.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: now) else { continue }
+            
+            let isForTomorrow = now > scheduledTime
+            let targetForecastIndex = isForTomorrow ? 1 : 0
+            let targetDateLabel = isForTomorrow ? "Tomorrow" : "Today"
+            
+            let content = UNMutableNotificationContent()
+            content.title = "\(targetDateLabel)'s Weather"
+            content.body = formatDailyForecastBody(weather: weather, temperatureUnit: temperatureUnit, dayIndex: targetForecastIndex)
+            content.sound = getSound(for: "dailyForecast") ?? .default
+            content.categoryIdentifier = "DAILY_FORECAST"
+            content.userInfo = ["type": "dailyForecast"]
+            
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+            let request = UNNotificationRequest(
+                identifier: "dailyForecast_\(index)",
+                content: content,
+                trigger: trigger
+            )
+            
+            notificationCenter.add(request) { error in
+                if let error = error {
+                    print("Error scheduling daily forecast at \(time.hour):\(time.minute): \(error)")
+                }
             }
         }
     }
     
     func cancelDailyForecast() {
-        notificationCenter.removePendingNotificationRequests(withIdentifiers: ["dailyForecast"])
+        let identifiers = settings.dailyForecastTimes.indices.map { "dailyForecast_\($0)" }
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
     
     private func formatDailyForecastBody(weather: WeatherInfo, temperatureUnit: TemperatureUnit, dayIndex: Int = 0) -> String {
+        let preferences = settings.dailyForecastContent
         var parts: [String] = []
-        
-        // Use specific daily forecast if available and index > 0
-        // Otherwise fall back to the main weather object properties (which are usually for "Today")
         
         let daily: DailyForecast?
         if weather.dailyForecast.count > dayIndex {
@@ -236,43 +252,126 @@ class NotificationManager: NSObject, ObservableObject {
         }
         
         // Add condition
-        if let condition = daily?.condition {
-            parts.append(condition)
-        } else {
-            parts.append(weather.condition)
+        if preferences.includeCondition {
+            if let condition = daily?.condition {
+                parts.append(condition)
+            } else {
+                parts.append(weather.condition)
+            }
         }
         
         // Add temperature range
-        if let d = daily {
-             // DailyForecast properties are non-optional strings
-             parts.append("High: \(d.highTemp), Low: \(d.lowTemp)")
-        } else if let h = weather.highTemp, let l = weather.lowTemp {
-             parts.append("High: \(h), Low: \(l)")
+        if preferences.includeTemperatureRange {
+            if let d = daily {
+                 parts.append("High: \(d.highTemp), Low: \(d.lowTemp)")
+            } else if let h = weather.highTemp, let l = weather.lowTemp {
+                 parts.append("High: \(h), Low: \(l)")
+            }
         }
         
         // Add rain chance if significant
-        if let d = daily,
-           let rainChance = d.chanceOfRain,
-           let rainValue = Int(rainChance.replacingOccurrences(of: "%", with: "")),
-           rainValue >= 30 {
-            parts.append("\(rainChance) rain")
+        if preferences.includeRainChance {
+            if let d = daily,
+               let rainChance = d.chanceOfRain,
+               let rainValue = Int(rainChance.replacingOccurrences(of: "%", with: "")),
+               rainValue >= 30 {
+                parts.append("\(rainChance) rain")
+            }
         }
         
-        // Add UV warning if high (UV might only be available for today in detailed metrics)
-        // If dayIndex == 0, use weather.metrics.uvIndex
-        if dayIndex == 0, let uvIndex = weather.metrics?.uvIndex, uvIndex >= 7 {
-            parts.append("High UV: \(uvIndex)")
+        // Add UV warning if high
+        if preferences.includeUVIndex {
+            if dayIndex == 0, let uvIndex = weather.metrics?.uvIndex, uvIndex >= 7 {
+                parts.append("High UV: \(uvIndex)")
+            }
         }
         
-        // Add wind if strong (Wind also usually current/today)
-        if dayIndex == 0,
-           let windSpeed = weather.metrics?.windSpeed,
-           let windValue = parseWindSpeed(windSpeed),
-           windValue >= 20 {
-            parts.append("Wind: \(windSpeed)")
+        // Add wind if strong
+        if preferences.includeWindSpeed {
+            if dayIndex == 0,
+               let windSpeed = weather.metrics?.windSpeed,
+               let windValue = parseWindSpeed(windSpeed),
+               windValue >= 20 {
+                parts.append("Wind: \(windSpeed)")
+            }
+        }
+        
+        // Add humidity if requested
+        if preferences.includeHumidity, let humidity = weather.metrics?.humidity {
+            parts.append("Humidity: \(humidity)")
+        }
+        
+        // Add feels like if requested
+        if preferences.includeFeelsLike, let feelsLike = weather.feelsLike {
+            parts.append("Feels like: \(feelsLike)")
+        }
+        
+        // Add visibility if requested
+        if preferences.includeVisibility, let visibility = weather.metrics?.visibility {
+            parts.append("Visibility: \(visibility)")
         }
         
         return parts.joined(separator: " • ")
+    }
+
+    private func notificationSupplementaryDetails(
+        for weather: WeatherInfo,
+        preferences: NotificationContentPreference,
+        limit: Int = 3
+    ) -> [String] {
+        var details: [String] = []
+        let todayForecast = weather.dailyForecast.first
+
+        if preferences.includeCondition {
+            details.append(weather.condition)
+        }
+
+        if preferences.includeTemperatureRange {
+            if let high = weather.highTemp, let low = weather.lowTemp {
+                details.append("H: \(high), L: \(low)")
+            } else {
+                details.append("Temp: \(weather.temperature)")
+            }
+        }
+
+        if preferences.includeHumidity, let humidity = weather.metrics?.humidity {
+            details.append("Humidity: \(humidity)%")
+        }
+
+        if preferences.includeWindSpeed, let windSpeed = weather.metrics?.windSpeed {
+            details.append("Wind: \(windSpeed)")
+        }
+
+        if preferences.includeFeelsLike, let feelsLike = weather.feelsLike {
+            details.append("Feels like: \(feelsLike)")
+        }
+
+        if preferences.includeUVIndex, let uvIndex = weather.metrics?.uvIndex {
+            details.append("UV: \(uvIndex)")
+        }
+
+        if preferences.includeRainChance {
+            if let rainChance = weather.metrics?.rainChance ?? todayForecast?.chanceOfRain {
+                details.append("Rain: \(rainChance)")
+            }
+        }
+
+        if preferences.includeVisibility, let visibility = weather.metrics?.visibility {
+            details.append("Visibility: \(visibility)")
+        }
+
+        return Array(details.prefix(limit))
+    }
+
+    private func alertBody(
+        base: String,
+        weather: WeatherInfo,
+        preferences: NotificationContentPreference,
+        limit: Int = 2
+    ) -> String {
+        let details = notificationSupplementaryDetails(for: weather, preferences: preferences, limit: limit)
+        guard !details.isEmpty else { return base }
+        return "\(base) • \(details.joined(separator: " • "))"
     }
     
     // MARK: - Severe Weather Alerts
@@ -350,8 +449,13 @@ class NotificationManager: NSObject, ObservableObject {
     private func sendSevereWeatherAlert(weather: WeatherInfo, assessment: SevereWeatherAssessment) {
         let content = UNMutableNotificationContent()
         content.title = "Severe Weather Alert"
-        content.body = assessment.detail
-        content.sound = .defaultCritical
+        content.body = alertBody(
+            base: assessment.detail,
+            weather: weather,
+            preferences: settings.severeWeatherContent,
+            limit: 3
+        )
+        content.sound = getSound(for: "severeWeather") ?? .defaultCritical
         content.categoryIdentifier = "WEATHER_ALERT"
         content.userInfo = ["type": "severeWeather", "location": weather.location.city]
         
@@ -376,17 +480,21 @@ class NotificationManager: NSObject, ObservableObject {
         for hour in nextHours {
             let condition = (hour.condition ?? "").lowercased()
             if condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower") {
-                sendRainAlert(hour: hour, location: weather.location.city)
+                sendRainAlert(hour: hour, weather: weather)
                 return // Only send one alert
             }
         }
     }
     
-    private func sendRainAlert(hour: HourlyForecast, location: String) {
+    private func sendRainAlert(hour: HourlyForecast, weather: WeatherInfo) {
         let content = UNMutableNotificationContent()
         content.title = "Rain Alert"
-        content.body = "Rain expected at \(hour.time) in \(location)"
-        content.sound = .default
+        content.body = alertBody(
+            base: "Rain expected at \(hour.time) in \(weather.location.city)",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = getSound(for: "rainAlert") ?? .default
         content.categoryIdentifier = "RAIN_ALERT"
         content.userInfo = ["type": "rainAlert", "time": hour.time]
         
@@ -463,8 +571,12 @@ class NotificationManager: NSObject, ObservableObject {
     private func sendUVAlert(weather: WeatherInfo, uvIndex: Int) {
         let content = UNMutableNotificationContent()
         content.title = "High UV Index"
-        content.body = "UV Index: \(uvIndex) in \(weather.location.city) - Protect your skin"
-        content.sound = .default
+        content.body = alertBody(
+            base: "UV Index \(uvIndex) in \(weather.location.city). Protect your skin.",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = getSound(for: "uvAlert") ?? .default
         content.categoryIdentifier = "UV_ALERT"
         content.userInfo = ["type": "uvAlert", "uvIndex": uvIndex]
         
@@ -512,7 +624,7 @@ class NotificationManager: NSObject, ObservableObject {
         
         // Check for rain cancellation (was predicting rain, now not)
         if previousRainPrediction && !willRain {
-            sendRainCancellationAlert(location: weather.location.city)
+            sendRainCancellationAlert(weather: weather)
             previousRainPrediction = false
             return
         }
@@ -528,7 +640,7 @@ class NotificationManager: NSObject, ObservableObject {
             let now = Calendar.current.component(.hour, from: Date())
             let minutesUntil = (nextHour.hourValue - now) * 60
             
-            sendMinuteRainAlert(minutesUntil: minutesUntil, location: weather.location.city)
+            sendMinuteRainAlert(minutesUntil: minutesUntil, weather: weather)
             lastRainAlertTime = Date()
             lastRainAlertLocation = weather.location.city
         }
@@ -544,17 +656,25 @@ class NotificationManager: NSObject, ObservableObject {
         return Date().timeIntervalSince(lastAlert) >= 3600
     }
     
-    private func sendMinuteRainAlert(minutesUntil: Int, location: String) {
+    private func sendMinuteRainAlert(minutesUntil: Int, weather: WeatherInfo) {
         let content = UNMutableNotificationContent()
         content.title = "Rain Alert"
         
         if minutesUntil <= 10 {
-            content.body = "Rain starting in ~\(minutesUntil) minutes in \(location)"
+            content.body = alertBody(
+                base: "Rain starting in about \(minutesUntil) minutes in \(weather.location.city)",
+                weather: weather,
+                preferences: settings.alertContent
+            )
         } else {
-            content.body = "Rain expected within the hour in \(location)"
+            content.body = alertBody(
+                base: "Rain expected within the hour in \(weather.location.city)",
+                weather: weather,
+                preferences: settings.alertContent
+            )
         }
         
-        content.sound = .default
+        content.sound = getSound(for: "minuteRain") ?? .default
         content.categoryIdentifier = "RAIN_ALERT"
         content.userInfo = ["type": "minuteRain", "minutesUntil": minutesUntil]
         
@@ -567,11 +687,15 @@ class NotificationManager: NSObject, ObservableObject {
         notificationCenter.add(request)
     }
     
-    private func sendRainCancellationAlert(location: String) {
+    private func sendRainCancellationAlert(weather: WeatherInfo) {
         let content = UNMutableNotificationContent()
         content.title = "Rain Alert Cancelled"
-        content.body = "Rain forecast cancelled for \(location) - clear skies ahead!"
-        content.sound = .default
+        content.body = alertBody(
+            base: "Rain forecast cancelled for \(weather.location.city). Clear skies ahead.",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = getSound(for: "rainCancelled") ?? .default
         content.categoryIdentifier = "RAIN_ALERT"
         content.userInfo = ["type": "rainCancelled"]
         
@@ -640,21 +764,25 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         
         if change >= Double(settings.temperatureChangeThreshold) {
             let isWarmer = currentTemp > yesterdayTemp
-            sendTemperatureChangeAlert(change: change, isWarmer: isWarmer, temperatureUnit: temperatureUnit)
+            sendTemperatureChangeAlert(change: change, isWarmer: isWarmer, temperatureUnit: temperatureUnit, weather: weather)
         }
         
         UserDefaults.standard.set(currentTemp, forKey: "Breezy.lastTemperature")
     }
     
-    private func sendTemperatureChangeAlert(change: Double, isWarmer: Bool, temperatureUnit: TemperatureUnit) {
+    private func sendTemperatureChangeAlert(change: Double, isWarmer: Bool, temperatureUnit: TemperatureUnit, weather: WeatherInfo) {
         let changeFormatted = Int(change)
         let unitSymbol = temperatureUnit == .celsius ? "C" : "F"
         let direction = isWarmer ? "warmer" : "cooler"
         
         let content = UNMutableNotificationContent()
         content.title = "Temperature Change Alert"
-        content.body = "It's \(changeFormatted)°\(unitSymbol) \(direction) than yesterday!"
-        content.sound = .default
+        content.body = alertBody(
+            base: "It's \(changeFormatted)°\(unitSymbol) \(direction) than yesterday.",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = getSound(for: "temperatureChange") ?? .default
         content.categoryIdentifier = "TEMPERATURE_CHANGE"
         content.userInfo = ["type": "temperatureChange"]
         
@@ -682,15 +810,19 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         guard let speedString = components.first, let speedValue = Double(speedString) else { return }
         
         if speedValue >= Double(settings.windSpeedThreshold) {
-            sendWindAlert(speed: windSpeed)
+            sendWindAlert(speed: windSpeed, weather: weather)
         }
     }
     
-    private func sendWindAlert(speed: String) {
+    private func sendWindAlert(speed: String, weather: WeatherInfo) {
         let content = UNMutableNotificationContent()
         content.title = "High Wind Alert"
-        content.body = "Wind speeds reaching \(speed). Take precautions!"
-        content.sound = .default
+        content.body = alertBody(
+            base: "Wind speeds reaching \(speed). Take precautions.",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = getSound(for: "windAlert") ?? .default
         content.categoryIdentifier = "WIND_ALERT"
         content.userInfo = ["type": "windAlert"]
         
@@ -729,16 +861,20 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 }
             }
             
-            sendPrecipitationProbabilityAlert(probability: probability)
+            sendPrecipitationProbabilityAlert(probability: probability, weather: weather)
             UserDefaults.standard.set(Date(), forKey: lastAlertKey)
         }
     }
     
-    private func sendPrecipitationProbabilityAlert(probability: Int) {
+    private func sendPrecipitationProbabilityAlert(probability: Int, weather: WeatherInfo) {
         let content = UNMutableNotificationContent()
         content.title = "High Rain Probability"
-        content.body = "\(probability)% chance of rain today. Consider bringing an umbrella!"
-        content.sound = .default
+        content.body = alertBody(
+            base: "\(probability)% chance of rain today. Consider bringing an umbrella.",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = getSound(for: "precipitationProbability") ?? .default
         content.categoryIdentifier = "PRECIPITATION_PROBABILITY"
         content.userInfo = ["type": "precipitationProbability"]
         
@@ -753,4 +889,3 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         }
     }
 }
-

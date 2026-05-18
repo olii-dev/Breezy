@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var dashboardWidgets: [DashboardWidget] = DashboardWidget.defaultDashboard
     @State private var gradientColors: [Color] = []
     @State private var isEditMode = false
+    @State private var editModeSessionID = UUID()
     @AppStorage("Breezy.showEditModeButton") private var showEditModeButton = true
     @State private var draggingWidget: DashboardWidget?
     @State private var isInteractingWithChart = false
@@ -150,10 +151,7 @@ struct ContentView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         if isEditMode {
                             Button("Done") {
-                                HapticsManager.shared.selectionChanged()
-                                withAnimation {
-                                    isEditMode = false
-                                }
+                                endDashboardEditing()
                             }
                             .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                             .fontWeight(.bold)
@@ -260,7 +258,8 @@ struct ContentView: View {
                     Spacer()
                         .frame(height: DesignSystem.spacingS)
 
-                    if let locErr = locationHelper.locationError {
+                    if let locErr = locationHelper.locationError,
+                       viewModel.shouldFollowGPS || viewModel.weather == nil {
                         EmptyStateView(state: .error(locErr)) {
                             showingLocationPicker = true
                         }
@@ -295,6 +294,7 @@ struct ContentView: View {
                         ForEach(dashboardWidgets) { widget in
                             EditableSectionContainer(
                                 sectionId: widget.id,
+                                editSessionID: editModeSessionID,
                                 isEditMode: isEditMode,
                                 onRemove: {
                                     HapticsManager.shared.impact(style: .heavy)
@@ -312,10 +312,7 @@ struct ContentView: View {
                                 LongPressGesture(minimumDuration: 1.25, maximumDistance: 50)
                                     .onEnded { _ in
                                         if !isEditMode {
-                                            HapticsManager.shared.impact(style: .heavy)
-                                            withAnimation(.spring()) {
-                                                isEditMode = true
-                                            }
+                                            beginDashboardEditing()
                                         }
                                     }
                             )
@@ -355,10 +352,7 @@ struct ContentView: View {
             .overlay(alignment: .topTrailing) {
                 if showEditModeButton && !isEditMode {
                     Button {
-                        HapticsManager.shared.impact(style: .heavy)
-                        withAnimation(.spring()) {
-                            isEditMode = true
-                        }
+                        beginDashboardEditing()
                     } label: {
                         Image(systemName: "pencil.circle")
                             .font(.system(size: 14, weight: .medium))
@@ -387,10 +381,7 @@ struct ContentView: View {
             LongPressGesture(minimumDuration: 1.25, maximumDistance: 50)
                 .onEnded { _ in
                     if !isEditMode && !isInteractingWithChart {
-                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-                        withAnimation(.spring()) {
-                            isEditMode = true
-                        }
+                        beginDashboardEditing()
                     }
                 }
         )
@@ -420,6 +411,24 @@ struct ContentView: View {
     }
     
     // MARK: - Dashboard Rendering Functions
+
+    private func beginDashboardEditing() {
+        HapticsManager.shared.impact(style: .heavy)
+        draggingWidget = nil
+        editModeSessionID = UUID()
+        withAnimation(.spring()) {
+            isEditMode = true
+        }
+    }
+
+    private func endDashboardEditing() {
+        HapticsManager.shared.selectionChanged()
+        draggingWidget = nil
+        editModeSessionID = UUID()
+        withAnimation(.spring()) {
+            isEditMode = false
+        }
+    }
     
     private func loadDashboard() {
         // Try loading modern DashboardWidgets
@@ -484,7 +493,11 @@ struct ContentView: View {
             .padding(.horizontal, DesignSystem.spacingM)
             
         case .dailyForecast:
-            NewDailyForecastView(forecast: weather.dailyForecast, viewModel: viewModel)
+            NewDailyForecastView(
+                forecast: weather.dailyForecast,
+                viewModel: viewModel,
+                config: widget.config
+            )
                 .padding(.horizontal, DesignSystem.spacingM)
 
         case .forecastNarrative:
@@ -1470,13 +1483,17 @@ struct NewHourlyCardView: View {
         let displayed = min(rangeHours, hoursToShow.count)
         return "\(displayed)-Hour Forecast"
     }
+
+    private var displayedHours: [HourlyForecast] {
+        let source = allHourlyData ?? hourlyData
+        let displayedCount = rangeHours > 0 ? min(rangeHours, source.count) : source.count
+        return Array(source.prefix(displayedCount))
+    }
     
     // Find the index of the current hour (or closest hour)
     private var currentHourIndex: Int {
         let currentHour = Calendar.current.component(.hour, from: Date())
-        
-        // Use allHourlyData if available, otherwise fall back to hourlyData
-        let dataToUse = allHourlyData ?? hourlyData
+        let dataToUse = displayedHours
         
         // Find the first hour that matches or is after the current hour
         if let index = dataToUse.firstIndex(where: { hour in
@@ -1524,64 +1541,80 @@ struct NewHourlyCardView: View {
                 .font(.caption.weight(.bold))
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
 
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: tileSpacing) {
-                        let hoursToShow = allHourlyData ?? hourlyData
-                        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+            if displayedHours.isEmpty {
+                Text("Hourly forecast unavailable right now.")
+                    .font(.caption)
+                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.72))
+                    .padding(.top, 4)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: tileSpacing) {
+                            let theme = viewModel.currentTheme(colorScheme: colorScheme)
 
-                        ForEach(0..<min(rangeHours, hoursToShow.count), id: \.self) { index in
-                            let hour = hoursToShow[index]
-                            VStack(spacing: 8) {
-                                Text(hour.time)
-                                    .font(.caption.weight(index == currentHourIndex ? .bold : .medium))
-                                    .foregroundColor(theme.textColor.opacity(index == currentHourIndex ? 1.0 : 0.75))
+                            ForEach(Array(displayedHours.enumerated()), id: \.offset) { index, hour in
+                                VStack(spacing: 8) {
+                                    Text(hour.time)
+                                        .font(.caption.weight(index == currentHourIndex ? .bold : .medium))
+                                        .foregroundColor(theme.textColor.opacity(index == currentHourIndex ? 1.0 : 0.75))
 
-                                if viewModel.useMinimalistIcons {
-                                    Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud"))
-                                        .font(.title3)
+                                    if viewModel.useMinimalistIcons {
+                                        Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud"))
+                                            .font(.title3)
+                                            .foregroundColor(theme.textColor)
+                                            .symbolRenderingMode(.hierarchical)
+                                            .frame(height: 28)
+                                    } else {
+                                        Text(hour.emoji ?? "☁️")
+                                            .font(.title3)
+                                            .frame(height: 28)
+                                            .background(Circle().fill(theme.textColor.opacity(0.1)).padding(2))
+                                    }
+
+                                    Text(viewModel.formattedTemperature(hour.temperatureRaw))
+                                        .font(.body.weight(index == currentHourIndex ? .bold : .semibold))
                                         .foregroundColor(theme.textColor)
-                                        .symbolRenderingMode(.hierarchical)
-                                        .frame(height: 28)
-                                } else {
-                                    Text(hour.emoji ?? "☁️")
-                                        .font(.title3)
-                                        .frame(height: 28)
-                                        .background(Circle().fill(theme.textColor.opacity(0.1)).padding(2))
                                 }
-
-                                Text(viewModel.formattedTemperature(hour.temperatureRaw))
-                                    .font(.body.weight(index == currentHourIndex ? .bold : .semibold))
-                                    .foregroundColor(theme.textColor)
+                                .frame(width: tileWidth)
+                                .id(index)
+                                .padding(.vertical, DesignSystem.spacingS)
+                                .background(
+                                    RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                                        .fill(index == currentHourIndex ? Color.white.opacity(0.25) : Color.clear)
+                                )
                             }
-                            .frame(width: tileWidth)
-                            .id(index)
-                            .padding(.vertical, DesignSystem.spacingS)
-                            .background(
-                                RoundedRectangle(cornerRadius: DesignSystem.radiusS)
-                                    .fill(index == currentHourIndex ? Color.white.opacity(0.25) : Color.clear)
-                            )
                         }
+                        .padding(.horizontal, DesignSystem.spacingM)
                     }
-                    .padding(.horizontal, DesignSystem.spacingM)
-                }
-                .onAppear {
-                    scrollToCurrentHour(proxy: proxy)
-                }
-                .onChange(of: hourlyData.count) { _, _ in
-                    scrollToCurrentHour(proxy: proxy)
+                    .onAppear {
+                        scrollToCurrentHour(proxy: proxy, hourCount: displayedHours.count)
+                    }
+                    .onChange(of: displayedHours.count) { _, newCount in
+                        scrollToCurrentHour(proxy: proxy, hourCount: newCount)
+                    }
                 }
             }
         }
         .softGlassCard(padding: DesignSystem.spacingM, cornerRadius: DesignSystem.radiusM)
     }
     
-    private func scrollToCurrentHour(proxy: ScrollViewProxy) {
+    private func scrollToCurrentHour(proxy: ScrollViewProxy, hourCount: Int) {
+        guard hourCount > 0 else { return }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.8)) {
-                proxy.scrollTo(currentHourIndex, anchor: .center)
+            let anchor: UnitPoint
+            if currentHourIndex <= 1 {
+                anchor = .leading
+            } else if currentHourIndex >= max(0, hourCount - 2) {
+                anchor = .trailing
+            } else {
+                anchor = .center
             }
-}
+
+            withAnimation(.easeInOut(duration: 0.8)) {
+                proxy.scrollTo(currentHourIndex, anchor: anchor)
+            }
+        }
     }
 }
 
@@ -1840,21 +1873,34 @@ struct NewDailyForecastView: View {
     let forecast: [DailyForecast]
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
 
     private var forecastRows: [(index: Int, day: DailyForecast)] {
-        Array(forecast.prefix(10).enumerated()).map { (index: $0.offset, day: $0.element) }
+        Array(displayedForecast.enumerated()).map { (index: $0.offset, day: $0.element) }
+    }
+
+    private var rangeDays: Int {
+        max(1, Int(config?["rangeDays"] ?? "10") ?? 10)
+    }
+
+    private var showIcons: Bool {
+        (config?["showIcons"] ?? "true") == "true"
+    }
+
+    private var displayedForecast: [DailyForecast] {
+        Array(forecast.prefix(rangeDays))
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("10-Day Forecast", systemImage: "calendar")
+            Label("\(rangeDays)-Day Forecast", systemImage: "calendar")
                 .font(.caption.weight(.bold))
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
             
             VStack(spacing: DesignSystem.spacingXS) {
                 ForEach(forecastRows, id: \.index) { row in
                     NavigationLink(destination: DailyForecastDetailView(day: row.day, viewModel: viewModel).id("\(row.day.id)-\(row.index)")) {
-                        SimpleDailyRow(day: row.day, viewModel: viewModel)
+                        SimpleDailyRow(day: row.day, viewModel: viewModel, showIcons: showIcons)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
@@ -1869,6 +1915,7 @@ struct SimpleDailyRow: View {
     let day: DailyForecast
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    let showIcons: Bool
     
     var body: some View {
         HStack(spacing: 12) {
@@ -1881,17 +1928,22 @@ struct SimpleDailyRow: View {
                 .frame(width: 90, alignment: .leading)
             
             // Icon
-            if viewModel.useMinimalistIcons {
-                Image(systemName: viewModel.weatherIcon(for: day.condition))
-                    .font(.title3)
-                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                    .symbolRenderingMode(.hierarchical)
-                    .frame(width: 30)
+            if showIcons {
+                if viewModel.useMinimalistIcons {
+                    Image(systemName: viewModel.weatherIcon(for: day.condition))
+                        .font(.title3)
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                        .symbolRenderingMode(.hierarchical)
+                        .frame(width: 30)
+                } else {
+                    Text(day.emoji)
+                        .font(.title3)
+                        .frame(width: 30)
+                        .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(2))
+                }
             } else {
-                Text(day.emoji)
-                    .font(.title3)
-                    .frame(width: 30)
-                    .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(2))
+                Color.clear
+                    .frame(width: 30, height: 30)
             }
             
             Spacer()
@@ -2788,7 +2840,7 @@ struct PrecipitationTimelineWidget: View {
     }
 
     private var days: [DayRain] {
-        let limit = Int(config?["rangeHours"] ?? "0") ?? 0
+        let limit = Int(config?["rangeDays"] ?? "0") ?? 0
         let forecast = limit > 0 ? Array(weather.dailyForecast.prefix(limit)) : weather.dailyForecast
         var seen = Set<String>()
         return forecast.compactMap { day in
@@ -2910,9 +2962,14 @@ struct VisibilityWidget: View {
         }
     }
 
+    private var style: String {
+        config?["style"] ?? "standard"
+    }
+
     var body: some View {
         let theme = viewModel.currentTheme(colorScheme: colorScheme)
         let textColor = theme.textColor
+        let isCompact = style == "compact"
 
         VStack(alignment: .leading, spacing: 10) {
             Label("Visibility", systemImage: "eye.fill")
@@ -2920,18 +2977,42 @@ struct VisibilityWidget: View {
                 .foregroundColor(textColor.opacity(0.6))
 
             if let vis = weather.metrics?.visibility {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(vis)
-                        .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
-                        .foregroundColor(textColor)
+                if isCompact {
+                    HStack(spacing: 10) {
+                        Text(vis)
+                            .font(.system(size: 30, weight: .bold, design: viewModel.typography.design))
+                            .foregroundColor(textColor)
+                        Spacer(minLength: 0)
+                        if !visibilityCategory.isEmpty {
+                            Text(visibilityCategory)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(categoryColor.opacity(0.2)))
+                                .overlay(Capsule().stroke(categoryColor, lineWidth: 0.5))
+                                .foregroundColor(categoryColor)
+                        }
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(vis)
+                            .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
+                            .foregroundColor(textColor)
+                        if !visibilityCategory.isEmpty {
+                            Text(visibilityCategory)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(categoryColor.opacity(0.2)))
+                                .overlay(Capsule().stroke(categoryColor, lineWidth: 0.5))
+                                .foregroundColor(categoryColor)
+                        }
+                    }
+
                     if !visibilityCategory.isEmpty {
-                        Text(visibilityCategory)
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Capsule().fill(categoryColor.opacity(0.2)))
-                            .overlay(Capsule().stroke(categoryColor, lineWidth: 0.5))
-                            .foregroundColor(categoryColor)
+                        Text("Current conditions suggest \(visibilityCategory.lowercased()) visibility.")
+                            .font(.caption)
+                            .foregroundColor(textColor.opacity(0.68))
                     }
                 }
             } else {
@@ -2969,9 +3050,14 @@ struct CloudCoverWidget: View {
         }
     }
 
+    private var style: String {
+        config?["style"] ?? "standard"
+    }
+
     var body: some View {
         let theme = viewModel.currentTheme(colorScheme: colorScheme)
         let textColor = theme.textColor
+        let isCompact = style == "compact"
 
         VStack(alignment: .leading, spacing: 10) {
             Label("Cloud Cover", systemImage: "cloud.fill")
@@ -2979,17 +3065,50 @@ struct CloudCoverWidget: View {
                 .foregroundColor(textColor.opacity(0.6))
 
             if let pct = parsedPercent {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text("\(pct)%")
-                        .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
-                        .foregroundColor(textColor)
-                    Text(skyCondition)
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(textColor.opacity(0.12)))
-                        .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 0.5))
-                        .foregroundColor(textColor.opacity(0.85))
+                if isCompact {
+                    HStack(spacing: 10) {
+                        Text("\(pct)%")
+                            .font(.system(size: 30, weight: .bold, design: viewModel.typography.design))
+                            .foregroundColor(textColor)
+                        Spacer(minLength: 0)
+                        Text(skyCondition)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(textColor.opacity(0.12)))
+                            .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 0.5))
+                            .foregroundColor(textColor.opacity(0.85))
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("\(pct)%")
+                            .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
+                            .foregroundColor(textColor)
+                        Text(skyCondition)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(textColor.opacity(0.12)))
+                            .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 0.5))
+                            .foregroundColor(textColor.opacity(0.85))
+                    }
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(textColor.opacity(0.08))
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.5), Color.white.opacity(0.18)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geo.size.width * CGFloat(Double(pct) / 100.0))
+                        }
+                    }
+                    .frame(height: 10)
                 }
             } else {
                 Text("Cloud cover data unavailable.")
@@ -3310,6 +3429,7 @@ struct WindSummaryWidget: View {
 
 struct EditableSectionContainer<Content: View>: View {
     let sectionId: UUID
+    let editSessionID: UUID
     let isEditMode: Bool
     let onRemove: () -> Void
     var onConfigure: (() -> Void)? = nil
@@ -3317,11 +3437,12 @@ struct EditableSectionContainer<Content: View>: View {
     @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
     
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .topTrailing) {
             content()
                 .allowsHitTesting(!isEditMode)
                 .jiggle(enabled: isEditMode)
                 .scaleEffect(isEditMode ? 0.98 : 1.0)
+                .id("\(sectionId.uuidString)-\(editSessionID.uuidString)")
             
             if isEditMode {
                 HStack(spacing: 0) {
@@ -3350,7 +3471,8 @@ struct EditableSectionContainer<Content: View>: View {
                         .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5))
                 )
                 .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
-                .padding(8)
+                .padding(.trailing, 22)
+                .padding(.top, -10)
                 .transition(.scale.combined(with: .opacity))
                 .zIndex(2)
             }
@@ -3392,110 +3514,609 @@ struct WidgetDropDelegate: DropDelegate {
 
 // MARK: - Smart Stack Widget
 
+private let smartStackDefaultTypes: [WidgetType] = [
+    .hourlyForecast,
+    .deepDetails,
+    .forecastNarrative,
+    .rainSummary
+]
+
+private let smartStackSupportedTypes: [WidgetType] = [
+    .hourlyForecast,
+    .dailyForecast,
+    .forecastNarrative,
+    .deepDetails,
+    .rainSummary,
+    .rainfallToday,
+    .windSummary,
+    .uvIndex,
+    .feelsLike,
+    .humidityStrip,
+    .visibilityCard,
+    .cloudCoverCard
+]
+
 struct SmartStackWidget: View {
     @ObservedObject var viewModel: WeatherViewModel
     let weather: WeatherInfo
     let widget: DashboardWidget
     @Environment(\.colorScheme) var colorScheme
-    @State private var currentIndex: Int = 0
-    @State private var timer: Timer?
     
     private var stackedTypes: [WidgetType] {
-        if let ids = widget.config?["widgets"] {
-            return ids.split(separator: ",").compactMap { WidgetType(rawValue: String($0)) }
+        let configuredTypes = widget.config?["widgets"]?
+            .split(separator: ",")
+            .compactMap { WidgetType(rawValue: String($0)) }
+            .filter { $0 != .smartStack && $0 != .radar }
+
+        if let configuredTypes, !configuredTypes.isEmpty {
+            return configuredTypes
         }
-        return [.deepDetails, .hourlyForecast, .rainSummary]
+
+        return smartStackDefaultTypes
     }
     
     private var theme: WeatherTheme {
         viewModel.currentTheme(colorScheme: colorScheme)
     }
+
+    private var featuredType: WidgetType {
+        if stackedTypes.contains(.rainSummary), hasImmediateRainSignal {
+            return .rainSummary
+        }
+
+        if stackedTypes.contains(.windSummary), hasStrongWindSignal {
+            return .windSummary
+        }
+
+        if stackedTypes.contains(.uvIndex), hasHighUVSignal {
+            return .uvIndex
+        }
+
+        if stackedTypes.contains(.hourlyForecast), !upcomingHours.isEmpty {
+            return .hourlyForecast
+        }
+
+        if stackedTypes.contains(.forecastNarrative), viewModel.forecastNarrativeSummary != nil {
+            return .forecastNarrative
+        }
+
+        if stackedTypes.contains(.deepDetails) {
+            return .deepDetails
+        }
+
+        return stackedTypes.first ?? .deepDetails
+    }
+
+    private var featuredReason: String {
+        switch featuredType {
+        case .rainSummary:
+            return "Showing the biggest rain signal in your next few hours."
+        case .windSummary:
+            return "Wind is the strongest weather story right now."
+        case .uvIndex:
+            return "UV exposure is elevated, so this is the most useful card right now."
+        case .hourlyForecast:
+            return "Showing the literal next few hours so you can glance ahead quickly."
+        case .forecastNarrative:
+            return "There isn't a stronger live signal, so the stack is surfacing the forecast story."
+        case .deepDetails:
+            return "Conditions are steady, so the stack is surfacing your core metrics."
+        default:
+            return "This card is the most relevant weather detail right now."
+        }
+    }
     
     var body: some View {
-        VStack(spacing: 0) {
-            TabView(selection: $currentIndex) {
-                ForEach(Array(stackedTypes.enumerated()), id: \.offset) { index, type in
-                    stackedWidgetView(for: type)
-                        .tag(index)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Smart Stack", systemImage: "square.3.layers.3d")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(theme.textColor.opacity(0.62))
+
+                    Text(featuredType.rawValue)
+                        .font(.headline)
+                        .foregroundColor(theme.textColor)
                 }
+
+                Text(featuredReason)
+                    .font(.caption)
+                    .foregroundColor(theme.textColor.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .animation(.easeInOut(duration: 0.5), value: currentIndex)
-            
-            HStack(spacing: 6) {
-                ForEach(0..<stackedTypes.count, id: \.self) { index in
-                    Circle()
-                        .fill(index == currentIndex ? theme.textColor : theme.textColor.opacity(0.3))
-                        .frame(width: 6, height: 6)
-                }
-            }
-            .padding(.bottom, 12)
+
+            stackedWidgetView(for: featuredType)
+                .frame(minHeight: 232)
         }
-        .softGlassCard(padding: 0, cornerRadius: DesignSystem.radiusL)
-        .onAppear { startTimer() }
-        .onDisappear { timer?.invalidate() }
-        .gesture(DragGesture(minimumDistance: 20).onEnded { value in
-            if value.translation.height < 0 && currentIndex < stackedTypes.count - 1 {
-                currentIndex += 1
-            } else if value.translation.height > 0 && currentIndex > 0 {
-                currentIndex -= 1
-            }
-            resetTimer()
-        })
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
     }
     
     @ViewBuilder
     private func stackedWidgetView(for type: WidgetType) -> some View {
         switch type {
         case .hourlyForecast:
-            NewHourlyCardView(
-                hourlyData: weather.hourlyForecast,
-                allHourlyData: weather.allHourlyData,
-                viewModel: viewModel,
-                rangeHours: 24,
-                density: "compact"
-            )
+            SmartStackPageCard(
+                title: "Next Few Hours",
+                subtitle: "Quick temperature outlook",
+                icon: "clock",
+                accent: .orange,
+                textColor: theme.textColor
+            ) {
+                HStack(spacing: 10) {
+                    ForEach(Array(upcomingHours.enumerated()), id: \.offset) { entry in
+                        let hour = entry.element
+                        VStack(spacing: 8) {
+                            Text(displayTime(for: hour))
+                                .font(.caption2.weight(.semibold))
+                                .foregroundColor(theme.textColor.opacity(0.62))
+
+                            if viewModel.useMinimalistIcons {
+                                Image(systemName: WeatherIconHelper.minimalistIcon(for: hour.condition ?? weather.condition))
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(theme.textColor)
+                            } else {
+                                Text(hour.emoji ?? weather.emoji)
+                                    .font(.system(size: 18))
+                            }
+
+                            Text(formatTemperature(hour.temperatureRaw))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(theme.textColor)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
         case .dailyForecast:
-            NewDailyForecastView(forecast: weather.dailyForecast, viewModel: viewModel)
+            SmartStackPageCard(
+                title: "Daily Snapshot",
+                subtitle: "Top forecast for the next days",
+                icon: "calendar",
+                accent: .blue,
+                textColor: theme.textColor
+            ) {
+                VStack(spacing: 12) {
+                    ForEach(weather.dailyForecast.prefix(3)) { day in
+                        HStack(spacing: 12) {
+                            Text(day.dayName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(theme.textColor)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if viewModel.useMinimalistIcons {
+                                Image(systemName: WeatherIconHelper.minimalistIcon(for: day.condition))
+                                    .foregroundColor(theme.textColor.opacity(0.88))
+                            } else {
+                                Text(day.emoji)
+                            }
+
+                            Text(day.lowTemp)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundColor(theme.textColor.opacity(0.55))
+
+                            Text(day.highTemp)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundColor(theme.textColor)
+                        }
+                    }
+                }
+            }
         case .forecastNarrative:
-            ForecastNarrativeWidget(weather: weather, viewModel: viewModel, showsExpandedDetail: false)
+            SmartStackPageCard(
+                title: "Forecast Story",
+                subtitle: "What matters most next",
+                icon: "text.justify.left",
+                accent: .purple,
+                textColor: theme.textColor
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(viewModel.forecastNarrativeSummary?.headline ?? "Mostly steady weather through the next few days.")
+                        .font(.headline)
+                        .foregroundColor(theme.textColor)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let detail = viewModel.forecastNarrativeSummary?.detail {
+                        Text(detail)
+                            .font(.subheadline)
+                            .foregroundColor(theme.textColor.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(4)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         case .deepDetails:
-            let metrics = weather.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil)
-            MetricsPillsView(metrics: metrics, weather: weather, viewModel: viewModel, customMetrics: nil)
+            SmartStackPageCard(
+                title: "Deep Details",
+                subtitle: "A tighter view of the essentials",
+                icon: "speedometer",
+                accent: .teal,
+                textColor: theme.textColor
+            ) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    SmartStackMetricTile(title: "Humidity", value: humidityText, textColor: theme.textColor)
+                    SmartStackMetricTile(title: "Feels Like", value: weather.feelsLike ?? weather.temperature, textColor: theme.textColor)
+                    SmartStackMetricTile(title: "Wind", value: weather.metrics?.windSpeed ?? "Calm", textColor: theme.textColor)
+                    SmartStackMetricTile(title: "Rain", value: weather.metrics?.rainChance ?? weather.dailyForecast.first?.chanceOfRain ?? "0%", textColor: theme.textColor)
+                }
+            }
         case .rainSummary:
-            RainSummaryWidget(weather: weather, viewModel: viewModel)
+            SmartStackPageCard(
+                title: "Rain Summary",
+                subtitle: "Precipitation outlook",
+                icon: "cloud.rain.fill",
+                accent: .blue,
+                textColor: theme.textColor
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(weather.metrics?.rainChance ?? weather.dailyForecast.first?.chanceOfRain ?? "0%")
+                            .font(.system(size: 34, weight: .bold, design: viewModel.typography.design))
+                            .foregroundColor(theme.textColor)
+
+                        Text("chance")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(theme.textColor.opacity(0.62))
+                    }
+
+                    Text(rainSummaryText)
+                        .font(.subheadline)
+                        .foregroundColor(theme.textColor.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         case .rainfallToday:
-            RainfallTodayWidget(weather: weather, viewModel: viewModel)
+            SmartStackPageCard(
+                title: "Rainfall Today",
+                subtitle: "Current accumulation",
+                icon: "drop.fill",
+                accent: .blue,
+                textColor: theme.textColor
+            ) {
+                HStack {
+                    SmartStackMetricTile(title: "Total", value: weather.metrics?.todayRainfall ?? "0 mm", textColor: theme.textColor)
+                    SmartStackMetricTile(title: "Peak Intensity", value: weather.metrics?.todayMaxRainIntensity ?? "0 mm/h", textColor: theme.textColor)
+                }
+            }
         case .windSummary:
-            WindSummaryWidget(weather: weather, viewModel: viewModel)
+            SmartStackPageCard(
+                title: "Wind Summary",
+                subtitle: "Speed and direction",
+                icon: "wind",
+                accent: .cyan,
+                textColor: theme.textColor
+            ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(weather.metrics?.windSpeed ?? "Calm")
+                            .font(.system(size: 32, weight: .bold, design: viewModel.typography.design))
+                            .foregroundColor(theme.textColor)
+
+                        Text(weather.metrics?.windDirectionCardinal ?? "")
+                            .font(.headline.weight(.semibold))
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                    }
+
+                    HStack {
+                        SmartStackMetricTile(title: "Gust", value: weather.metrics?.windGust ?? "None", textColor: theme.textColor)
+                        SmartStackMetricTile(title: "Direction", value: weather.metrics?.windDirectionCardinal ?? "Variable", textColor: theme.textColor)
+                    }
+                }
+            }
         case .uvIndex:
-            UVIndexWidget(weather: weather, viewModel: viewModel, style: "standard", showsCategory: true)
+            SmartStackPageCard(
+                title: "UV Index",
+                subtitle: "Exposure right now",
+                icon: "sun.max.fill",
+                accent: .yellow,
+                textColor: theme.textColor
+            ) {
+                HStack(alignment: .center, spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white.opacity(0.12), lineWidth: 8)
+                            .frame(width: 78, height: 78)
+
+                        Circle()
+                            .trim(from: 0, to: min(CGFloat((weather.metrics?.uvIndex ?? 0)) / 11, 1))
+                            .stroke(Color.yellow, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 78, height: 78)
+
+                        Text("\(weather.metrics?.uvIndex ?? 0)")
+                            .font(.title2.bold())
+                            .foregroundColor(theme.textColor)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(weather.metrics?.uvIndexCategory ?? "Low")
+                            .font(.headline)
+                            .foregroundColor(theme.textColor)
+
+                        Text("Use sunscreen if you are outside for long stretches.")
+                            .font(.subheadline)
+                            .foregroundColor(theme.textColor.opacity(0.68))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         case .feelsLike:
-            FeelsLikeWidget(weather: weather, viewModel: viewModel, config: nil)
+            SmartStackPageCard(
+                title: "Feels Like",
+                subtitle: "How it actually feels outside",
+                icon: "thermometer.medium",
+                accent: .orange,
+                textColor: theme.textColor
+            ) {
+                HStack {
+                    Text(weather.feelsLike ?? weather.temperature)
+                        .font(.system(size: 44, weight: .bold, design: viewModel.typography.design))
+                        .foregroundColor(theme.textColor)
+                    Spacer()
+                }
+            }
         case .humidityStrip:
-            HumidityStripWidget(weather: weather, viewModel: viewModel, rangeHours: 24)
+            SmartStackPageCard(
+                title: "Humidity",
+                subtitle: "Moisture in the air",
+                icon: "humidity.fill",
+                accent: .mint,
+                textColor: theme.textColor
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(humidityText)
+                        .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
+                        .foregroundColor(theme.textColor)
+
+                    Text("Cloud cover \(weather.metrics?.cloudCover ?? "0%")")
+                        .font(.subheadline)
+                        .foregroundColor(theme.textColor.opacity(0.68))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         case .visibilityCard:
-            VisibilityWidget(weather: weather, viewModel: viewModel)
+            SmartStackPageCard(
+                title: "Visibility",
+                subtitle: "How far you can see",
+                icon: "eye.fill",
+                accent: .indigo,
+                textColor: theme.textColor
+            ) {
+                HStack {
+                    Text(weather.metrics?.visibility ?? "Clear")
+                        .font(.system(size: 34, weight: .bold, design: viewModel.typography.design))
+                        .foregroundColor(theme.textColor)
+                    Spacer()
+                }
+            }
         case .cloudCoverCard:
-            CloudCoverWidget(weather: weather, viewModel: viewModel)
+            SmartStackPageCard(
+                title: "Cloud Cover",
+                subtitle: "Sky coverage right now",
+                icon: "cloud.fill",
+                accent: .gray,
+                textColor: theme.textColor
+            ) {
+                HStack {
+                    Text(weather.metrics?.cloudCover ?? "0%")
+                        .font(.system(size: 34, weight: .bold, design: viewModel.typography.design))
+                        .foregroundColor(theme.textColor)
+                    Spacer()
+                }
+            }
         default:
-            Text("Unsupported")
-                .foregroundColor(theme.textColor)
-        }
-    }
-    
-    private func startTimer() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
-            withAnimation {
-                currentIndex = (currentIndex + 1) % stackedTypes.count
+            SmartStackPageCard(
+                title: "Coming Soon",
+                subtitle: "This widget type is not supported in Smart Stack yet.",
+                icon: "wand.and.rays",
+                accent: .pink,
+                textColor: theme.textColor
+            ) {
+                Text("Choose another card from the stack settings for a smoother preview.")
+                    .font(.subheadline)
+                    .foregroundColor(theme.textColor.opacity(0.7))
             }
         }
     }
     
-    private func resetTimer() {
-        timer?.invalidate()
-        startTimer()
+    private var humidityText: String {
+        if let humidity = weather.metrics?.humidity {
+            return "\(humidity)%"
+        }
+        return weather.dailyForecast.first?.humidity ?? "0%"
+    }
+
+    private var rainSummaryText: String {
+        let nextRainDay = weather.dailyForecast.first(where: {
+            guard let chance = $0.chanceOfRain?.replacingOccurrences(of: "%", with: ""),
+                  let rainChance = Int(chance) else { return false }
+            return rainChance >= 40
+        })
+
+        if let nextRainDay {
+            return "The next stronger rain signal shows up on \(nextRainDay.dayName) with \(nextRainDay.chanceOfRain ?? "0%") odds."
+        }
+
+        return "The next few days look mostly dry, with only light precipitation risk in the outlook."
+    }
+
+    private func formatTemperature(_ value: Double) -> String {
+        let rounded = Int(value.rounded())
+        let suffix = weather.temperature.contains("F") ? "°F" : "°C"
+        return "\(rounded)\(suffix)"
+    }
+
+    private var upcomingHours: [HourlyForecast] {
+        let source = (weather.allHourlyData ?? weather.hourlyForecast)
+            .sorted { lhs, rhs in
+                switch (lhs.sourceDate, rhs.sourceDate) {
+                case let (left?, right?):
+                    return left < right
+                case (.some, nil):
+                    return true
+                case (nil, .some):
+                    return false
+                case (nil, nil):
+                    return lhs.hourValue < rhs.hourValue
+                }
+            }
+        let now = Date()
+        let filtered = source.filter { hour in
+            guard let sourceDate = hour.sourceDate else { return true }
+            return sourceDate >= now.addingTimeInterval(-1800)
+        }
+
+        let upcoming = Array(filtered.prefix(4))
+        if !upcoming.isEmpty {
+            return upcoming
+        }
+        return Array(weather.hourlyForecast.prefix(4))
+    }
+
+    private func displayTime(for hour: HourlyForecast) -> String {
+        if let sourceDate = hour.sourceDate {
+            return sourceDate.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+        }
+
+        let trimmed = hour.time.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count > 1 {
+            return trimmed
+        }
+
+        let normalizedHour = hour.hourValue % 24
+        guard let fallbackDate = Calendar.current.date(bySettingHour: normalizedHour, minute: 0, second: 0, of: Date()) else {
+            return "\(normalizedHour):00"
+        }
+
+        return fallbackDate.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+    }
+
+    private var hasImmediateRainSignal: Bool {
+        if let minuteForecast = weather.metrics?.minuteForecast,
+           minuteForecast.contains(where: { $0.precipitationChance >= 0.35 || $0.precipitationIntensity > 0 }) {
+            return true
+        }
+
+        if let rainChance = weather.metrics?.rainChance?.replacingOccurrences(of: "%", with: ""),
+           let value = Int(rainChance),
+           value >= 55 {
+            return true
+        }
+
+        if let chanceOfRain = weather.dailyForecast.first?.chanceOfRain?.replacingOccurrences(of: "%", with: ""),
+           let value = Int(chanceOfRain),
+           value >= 55 {
+            return true
+        }
+
+        return false
+    }
+
+    private var hasHighUVSignal: Bool {
+        (weather.metrics?.uvIndex ?? 0) >= 7
+    }
+
+    private var hasStrongWindSignal: Bool {
+        guard let windValue = parsedWindSpeedValue(from: weather.metrics?.windSpeed) else { return false }
+        return windValue >= 28
+    }
+
+    private func parsedWindSpeedValue(from speed: String?) -> Double? {
+        guard let speed else { return nil }
+        let cleaned = speed
+            .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        return Double(cleaned)
+    }
+}
+
+private struct SmartStackPageCard<Content: View>: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let accent: Color
+    let textColor: Color
+    let content: () -> Content
+
+    init(
+        title: String,
+        subtitle: String,
+        icon: String,
+        accent: Color,
+        textColor: Color,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.accent = accent
+        self.textColor = textColor
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(accent.opacity(0.16))
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(textColor)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(textColor.opacity(0.6))
+                }
+            }
+
+            content()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                .fill(Color.white.opacity(0.07))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                )
+        )
+    }
+}
+
+private struct SmartStackMetricTile: View {
+    let title: String
+    let value: String
+    let textColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.bold))
+                .tracking(0.8)
+                .foregroundColor(textColor.opacity(0.5))
+
+            Text(value)
+                .font(.headline.weight(.semibold))
+                .foregroundColor(textColor)
+                .minimumScaleFactor(0.75)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .fill(Color.white.opacity(0.05))
+        )
     }
 }
 
@@ -3640,7 +4261,7 @@ struct WidgetGalleryView: View {
         case .visibilityCard: return "Current visibility & category"
         case .cloudCoverCard: return "Cloud cover percentage"
         case .windHistory: return "Sustained vs gust wind chart"
-        case .smartStack: return "Auto-rotating widget stack"
+        case .smartStack: return "Adaptive widget stack"
         }
     }
 }
@@ -3696,6 +4317,8 @@ struct WidgetConfigView: View {
             return "Choose how cloud cover data is visualized."
         case .radar:
             return "Set the default radar map layer and zoom level."
+        case .smartStack:
+            return "Choose which cards the smart stack can surface when their weather signal matters most."
         default:
             return "Adjust this widget."
         }
@@ -3908,6 +4531,72 @@ struct WidgetConfigView: View {
                                 }
                             }
                         }
+
+                        if widget.type == .smartStack {
+                            let selectedTypes = widget.config?["widgets"]?
+                                .split(separator: ",")
+                                .compactMap { WidgetType(rawValue: String($0)) }
+                                .filter { smartStackSupportedTypes.contains($0) } ?? smartStackDefaultTypes
+
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("Stacked Cards")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                    ForEach(smartStackSupportedTypes) { stackType in
+                                        let isSelected = selectedTypes.contains(stackType)
+                                        let canRemove = selectedTypes.count > 1
+
+                                        Button {
+                                            var updatedTypes = selectedTypes
+
+                                            if isSelected {
+                                                guard canRemove else { return }
+                                                updatedTypes.removeAll { $0 == stackType }
+                                            } else {
+                                                updatedTypes.append(stackType)
+                                            }
+
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["widgets"] = updatedTypes.map(\.rawValue).joined(separator: ",")
+                                        } label: {
+                                            HStack(spacing: 10) {
+                                                Image(systemName: stackType.icon)
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundColor(isSelected ? DesignSystem.skyBlue : theme.textColor.opacity(0.65))
+
+                                                Text(stackType.rawValue)
+                                                    .font(.caption.weight(.medium))
+                                                    .foregroundColor(theme.textColor)
+                                                    .multilineTextAlignment(.leading)
+
+                                                Spacer(minLength: 4)
+
+                                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                                    .foregroundColor(isSelected ? DesignSystem.skyBlue : theme.textColor.opacity(0.35))
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 12)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                                                    .fill(isSelected ? DesignSystem.skyBlue.opacity(0.14) : Color.white.opacity(0.06))
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                                                            .stroke(isSelected ? DesignSystem.skyBlue.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 0.8)
+                                                    )
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal)
+
+                            }
+                        }
+
                         if widget.type == .humidityStrip || widget.type == .windHistory {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Forecast Range")
@@ -4577,5 +5266,3 @@ struct ImageRendererView: View {
     let content: AnyView
     var body: some View { content }
 }
-
-

@@ -6,6 +6,54 @@
 //
 
 import Foundation
+import UserNotifications
+
+enum SoundOption: String, Codable, CaseIterable {
+    case `default` = "default"
+    case critical = "critical"
+    case bell = "bell"
+    case chime = "chime"
+    case ding = "ding"
+    case none = "none"
+    
+    var displayName: String {
+        switch self {
+        case .default: return "Default"
+        case .critical: return "Critical Alert"
+        case .bell: return "Bell"
+        case .chime: return "Chime"
+        case .ding: return "Ding"
+        case .none: return "None"
+        }
+    }
+    
+    var unSound: UNNotificationSound? {
+        switch self {
+        case .default: return .default
+        case .critical: return .defaultCritical
+        case .bell: return UNNotificationSound(named: UNNotificationSoundName("bell"))
+        case .chime: return UNNotificationSound(named: UNNotificationSoundName("chime"))
+        case .ding: return UNNotificationSound(named: UNNotificationSoundName("ding"))
+        case .none: return nil
+        }
+    }
+}
+
+struct NotificationContentPreference: Codable {
+    var includeCondition: Bool = true
+    var includeTemperatureRange: Bool = true
+    var includeHumidity: Bool = false
+    var includeWindSpeed: Bool = false
+    var includeFeelsLike: Bool = false
+    var includeUVIndex: Bool = true
+    var includeRainChance: Bool = true
+    var includeVisibility: Bool = false
+}
+
+struct ForecastTime: Codable {
+    let hour: Int
+    let minute: Int
+}
 
 struct NotificationSettings: Codable {
     // Daily Forecast
@@ -50,6 +98,23 @@ struct NotificationSettings: Codable {
     var useCriticalAlertsForSevere: Bool // Use critical alert sound for severe weather
     var onlyWeekdayForecast: Bool // Only send daily forecast on weekdays (Mon-Fri)
     
+    // MARK: - Sound Customization
+    var dailyForecastSound: SoundOption = .default
+    var severeWeatherSound: SoundOption = .critical
+    var rainAlertSound: SoundOption = .default
+    var uvAlertSound: SoundOption = .default
+    var temperatureChangeSound: SoundOption = .default
+    var windAlertSound: SoundOption = .default
+    var precipitationProbabilitySound: SoundOption = .default
+    
+    // MARK: - Content Customization
+    var dailyForecastContent: NotificationContentPreference = NotificationContentPreference()
+    var severeWeatherContent: NotificationContentPreference = NotificationContentPreference(includeHumidity: true, includeWindSpeed: true, includeVisibility: true)
+    var alertContent: NotificationContentPreference = NotificationContentPreference()
+    
+    // MARK: - Multiple Daily Forecast Times
+    var dailyForecastTimes: [ForecastTime] = [ForecastTime(hour: 8, minute: 0)]
+    
     // MARK: - Default Values
     struct Defaults {
         static let uvThreshold = 6
@@ -93,7 +158,15 @@ struct NotificationSettings: Codable {
             quietHoursStart: 22,
             quietHoursEnd: 7,
             useCriticalAlertsForSevere: true,
-            onlyWeekdayForecast: false
+            onlyWeekdayForecast: false,
+            dailyForecastSound: .default,
+            severeWeatherSound: .critical,
+            rainAlertSound: .default,
+            uvAlertSound: .default,
+            temperatureChangeSound: .default,
+            windAlertSound: .default,
+            precipitationProbabilitySound: .default,
+            dailyForecastTimes: [ForecastTime(hour: 8, minute: 0)]
         )
     }
 }

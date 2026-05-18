@@ -49,12 +49,14 @@ struct WeatherIconHelper {
         }
         if cond.contains("rain") || cond.contains("drizzle") { return "cloud.rain" }
         if cond.contains("cloud") || cond.contains("overcast") { return "cloud" }
-        if cond.contains("snow") || cond.contains("blizzard") { return "snow" }
+        if cond.contains("snow") || cond.contains("blizzard") || cond.contains("flurries") || cond.contains("sleet") {
+            return "cloud.snow"
+        }
         if cond.contains("fog") || cond.contains("mist") { return "cloud.fog" }
         if cond.contains("thunder") { return "cloud.bolt" }
         if cond.contains("wind") || cond.contains("breeze") || cond.contains("gust") { return "wind" }
 
-        return "thermometer.medium"
+        return "cloud"
     }
     
     private static func isNightTime() -> Bool {
@@ -62,4 +64,3 @@ struct WeatherIconHelper {
         return hour >= 20 || hour < 6
     }
 }
-

@@ -88,7 +88,6 @@ struct SoftGlassCard: ViewModifier {
                 }
             )
             .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
-            .drawingGroup()
     }
 }
 
@@ -203,6 +202,7 @@ struct JiggleModifier: ViewModifier {
     @State private var rotationOffset: Double = Double.random(in: -0.5...0.5)
     @State private var xOffset: CGFloat = CGFloat.random(in: -0.5...0.5)
     @State private var yOffset: CGFloat = CGFloat.random(in: -0.5...0.5)
+    @State private var animationTask: Task<Void, Never>?
     
     func body(content: Content) -> some View {
         content
@@ -212,24 +212,49 @@ struct JiggleModifier: ViewModifier {
                 y: isJiggling ? (isAnimating ? yOffset : -yOffset) : 0
             )
             .onAppear {
-                if isJiggling {
-                    startAnimation()
-                }
+                updateAnimationState()
             }
             .onChange(of: isJiggling) { _, newValue in
-                if newValue {
-                    startAnimation()
-                } else {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        isAnimating = false
-                    }
-                }
+                updateAnimationState(isEnabled: newValue)
+            }
+            .onDisappear {
+                stopAnimation(reset: false)
             }
     }
     
+    private func updateAnimationState(isEnabled: Bool? = nil) {
+        if isEnabled ?? isJiggling {
+            startAnimation()
+        } else {
+            stopAnimation(reset: true)
+        }
+    }
+    
     private func startAnimation() {
-        withAnimation(Animation.easeInOut(duration: 0.12).repeatForever(autoreverses: true)) {
-            isAnimating = true
+        guard animationTask == nil else { return }
+        animationTask = Task {
+            await MainActor.run {
+                isAnimating = false
+            }
+            while !Task.isCancelled {
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        isAnimating.toggle()
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(120))
+            }
+        }
+    }
+    
+    private func stopAnimation(reset: Bool) {
+        animationTask?.cancel()
+        animationTask = nil
+        
+        guard reset else { return }
+        
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+            isAnimating = false
         }
     }
 }

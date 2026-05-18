@@ -151,7 +151,26 @@ extension WidgetType {
 
     var supportsConfiguration: Bool {
         switch self {
-        case .hourlyForecast, .deepDetails, .forecastNarrative, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .sunPath, .moonPhase, .humidityStrip, .windHistory, .smartStack:
+        case .hourlyForecast,
+             .dailyForecast,
+             .deepDetails,
+             .forecastNarrative,
+             .rainSummary,
+             .rainfallToday,
+             .minutePrecipitation,
+             .windSummary,
+             .windGraph,
+             .uvIndex,
+             .feelsLike,
+             .sunPath,
+             .moonPhase,
+             .uvIndexCurve,
+             .humidityStrip,
+             .precipitationTimeline,
+             .visibilityCard,
+             .cloudCoverCard,
+             .windHistory,
+             .smartStack:
             return true
         default:
             return false

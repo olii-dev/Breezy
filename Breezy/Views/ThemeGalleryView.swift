@@ -113,10 +113,7 @@ struct ThemeGalleryView: View {
                             NavigationLink {
                                 CustomThemeBuilderView(viewModel: viewModel)
                             } label: {
-                                CustomThemeCard(
-                                    isSelected: false,
-                                    customTheme: viewModel.customTheme
-                                )
+                                CreateThemeCard(theme: viewModel.customTheme)
                             }
                             .simultaneousGesture(TapGesture().onEnded {
                                 HapticsManager.shared.impact(style: .light)
@@ -135,7 +132,8 @@ struct ThemeGalleryView: View {
                             
                             LazyVGrid(columns: columns, spacing: 16) {
                                 ForEach(viewModel.customThemes) { customTheme in
-                                    CustomThemeCard(
+                                    SavedCustomThemeCard(
+                                        name: customTheme.name,
                                         isSelected: viewModel.themeMode == .custom && viewModel.selectedCustomThemeID == customTheme.id,
                                         customTheme: customTheme
                                     )
@@ -233,25 +231,59 @@ struct ThemeCard: View {
     }
 }
 
-struct CustomThemeCard: View {
+struct CreateThemeCard: View {
+    let theme: WeatherTheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(LinearGradient(colors: [theme.topColor, theme.bottomColor], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(height: 100)
+
+                VStack(spacing: 8) {
+                    Image(systemName: "plus")
+                        .font(.largeTitle.weight(.medium))
+                        .foregroundColor(.white)
+                    Text("Create")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.white.opacity(0.9))
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+
+            Text("Create Custom")
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(.white)
+        }
+    }
+}
+
+struct SavedCustomThemeCard: View {
+    let name: String
     let isSelected: Bool
     let customTheme: WeatherTheme
-    
+
     var body: some View {
-        VStack(alignment: .leading) {
-            ZStack {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .bottomLeading) {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(LinearGradient(colors: [customTheme.topColor, customTheme.bottomColor], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(height: 100)
-                
-                VStack {
-                    Image(systemName: "plus")
-                        .font(.largeTitle)
-                        .foregroundColor(.white)
-                    Text("Custom")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(.white)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("72°")
+                        .font(.title2.weight(.bold))
+                        .foregroundColor(customTheme.textColor)
+                    Text("Mostly Clear")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(customTheme.textColor.opacity(0.85))
                 }
+                .padding(12)
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
@@ -267,9 +299,11 @@ struct CustomThemeCard: View {
                         .background(Circle().fill(Color.black.opacity(0.2)).blur(radius: 2))
                 }
             }
-            
-            Text("Create Custom")
+
+            Text(name)
                 .font(.subheadline.weight(.medium))
+                .foregroundColor(.white)
+                .lineLimit(1)
         }
     }
 }

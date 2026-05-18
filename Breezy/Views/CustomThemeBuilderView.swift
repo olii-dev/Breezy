@@ -19,7 +19,7 @@ struct CustomThemeBuilderView: View {
     
     init(viewModel: WeatherViewModel, editing themeID: String? = nil) {
         self.viewModel = viewModel
-        self.editThemeID = themeID
+        _editThemeID = State(initialValue: themeID)
         
         if let id = themeID, let theme = viewModel.customThemes.first(where: { $0.id == id }) {
             _topColor = State(initialValue: theme.topColor)
@@ -50,45 +50,26 @@ struct CustomThemeBuilderView: View {
                         Text("Preview")
                             .font(.headline)
                             .foregroundColor(textColor.opacity(0.8))
-                        
-                        VStack(spacing: 12) {
-                            Text("San Francisco")
-                                .font(.title2.weight(.medium))
-                                .foregroundColor(textColor)
-                            
-                            Text("72°")
-                                .font(.system(size: 64, weight: .thin))
-                                .foregroundColor(textColor)
-                            
-                            HStack {
-                                Image(systemName: "sun.max.fill")
-                                Text("Sunny")
-                            }
-                            .font(.title3)
-                            .foregroundColor(textColor.opacity(0.9))
-                        }
-                        .padding(32)
-                        .background(
-                            RoundedRectangle(cornerRadius: cornerRadiusValue)
-                                .fill(.ultraThinMaterial.opacity(glassOpacityValue))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: cornerRadiusValue)
-                                        .stroke(textColor.opacity(borderOpacity), lineWidth: borderWidth)
-                                )
-                        )
-                        .shadow(color: .black.opacity(shadowOpacityValue), radius: shadowRadiusValue, y: 6)
+
+                        previewScreen
                     }
                     .padding(.top, 20)
                     
                     VStack(spacing: 24) {
                         TextField("Theme Name", text: $themeName)
                             .font(.subheadline.weight(.medium))
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled(true)
                             .foregroundColor(textColor)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
                             .background(
                                 RoundedRectangle(cornerRadius: 10)
                                     .fill(.ultraThinMaterial.opacity(0.15))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(textColor.opacity(0.12), lineWidth: 0.8)
+                                    )
                             )
                         
                         Divider().overlay(textColor.opacity(0.15))
@@ -143,7 +124,75 @@ struct CustomThemeBuilderView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(isEditing ? "Edit Theme" : "Build Theme")
         .toolbarColorScheme(WeatherTheme(topColor: topColor, bottomColor: bottomColor, textColor: textColor).isDark ? .dark : .light, for: .navigationBar)
+    }
+
+    private var previewScreen: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label("San Francisco", systemImage: "location.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(textColor)
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    Image(systemName: "square.and.arrow.up")
+                    Image(systemName: "clock.arrow.circlepath")
+                    Image(systemName: "gearshape.fill")
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(textColor)
+            }
+
+            VStack(alignment: .center, spacing: 6) {
+                Text(themeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "My Theme" : themeName)
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(textColor.opacity(0.88))
+
+                Text("72°")
+                    .font(.system(size: 56, weight: .thin))
+                    .foregroundColor(textColor)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "sun.max.fill")
+                    Text("Mostly Sunny")
+                }
+                .font(.headline)
+                .foregroundColor(textColor.opacity(0.9))
+
+                Text("H: 79°  •  L: 61°")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(textColor.opacity(0.65))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+
+            HStack(spacing: 12) {
+                previewMetricCard(title: "Humidity", value: "52%")
+                previewMetricCard(title: "Feels Like", value: "75°")
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Next Few Hours", systemImage: "clock")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(textColor.opacity(0.62))
+
+                HStack(spacing: 10) {
+                    previewHour(time: "Now", symbol: "sun.max.fill", value: "72°")
+                    previewHour(time: "10AM", symbol: "sun.max.fill", value: "75°")
+                    previewHour(time: "11AM", symbol: "cloud.sun.fill", value: "77°")
+                    previewHour(time: "12PM", symbol: "cloud.fill", value: "78°")
+                }
+            }
+            .padding(18)
+            .background(previewCardBackground)
+        }
+        .padding(22)
+        .background(previewCardBackground)
+        .shadow(color: .black.opacity(shadowOpacityValue), radius: shadowRadiusValue, y: 6)
+        .padding(.horizontal, 20)
     }
     
     private func saveTheme() {
@@ -218,6 +267,47 @@ struct CustomThemeBuilderView: View {
         case .subtle: return 0.5
         case .prominent: return 1.5
         }
+    }
+
+    private var previewCardBackground: some View {
+        RoundedRectangle(cornerRadius: cornerRadiusValue)
+            .fill(.ultraThinMaterial.opacity(glassOpacityValue))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadiusValue)
+                    .stroke(textColor.opacity(borderOpacity), lineWidth: borderWidth)
+            )
+    }
+
+    private func previewMetricCard(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundColor(textColor.opacity(0.55))
+
+            Text(value)
+                .font(.headline.weight(.semibold))
+                .foregroundColor(textColor)
+        }
+        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+        .padding(14)
+        .background(previewCardBackground)
+    }
+
+    private func previewHour(time: String, symbol: String, value: String) -> some View {
+        VStack(spacing: 8) {
+            Text(time)
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(textColor.opacity(0.65))
+
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(textColor)
+
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(textColor)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

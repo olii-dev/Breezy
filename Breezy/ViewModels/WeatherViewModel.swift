@@ -672,11 +672,7 @@ class WeatherViewModel: ObservableObject {
     }
     
     func weatherIcon(for condition: String) -> String {
-        if useMinimalistIcons {
-            return WeatherIconHelper.minimalistIcon(for: condition)
-        } else {
-            return WeatherIconHelper.emoji(for: condition)
-        }
+        WeatherIconHelper.minimalistIcon(for: condition)
     }
     
     func currentTheme(colorScheme: ColorScheme) -> WeatherTheme {
@@ -1891,4 +1887,3 @@ class WeatherViewModel: ObservableObject {
         )
     }
 }
-

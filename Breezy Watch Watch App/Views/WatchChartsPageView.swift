@@ -16,8 +16,8 @@ struct WatchChartsPageView: View {
         ScrollView {
             VStack(spacing: 12) {
                 Text("CHARTS")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(theme.textColor.opacity(0.6))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.textColor.opacity(0.78))
                     .padding(.top, 4)
                 
                 if showTemperature && !weather.hourlyForecast.isEmpty {
@@ -81,17 +81,17 @@ struct WatchTemperatureChartView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Image(systemName: "thermometer.medium")
-                    .font(.caption2)
+                    .font(.caption.weight(.semibold))
                 Text("Temperature")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                 Spacer()
                 if let point = selectedPoint {
                     Text(String(format: "%.0f°", point.temp))
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.orange)
                 }
             }
-            .foregroundColor(textColor.opacity(0.7))
+            .foregroundColor(textColor.opacity(0.82))
             
             if temps.count >= 2 {
                 Chart {
@@ -129,8 +129,8 @@ struct WatchTemperatureChartView: View {
                         AxisValueLabel {
                             if let index = value.as(Int.self), index < hourly.count {
                                 Text(hourly[index].time)
-                                    .font(.system(size: 8))
-                                    .foregroundColor(textColor.opacity(0.5))
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(textColor.opacity(0.58))
                             }
                         }
                     }
@@ -147,18 +147,10 @@ struct WatchTemperatureChartView: View {
                             .fill(Color.clear)
                             .contentShape(Rectangle())
                             .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        guard let plotFrame = proxy.plotFrame else { return }
-                                        let origin = geometry[plotFrame].origin
-                                        let locationX = value.location.x - origin.x
-                                        if let index: Int = proxy.value(atX: locationX) {
-                                            let nearest = temps.min { abs($0.index - index) < abs($1.index - index) }
-                                            selectedIndex = nearest?.index
-                                        }
-                                    }
-                                    .onEnded { _ in
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        selectPoint(at: value.location, proxy: proxy, geometry: geometry)
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.75) {
                                             selectedIndex = nil
                                         }
                                     }
@@ -173,8 +165,18 @@ struct WatchTemperatureChartView: View {
             }
         }
         .padding(10)
-        .background(textColor.opacity(0.08))
+        .background(textColor.opacity(0.12))
         .cornerRadius(12)
+    }
+
+    private func selectPoint(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else { return }
+        let origin = geometry[plotFrame].origin
+        let locationX = location.x - origin.x
+        if let index: Int = proxy.value(atX: locationX) {
+            let nearest = temps.min { abs($0.index - index) < abs($1.index - index) }
+            selectedIndex = nearest?.index
+        }
     }
 }
 

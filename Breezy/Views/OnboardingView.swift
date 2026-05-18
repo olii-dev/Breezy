@@ -93,27 +93,33 @@ struct OnboardingView: View {
     var body: some View {
         let theme = viewModel.currentTheme(colorScheme: colorScheme)
 
-        ZStack {
-            AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            ZStack {
+                AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                onboardingHeader(theme: theme)
+                VStack(spacing: 0) {
+                    onboardingHeader(theme: theme)
 
-                // Fixed, responsive content - avoid vertical scrolling on onboarding pages
-                VStack {
-                    stepContent(theme: theme)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
-                        .padding(.bottom, 20)
-                    Spacer(minLength: 8)
+                    ScrollView(showsIndicators: false) {
+                        stepContent(theme: theme)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                            .padding(.bottom, 28)
+                            .frame(
+                                maxWidth: .infinity,
+                                minHeight: max(0, proxy.size.height - 190),
+                                alignment: .top
+                            )
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
                 }
-                .frame(maxWidth: .infinity)
             }
         }
         .safeAreaInset(edge: .bottom) {
             actionBar(theme: theme)
         }
+        .simultaneousGesture(onboardingSwipeGesture)
         .task {
             await refreshNotificationStatus()
         }
@@ -220,7 +226,9 @@ struct OnboardingView: View {
     }
 
     private func actionBar(theme: WeatherTheme) -> some View {
-        VStack(spacing: 12) {
+        let buttonTextColor = buttonTextColor(for: theme.textColor)
+
+        return VStack(spacing: 12) {
             Button {
                 HapticsManager.shared.impact(style: .medium)
                 handlePrimaryAction()
@@ -228,13 +236,13 @@ struct OnboardingView: View {
                 HStack(spacing: 10) {
                     if isFinishing {
                         ProgressView()
-                            .tint(colorScheme == .light ? .white : .black)
+                            .tint(buttonTextColor)
                     }
 
                     Text(primaryButtonTitle)
                         .font(.headline.weight(.semibold))
                 }
-                .foregroundColor(colorScheme == .light ? .black : .white)
+                .foregroundColor(buttonTextColor)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(
@@ -286,6 +294,32 @@ struct OnboardingView: View {
         withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
             currentStep = nextStep
         }
+    }
+
+    private func retreatStep() {
+        guard let previousStep = Step(rawValue: max(currentStep.rawValue - 1, 0)) else { return }
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
+            currentStep = previousStep
+        }
+    }
+
+    private var onboardingSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 28)
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height),
+                      abs(value.translation.width) > 70 else {
+                    return
+                }
+
+                if value.translation.width < 0 {
+                    guard currentStep != .alerts, !primaryActionDisabled else { return }
+                    HapticsManager.shared.impact(style: .light)
+                    advanceStep()
+                } else if currentStep != .welcome {
+                    HapticsManager.shared.impact(style: .light)
+                    retreatStep()
+                }
+            }
     }
 
     private func refreshNotificationStatus() async {
@@ -343,20 +377,35 @@ struct OnboardingView: View {
 
     private func requestCurrentLocation() {
         Task {
+            let previousSelection = selectedLocation
+            let previousChoice = selectedLocationChoice
             isRequestingLocation = true
             viewModel.error = nil
-            selectedLocation = nil
+            selectedLocationChoice = .current
             do {
-                let location = try await locationHelper.requestLocationAndGetData()
+                let location: LocationData
+                if let cachedLocation = locationHelper.userLocation {
+                    location = cachedLocation
+                } else {
+                    location = try await locationHelper.requestLocationAndGetData()
+                }
+
                 selectedLocation = location
                 selectedLocationChoice = .current
                 showManualSearch = false
+                locationHelper.locationError = nil
                 // Apply immediately: follow GPS and fetch weather so the app is populated before finishing
                 viewModel.shouldFollowGPS = true
                 await viewModel.fetchWeather(for: location, saveToCache: true)
             } catch {
-                showManualSearch = true
-                selectedLocationChoice = nil
+                if previousChoice == .manual, let previousSelection {
+                    selectedLocation = previousSelection
+                    selectedLocationChoice = .manual
+                    showManualSearch = true
+                } else {
+                    selectedLocation = nil
+                    selectedLocationChoice = nil
+                }
             }
             isRequestingLocation = false
         }
@@ -368,6 +417,8 @@ struct OnboardingView: View {
                 let location = try await searchService.getCoordinates(for: completion)
                 selectedLocation = location
                 selectedLocationChoice = .manual
+                showManualSearch = true
+                locationHelper.locationError = nil
                 // Apply immediately: switch off GPS and fetch weather for the chosen city
                 viewModel.shouldFollowGPS = false
                 searchService.searchQuery = ""
@@ -665,13 +716,15 @@ struct OnboardingView: View {
             .animation(Animation.easeOut(duration: AnimationConstants.quick), value: isRequestingLocation)
 
             VStack(spacing: 12) {
-                Button {
-                    HapticsManager.shared.impact(style: .light)
-                    withAnimation(AnimationConstants.standardSpring) {
-                        showManualSearch = true
-                        selectedLocationChoice = .manual
-                        selectedLocation = nil
-                    }
+                    Button {
+                        HapticsManager.shared.impact(style: .light)
+                        locationHelper.locationError = nil
+                        viewModel.error = nil
+                        withAnimation(AnimationConstants.standardSpring) {
+                            showManualSearch = true
+                            selectedLocationChoice = .manual
+                            selectedLocation = nil
+                        }
                     searchFieldFocused = true
                 } label: {
                     locationChoiceCard(
@@ -721,7 +774,10 @@ struct OnboardingView: View {
             }
 
             Group {
-                if let errorText = locationHelper.locationError, selectedLocation == nil {
+                if let errorText = locationHelper.locationError,
+                   selectedLocation == nil,
+                   selectedLocationChoice != .manual,
+                   !showManualSearch {
                     shakeableContent(if: shakeError) {
                         Text(errorText)
                             .font(FontScale.caption)
@@ -936,14 +992,16 @@ struct OnboardingView: View {
     }
 
     private func featureShowcaseCard(title: String, subtitle: String, icon: String, accent: Color, theme: WeatherTheme) -> some View {
-        HStack(spacing: 14) {
+        let iconColor = accent == .teal ? Color.teal.opacity(0.95) : accent
+
+        return HStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 18)
                     .fill(accent.opacity(0.24))
                     .frame(width: 58, height: 58)
                 Image(systemName: icon)
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(theme.textColor)
+                    .foregroundColor(iconColor)
             }
 
             VStack(alignment: .leading, spacing: 5) {
@@ -1056,6 +1114,17 @@ struct OnboardingView: View {
                 .foregroundColor(theme.textColor)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    private func buttonTextColor(for backgroundColor: Color) -> Color {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        UIColor(backgroundColor).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        let brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000
+        return brightness > 0.62 ? .black : .white
     }
 }
 

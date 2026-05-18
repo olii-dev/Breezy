@@ -32,7 +32,43 @@ struct UVIndexCurveView: View {
                 }
                 return lhs.hourValue < rhs.hourValue
             }
-        return Array(filtered.prefix(rangeHours))
+        let limit = max(1, rangeHours)
+        return Array(filtered.prefix(limit))
+    }
+
+    private var chartDomain: ClosedRange<Double> {
+        guard let first = chartHours.first?.hourValue, let last = chartHours.last?.hourValue else {
+            return 0...24
+        }
+        if first == last {
+            let start = max(0, first - 1)
+            let end = min(24, last + 1)
+            return Double(start)...Double(end)
+        }
+        return Double(first)...Double(last)
+    }
+
+    private var peakHour: HourlyForecast? {
+        chartHours.max { ($0.uvIndex ?? 0) < ($1.uvIndex ?? 0) }
+    }
+
+    private var xAxisValues: [Int] {
+        let hours = chartHours.map(\.hourValue)
+        guard let first = hours.first, let last = hours.last else { return [0, 6, 12, 18, 23] }
+
+        if hours.count <= 4 {
+            return hours
+        }
+
+        let desiredStep = rangeHours <= 12 ? 3 : 6
+        var marks = Array(stride(from: first, through: last, by: desiredStep))
+        if marks.first != first {
+            marks.insert(first, at: 0)
+        }
+        if marks.last != last {
+            marks.append(last)
+        }
+        return Array(Set(marks)).sorted()
     }
     
     // UV Categories for color coding
@@ -145,7 +181,28 @@ struct UVIndexCurveView: View {
                     }
                 }
                 
-                // Safety Threshold Line (Removed)
+                if showPeak, selectedHour == nil, let peakHour, let peakValue = peakHour.uvIndex, peakValue > 0 {
+                    RuleMark(x: .value("Peak Hour", peakHour.hourValue))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                        .foregroundStyle(color(for: peakValue).opacity(0.8))
+                        .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
+                            VStack(spacing: 4) {
+                                Text("Peak UV")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.78) : .black.opacity(0.72))
+                                Text("\(peakValue)")
+                                    .font(.system(.headline, design: typographyDesign).weight(.bold))
+                                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                                Text(formatHour(peakHour.hourValue))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(10)
+                            .background(.ultraThinMaterial.opacity(glassOpacity))
+                            .cornerRadius(12)
+                            .shadow(radius: 6)
+                        }
+                }
             }
             .chartOverlay { proxy in
                 GeometryReader { geometry in
@@ -176,14 +233,11 @@ struct UVIndexCurveView: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: [0, 6, 12, 18, 23]) { value in
+                AxisMarks(values: xAxisValues) { value in
                     AxisValueLabel {
                         if let hour = value.as(Int.self), hour >= 0 && hour < 24 {
-                            let hourLabel = hour == 0 ? "12 AM" : hour == 6 ? "6 AM" : hour == 12 ? "12 PM" : hour == 18 ? "6 PM" : hour == 23 ? "11 PM" : ""
-                            if !hourLabel.isEmpty {
-                                Text(hourLabel)
-                                    .font(.system(size: 11, weight: .medium))
-                            }
+                            Text(formatAxisHour(hour))
+                                .font(.system(size: 11, weight: .medium))
                         }
                     }
                 }
@@ -195,7 +249,7 @@ struct UVIndexCurveView: View {
                 }
             }
             .chartYScale(domain: 0...12)
-            .chartXScale(domain: 0...24)
+            .chartXScale(domain: chartDomain)
             .frame(height: 180)
         }
         .padding(.horizontal)
@@ -206,5 +260,11 @@ struct UVIndexCurveView: View {
         let displayHour = (hour == 0 || hour == 12 || hour == 24) ? 12 : hour % 12
         let suffix = hour < 12 || hour == 24 ? "AM" : "PM"
         return "\(displayHour)\(suffix)"
+    }
+
+    private func formatAxisHour(_ hour: Int) -> String {
+        let displayHour = (hour == 0 || hour == 12 || hour == 24) ? 12 : hour % 12
+        let suffix = hour < 12 || hour == 24 ? "AM" : "PM"
+        return "\(displayHour) \(suffix)"
     }
 }
