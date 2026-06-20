@@ -11,6 +11,7 @@ struct WeatherMetrics: Codable, Equatable {
     let uvIndex: Int?
     let uvIndexCategory: String? // Low, Moderate, High, Very High, Extreme
     let airQuality: AirQuality?
+    let marine: MarineConditions?
     let pressure: String? // in hPa or inHg
     let visibility: String? // in km or miles
     let dewPoint: String? // temperature
@@ -34,9 +35,18 @@ struct AirQuality: Codable, Equatable {
     let dominantPollutant: String?
 }
 
+struct MarineConditions: Codable, Equatable {
+    let waveHeight: String?
+    let waveDirection: String?
+    let wavePeriod: String?
+    let swellHeight: String?
+    let seaSurfaceTemperature: String?
+    let currentSpeed: String?
+    let currentDirection: String?
+}
+
 struct MoonPhase: Codable, Equatable {
     let phase: String // New Moon, Waxing Crescent, First Quarter, Waxing Gibbous, Full Moon, Waning Gibbous, Last Quarter, Waning Crescent
     let illumination: Double // 0.0 to 1.0
     let icon: String
 }
-

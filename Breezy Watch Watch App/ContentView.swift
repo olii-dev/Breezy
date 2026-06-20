@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
+#if os(watchOS)
 import WatchKit
+#endif
 import Charts
 
 struct ContentView: View {
@@ -56,6 +58,9 @@ struct ContentView: View {
                         DailyForecastView(daily: weather.dailyForecast)
                             .containerBackground(Color.clear, for: .tabView)
                         
+                        WatchRadarView()
+                            .containerBackground(Color.clear, for: .tabView)
+                        
                         WatchTimeMachineView()
                             .containerBackground(Color.clear, for: .tabView)
                     }
@@ -94,67 +99,106 @@ struct CurrentOverviewView: View {
     let weather: WatchWeatherData
     @EnvironmentObject var viewModel: WatchWeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    @State private var doubleTapSectionIndex = 0
+
+    private var scrollSectionIDs: [String] {
+        var ids = ["header"]
+        for section in viewModel.layoutSections {
+            switch section {
+            case .hourly:
+                ids.append("hourly")
+            case .metrics:
+                ids.append("metrics")
+            case .header:
+                continue
+            }
+        }
+        ids.append("refresh")
+        ids.append("settings")
+        return ids
+    }
     
     var body: some View {
         let theme = viewModel.theme(for: weather.condition, isSystemDark: colorScheme == .dark)
-        
-        ScrollView {
-            VStack(spacing: 12) {
-                // Pinned Header
-                MainInfoSection(weather: weather, theme: theme, viewModel: viewModel)
-                
-                // Reorderable Sections
-                ForEach(viewModel.layoutSections) { section in
-                    switch section {
-                    case .header:
-                        EmptyView() // Should not happen
-                    case .hourly:
-                        HourlyForecastHorizontalView(hourly: weather.hourlyForecast, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
-                            .padding(.top, 4)
-                    case .metrics:
-                        MetricsPillsWatchView(weather: weather)
-                            .padding(.top, 4)
-                    }
-                }
 
-                Button {
-                    viewModel.playHaptic(.click)
-                    Task {
-                        await viewModel.refresh()
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 12) {
+                    // Pinned Header
+                    MainInfoSection(weather: weather, theme: theme, viewModel: viewModel)
+                        .id("header")
+                    
+                    // Reorderable Sections
+                    ForEach(viewModel.layoutSections) { section in
+                        switch section {
+                        case .header:
+                            EmptyView() // Should not happen
+                        case .hourly:
+                            HourlyForecastHorizontalView(hourly: weather.hourlyForecast, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
+                                .padding(.top, 4)
+                                .id("hourly")
+                        case .metrics:
+                            MetricsPillsWatchView(weather: weather)
+                                .padding(.top, 4)
+                                .id("metrics")
+                        }
                     }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise.circle.fill")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .foregroundColor(theme.textColor)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(theme.textColor.opacity(0.12))
-                        .clipShape(Capsule())
+
+                    Button {
+                        viewModel.playHaptic(.click)
+                        Task {
+                            await viewModel.refresh()
+                        }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise.circle.fill")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .foregroundColor(theme.textColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(theme.textColor.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
+                    .id("refresh")
+                    
+                    // Settings Button (always at bottom)
+                    NavigationLink(destination: SettingsView().environmentObject(viewModel)) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.caption)
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                            .padding()
+                            .background(theme.textColor.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .simultaneousGesture(TapGesture().onEnded {
+                        viewModel.playHaptic(.click)
+                    })
+                    .padding(.top, 20)
+                    .padding(.bottom, 20)
+                    .id("settings")
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
-                
-                // Settings Button (always at bottom)
-                NavigationLink(destination: SettingsView().environmentObject(viewModel)) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.caption)
-                        .foregroundColor(theme.textColor.opacity(0.6))
-                        .padding()
-                        .background(theme.textColor.opacity(0.1))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .simultaneousGesture(TapGesture().onEnded {
-                    viewModel.playHaptic(.click)
-                })
-                .padding(.top, 20)
-                .padding(.bottom, 20)
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
+            .overlay(alignment: .topTrailing) {
+                WatchDoubleTapScrollTrigger {
+                    scrollToNextSection(using: proxy)
+                }
+            }
         }
         .focusable()
+    }
+
+    private func scrollToNextSection(using proxy: ScrollViewProxy) {
+        guard scrollSectionIDs.count > 1 else { return }
+        let nextIndex = doubleTapSectionIndex >= scrollSectionIDs.count - 1 ? 0 : doubleTapSectionIndex + 1
+        doubleTapSectionIndex = nextIndex
+        withAnimation(.easeInOut(duration: 0.28)) {
+            proxy.scrollTo(scrollSectionIDs[nextIndex], anchor: .top)
+        }
     }
 }
 
@@ -237,38 +281,62 @@ struct DailyForecastView: View {
     let daily: [WatchDailyForecast]
     @EnvironmentObject var viewModel: WatchWeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    @State private var doubleTapSectionIndex = 0
+
+    private var scrollSectionIDs: [String] {
+        let groupedIndices = Array(stride(from: 0, to: daily.count, by: 2))
+        return ["top"] + groupedIndices.map { "day-\($0)" }
+    }
     
     var body: some View {
         let theme = viewModel.currentTheme(isSystemDark: colorScheme == .dark)
-        
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("10-DAY OUTLOOK")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(theme.textColor.opacity(0.8))
-                    .padding(.top, 4)
-                
-                VStack(spacing: 0) {
-                    let globalMin = daily.map { $0.lowValue }.min() ?? 0
-                    let globalMax = daily.map { $0.highValue }.max() ?? 100
+
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("10-DAY OUTLOOK")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(theme.textColor.opacity(0.8))
+                        .padding(.top, 4)
+                        .id("top")
                     
-                    ForEach(daily) { day in
-                        NavigationLink(destination: DayDetailView(day: day).environmentObject(viewModel)) {
-                            WatchDailyForecastRow(day: day, rangeLow: globalMin, rangeHigh: globalMax, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
-                        }
-                        .buttonStyle(.plain)
-                        .simultaneousGesture(TapGesture().onEnded {
-                            viewModel.playHaptic(.click)
-                        })
+                    VStack(spacing: 0) {
+                        let globalMin = daily.map { $0.lowValue }.min() ?? 0
+                        let globalMax = daily.map { $0.highValue }.max() ?? 100
                         
-                        Divider().background(theme.textColor.opacity(0.15))
+                        ForEach(Array(daily.enumerated()), id: \.element.id) { index, day in
+                            NavigationLink(destination: DayDetailView(day: day).environmentObject(viewModel)) {
+                                WatchDailyForecastRow(day: day, rangeLow: globalMin, rangeHigh: globalMax, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
+                            }
+                            .buttonStyle(.plain)
+                            .simultaneousGesture(TapGesture().onEnded {
+                                viewModel.playHaptic(.click)
+                            })
+                            .id("day-\(index)")
+                            
+                            Divider().background(theme.textColor.opacity(0.15))
+                        }
                     }
                 }
+                .padding(.horizontal)
+                .padding(.bottom)
             }
-            .padding(.horizontal)
-            .padding(.bottom)
+            .overlay(alignment: .topTrailing) {
+                WatchDoubleTapScrollTrigger {
+                    scrollToNextSection(using: proxy)
+                }
+            }
         }
         .focusable()
+    }
+
+    private func scrollToNextSection(using proxy: ScrollViewProxy) {
+        guard scrollSectionIDs.count > 1 else { return }
+        let nextIndex = doubleTapSectionIndex >= scrollSectionIDs.count - 1 ? 0 : doubleTapSectionIndex + 1
+        doubleTapSectionIndex = nextIndex
+        withAnimation(.easeInOut(duration: 0.28)) {
+            proxy.scrollTo(scrollSectionIDs[nextIndex], anchor: .top)
+        }
     }
 }
 
@@ -422,6 +490,26 @@ struct NoDataView: View {
             .tint(.white.opacity(0.9))
         }
         .padding()
+    }
+}
+
+struct WatchDoubleTapScrollTrigger: View {
+    let action: () -> Void
+
+    var body: some View {
+        Group {
+            if #available(watchOS 11.0, *) {
+                Button(action: action) {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .accessibilityHidden(true)
+                .handGestureShortcut(.primaryAction)
+            }
+        }
     }
 }
 

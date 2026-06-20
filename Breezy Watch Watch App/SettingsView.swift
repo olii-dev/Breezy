@@ -102,7 +102,11 @@ struct SettingsView: View {
 
     private var dataSummary: String {
         let unit = WatchTemperatureUnit.fromUserDefaults() == .fahrenheit ? "°F" : "°C"
-        return "\(unit) • \(viewModel.visibleMetrics.count) metrics"
+        let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup)
+        let source = defaults?.string(forKey: WatchAppStorageKey.weatherSource).flatMap(WatchSelectedWeatherSource.init(rawValue:))
+            ?? defaults?.string(forKey: WatchAppStorageKey.phoneWeatherSource).flatMap(WatchSelectedWeatherSource.init(rawValue:))
+            ?? .weatherKit
+        return "\(source.displayName) • \(unit) • \(viewModel.visibleMetrics.count) metrics"
     }
 }
 
@@ -462,6 +466,7 @@ struct DataSettingsView: View {
     @State private var pressureUnit: PressureUnit = .hectopascals
     @State private var visibilityUnit: VisibilityUnit = .kilometers
     @State private var precipitationUnit: PrecipitationUnit = .millimeters
+    @State private var weatherSource: WatchSelectedWeatherSource = .weatherKit
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -477,6 +482,25 @@ struct DataSettingsView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
+                    SettingsCard(title: "WEATHER SOURCE", textColor: theme.textColor) {
+                        VStack(spacing: 4) {
+                            SettingsDestinationRow(
+                                icon: "antenna.radiowaves.left.and.right",
+                                title: "Provider",
+                                subtitle: weatherSource.displayName,
+                                textColor: theme.textColor,
+                                destination: EnumSelectionView(
+                                    title: "Weather Source",
+                                    options: Array(WatchSelectedWeatherSource.allCases),
+                                    selected: $weatherSource,
+                                    textColor: theme.textColor,
+                                    label: { $0.displayName },
+                                    onSelect: updateWeatherSource
+                                )
+                            )
+                        }
+                    }
+
                     SettingsCard(title: "UNITS", textColor: theme.textColor) {
                         VStack(spacing: 4) {
                             SettingsDestinationRow(
@@ -588,12 +612,20 @@ struct DataSettingsView: View {
         .navigationTitle("Units & Data")
         .onAppear {
             let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup)
+            weatherSource = defaults?.string(forKey: WatchAppStorageKey.weatherSource).flatMap(WatchSelectedWeatherSource.init(rawValue:))
+                ?? defaults?.string(forKey: WatchAppStorageKey.phoneWeatherSource).flatMap(WatchSelectedWeatherSource.init(rawValue:))
+                ?? .weatherKit
             temperatureUnit = defaults?.string(forKey: WatchAppStorageKey.temperatureUnit).flatMap(WatchTemperatureUnit.init(rawValue:)) ?? .celsius
             windSpeedUnit = defaults?.string(forKey: WatchAppStorageKey.windSpeedUnit).flatMap(WindSpeedUnit.init(rawValue:)) ?? .metersPerSecond
             pressureUnit = defaults?.string(forKey: WatchAppStorageKey.pressureUnit).flatMap(PressureUnit.init(rawValue:)) ?? .hectopascals
             visibilityUnit = defaults?.string(forKey: WatchAppStorageKey.visibilityUnit).flatMap(VisibilityUnit.init(rawValue:)) ?? .kilometers
             precipitationUnit = defaults?.string(forKey: "Breezy.precipitationUnit").flatMap(PrecipitationUnit.init(rawValue:)) ?? .millimeters
         }
+    }
+
+    private func updateWeatherSource(_ source: WatchSelectedWeatherSource) {
+        weatherSource = source
+        persistAndRefresh(source.rawValue, forKey: WatchAppStorageKey.weatherSource)
     }
 
     private func updateTemperatureUnit(_ unit: WatchTemperatureUnit) {

@@ -9,12 +9,15 @@ import SwiftUI
 
 struct RadarLegendView: View {
     let layer: RadarLayer
+    let precipitationSource: RadarPrecipitationSource
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
+        let gradient = layer.legendGradient(for: precipitationSource)
+
         VStack(alignment: .leading, spacing: 4) {
             LinearGradient(
-                stops: layer.legendGradient.map { item in
+                stops: gradient.map { item in
                     Gradient.Stop(
                         color: Color(hex: item.color),
                         location: normalizedPosition(for: item.value)
@@ -31,13 +34,13 @@ struct RadarLegendView: View {
             )
             
             HStack(spacing: 0) {
-                Text(layer.legendGradient.first?.label ?? "")
+                Text(gradient.first?.label ?? "")
                     .font(.system(size: 8))
                     .foregroundColor(.white.opacity(0.9))
                 
                 Spacer()
                 
-                Text(layer.legendGradient.last?.label ?? "")
+                Text(gradient.last?.label ?? "")
                     .font(.system(size: 8))
                     .foregroundColor(.white.opacity(0.9))
             }
@@ -49,7 +52,7 @@ struct RadarLegendView: View {
     }
     
     private func normalizedPosition(for value: Double) -> Double {
-        let values = layer.legendGradient.map { $0.value }
+        let values = layer.legendGradient(for: precipitationSource).map { $0.value }
         guard let min = values.min(), let max = values.max(), max > min else {
             return 0.5
         }

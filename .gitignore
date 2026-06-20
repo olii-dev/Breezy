@@ -16,7 +16,9 @@
 # Build artifacts
 DerivedData/
 .DerivedData/
+.DerivedData*/
 .DerivedDataDevice/
+.DerivedDataPhase/
 .website-build/
 build/
 *.ipa
@@ -40,6 +42,7 @@ full_build.txt
 *.pem
 *.key
 AuthKey_*
+Breezy/RadarSecrets.plist
 
 # IDE and editor files
 .idea/

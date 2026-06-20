@@ -1,0 +1,19 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="128" y1="84" x2="900" y2="924" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1336"/>
+      <stop offset="0.54" stop-color="#292B6A"/>
+      <stop offset="1" stop-color="#6941C6"/>
+    </linearGradient>
+    <radialGradient id="moonGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(522 444) rotate(90) scale(260)">
+      <stop stop-color="#FFF3B2" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#FFF3B2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="40" y="40" width="944" height="944" rx="220" fill="url(#bg)"/>
+  <circle cx="522" cy="444" r="260" fill="url(#moonGlow)"/>
+  <path d="M594 280C522.803 295.492 470 359.009 470 434.25C470 521.133 540.367 591.5 627.25 591.5C666.623 591.5 702.62 577.043 730.213 553.121C711.152 626.089 644.852 680 565.961 680C472.199 680 396.188 603.989 396.188 510.227C396.188 422.868 462.263 350.943 547.188 341.713C563.115 339.982 578.802 339.297 594 340.26V280Z" fill="#FFE89A"/>
+  <path d="M692 352L708 392L748 408L708 424L692 464L676 424L636 408L676 392L692 352Z" fill="#FFF7D6" opacity="0.88"/>
+  <path d="M770 478L780 504L806 514L780 524L770 550L760 524L734 514L760 504L770 478Z" fill="#FFF7D6" opacity="0.72"/>
+  <path d="M308 704C308 651.533 350.533 609 403 609C416.69 609 429.633 611.933 441.285 617.202C462.48 583.305 498.998 561 540.707 561C605.758 561 658.5 613.742 658.5 678.793C658.5 682.621 658.318 686.408 657.965 690.145C692.685 699.53 718 730.871 718 766.936C718 810.835 682.401 846.434 638.502 846.434H411C354.667 846.434 309 800.767 309 744.434L308 704Z" fill="#E7F0FF" opacity="0.96"/>
+</svg>

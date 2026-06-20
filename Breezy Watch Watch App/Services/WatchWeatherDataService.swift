@@ -18,6 +18,8 @@ final class WatchWeatherDataService {
     private init() {}
 
     func fetchWeather(selectedLocation: WatchSavedLocation?) async throws -> WatchWeatherData {
+        let source = selectedWeatherSource()
+
         do {
             if let selectedLocation {
                 if let phoneReply = try? await WatchSessionManager.shared.requestWeatherData(
@@ -34,7 +36,8 @@ final class WatchWeatherDataService {
                     return parsed
                 }
 
-                let weather = try await fetchFromWeatherKit(
+                let weather = try await fetchFromSelectedSource(
+                    source: source,
                     latitude: selectedLocation.latitude,
                     longitude: selectedLocation.longitude,
                     city: selectedLocation.name
@@ -59,7 +62,8 @@ final class WatchWeatherDataService {
             }
 
             let gpsData = try await locationHelper.requestLocationAndGetData()
-            let weather = try await fetchFromWeatherKit(
+            let weather = try await fetchFromSelectedSource(
+                source: source,
                 latitude: gpsData.latitude,
                 longitude: gpsData.longitude,
                 city: gpsData.city
@@ -83,6 +87,16 @@ final class WatchWeatherDataService {
             return nil
         }
 
+        let selectedSource = selectedWeatherSource()
+        if let cachedSourceRaw = defaults.string(forKey: WatchAppStorageKey.lastWeatherSource),
+           let cachedSource = WatchWeatherDataSource(rawValue: cachedSourceRaw) {
+            let matchesSelection = (selectedSource == .weatherKit && cachedSource == .weatherKit)
+                || (selectedSource == .openMeteo && cachedSource == .openMeteo)
+                || cachedSource == .phone
+                || cachedSource == .cache
+            guard matchesSelection else { return nil }
+        }
+
         guard let city = defaults.string(forKey: WatchAppStorageKey.lastCity),
               let temperature = defaults.string(forKey: WatchAppStorageKey.lastTemperature),
               let condition = defaults.string(forKey: WatchAppStorageKey.lastCondition),
@@ -97,6 +111,9 @@ final class WatchWeatherDataService {
         let timestamp = defaults.object(forKey: WatchAppStorageKey.lastCacheTimestamp) as? Date ?? .distantPast
         let latitude = defaults.object(forKey: WatchAppStorageKey.lastLatitude) as? Double
         let longitude = defaults.object(forKey: WatchAppStorageKey.lastLongitude) as? Double
+        let source = defaults.string(forKey: WatchAppStorageKey.lastWeatherSource)
+            .flatMap(WatchWeatherDataSource.init(rawValue:))
+            ?? .cache
 
         return WatchWeatherData(
             city: city,
@@ -122,7 +139,7 @@ final class WatchWeatherDataService {
             sunrise: nil,
             sunset: nil,
             metadata: WatchWeatherMetadata(
-                source: .cache,
+                source: source == .cache ? .cache : source,
                 fetchedAt: timestamp,
                 isStale: markStale,
                 latitude: latitude,
@@ -157,7 +174,36 @@ final class WatchWeatherDataService {
         defaults.set(weather.highTemp, forKey: WatchAppStorageKey.lastHighTemp)
         defaults.set(weather.lowTemp, forKey: WatchAppStorageKey.lastLowTemp)
         defaults.set(weather.metadata.fetchedAt, forKey: WatchAppStorageKey.lastCacheTimestamp)
+        defaults.set(weather.metadata.source.rawValue, forKey: WatchAppStorageKey.lastWeatherSource)
         defaults.synchronize()
+    }
+
+    private func selectedWeatherSource() -> WatchSelectedWeatherSource {
+        let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup) ?? .standard
+        return defaults.string(forKey: WatchAppStorageKey.weatherSource)
+            .flatMap(WatchSelectedWeatherSource.init(rawValue:))
+            ?? defaults.string(forKey: WatchAppStorageKey.phoneWeatherSource)
+                .flatMap(WatchSelectedWeatherSource.init(rawValue:))
+            ?? .weatherKit
+    }
+
+    private func fetchFromSelectedSource(
+        source: WatchSelectedWeatherSource,
+        latitude: Double,
+        longitude: Double,
+        city: String
+    ) async throws -> WatchWeatherData {
+        switch source {
+        case .weatherKit:
+            return try await fetchFromWeatherKit(latitude: latitude, longitude: longitude, city: city)
+        case .openMeteo:
+            return try await WatchOpenMeteoClient.shared.fetchWeather(
+                latitude: latitude,
+                longitude: longitude,
+                city: city,
+                units: currentUnits()
+            )
+        }
     }
 
     private func fetchFromWeatherKit(latitude: Double, longitude: Double, city: String) async throws -> WatchWeatherData {

@@ -18,6 +18,32 @@ struct FullScreenRadarView: View {
     @State private var showLayerMenu = false
     @State private var isLoading = true
 
+    // Animation state
+    @State private var frames: [RadarService.RainViewerFrameData] = []
+    @State private var currentFrameIndex: Int = 0
+    @State private var isPlaying: Bool = false
+    @State private var animationTimer: Timer?
+    @State private var metadataLoaded: Bool = false
+    @State private var isScrubbing: Bool = false
+
+    private var precipitationSource: RadarPrecipitationSource {
+        viewModel.radarPrecipitationSource
+    }
+
+    private var canAnimate: Bool {
+        selectedLayer == .precipitation && precipitationSource == .rainViewer && !frames.isEmpty
+    }
+
+    private var activeFramePath: String? {
+        guard canAnimate, frames.indices.contains(currentFrameIndex) else { return nil }
+        return frames[currentFrameIndex].path
+    }
+
+    private var activeFrameTime: Date? {
+        guard canAnimate, frames.indices.contains(currentFrameIndex) else { return nil }
+        return frames[currentFrameIndex].time
+    }
+
     private let defaultSpan = MKCoordinateSpan(latitudeDelta: 5.0, longitudeDelta: 5.0)
 
     private var currentCoordinate: CLLocationCoordinate2D {
@@ -59,10 +85,12 @@ struct FullScreenRadarView: View {
             RadarMapView(
                 region: $region,
                 layer: selectedLayer,
+                precipitationSource: precipitationSource,
                 isLoading: $isLoading,
                 coordinate: currentCoordinate,
                 isDark: theme.isDark,
-                mapStyle: viewModel.mapStyle
+                mapStyle: viewModel.mapStyle,
+                framePath: activeFramePath
             )
             .ignoresSafeArea()
 
@@ -90,8 +118,82 @@ struct FullScreenRadarView: View {
                 VStack {
                     Spacer()
 
+                    // Playback controls (only for RainViewer precipitation)
+                    if canAnimate {
+                        VStack(spacing: 8) {
+                            // Timeline scrubber
+                            HStack(spacing: 8) {
+                                Button {
+                                    HapticsManager.shared.impact(style: .light)
+                                    togglePlayback()
+                                } label: {
+                                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.white.opacity(0.18), in: Circle())
+                                }
+
+                                VStack(spacing: 2) {
+                                    GeometryReader { geo in
+                                        ZStack(alignment: .leading) {
+                                            Capsule()
+                                                .fill(Color.white.opacity(0.22))
+                                                .frame(height: 4)
+
+                                            Capsule()
+                                                .fill(Color.white)
+                                                .frame(width: max(0, geo.size.width * CGFloat(frames.isEmpty ? 0 : currentFrameIndex) / max(1, CGFloat(frames.count - 1))), height: 4)
+                                        }
+                                        .frame(height: 24)
+                                        .contentShape(Rectangle())
+                                        .gesture(
+                                            DragGesture(minimumDistance: 0)
+                                                .onChanged { value in
+                                                    if !isScrubbing {
+                                                        isScrubbing = true
+                                                        pauseAnimation()
+                                                    }
+                                                    let fraction = max(0, min(1, value.location.x / geo.size.width))
+                                                    let newIndex = Int(round(fraction * CGFloat(max(0, frames.count - 1))))
+                                                    if newIndex != currentFrameIndex {
+                                                        HapticsManager.shared.selectionChanged()
+                                                        currentFrameIndex = newIndex
+                                                    }
+                                                }
+                                                .onEnded { _ in
+                                                    isScrubbing = false
+                                                }
+                                        )
+                                    }
+                                    .frame(height: 24)
+
+                                    HStack {
+                                        Text("-3h")
+                                            .font(.system(size: 9, weight: .medium))
+                                        Spacer()
+                                        if let time = activeFrameTime {
+                                            Text(time, style: .time)
+                                                .font(.system(size: 10, weight: .semibold))
+                                        }
+                                        Spacer()
+                                        Text("+2h")
+                                            .font(.system(size: 9, weight: .medium))
+                                    }
+                                    .foregroundColor(.white.opacity(0.75))
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+
                     HStack(alignment: .bottom) {
-                        RadarLegendView(layer: selectedLayer)
+                        RadarLegendView(layer: selectedLayer, precipitationSource: precipitationSource)
 
                         Spacer()
 
@@ -198,11 +300,15 @@ struct FullScreenRadarView: View {
             .padding(.bottom, 6)
         }
         .sheet(isPresented: $showLayerMenu) {
-            RadarLayerMenuView(selectedLayer: $selectedLayer)
+            RadarLayerMenuView(selectedLayer: $selectedLayer, precipitationSource: precipitationSource)
         }
-        .onChange(of: selectedLayer) { oldValue, newValue in
-            HapticsManager.shared.impact(style: .light)
+        .onChange(of: precipitationSource) { _, _ in
             isLoading = true
+            pauseAnimation()
+            frames = []
+            currentFrameIndex = 0
+            metadataLoaded = false
+            loadFramesIfNeeded()
         }
         .onChange(of: viewModel.currentLocation) { oldValue, newLocation in
             if let location = newLocation {
@@ -214,5 +320,71 @@ struct FullScreenRadarView: View {
                 }
             }
         }
+        .onAppear {
+            loadFramesIfNeeded()
+        }
+        .onDisappear {
+            pauseAnimation()
+        }
+        .onChange(of: selectedLayer) { _, newLayer in
+            // Start playback automatically when entering precipitation RainViewer
+            if newLayer == .precipitation && precipitationSource == .rainViewer {
+                loadFramesIfNeeded()
+            } else {
+                pauseAnimation()
+                frames = []
+                currentFrameIndex = 0
+            }
+        }
+    }
+
+    // MARK: - Animation
+
+    private func loadFramesIfNeeded() {
+        guard selectedLayer == .precipitation,
+              precipitationSource == .rainViewer,
+              !metadataLoaded else { return }
+
+        metadataLoaded = true
+        RadarService.shared.refreshRainViewerMetadataIfNeeded(force: true) {
+            DispatchQueue.main.async {
+                let fresh = RadarService.shared.rainViewerFrames
+                self.frames = fresh
+                if !fresh.isEmpty {
+                    // Default to the latest past frame
+                    self.currentFrameIndex = max(0, fresh.lastIndex(where: { !$0.isNowcast }) ?? fresh.count - 1)
+                }
+            }
+        }
+    }
+
+    private func togglePlayback() {
+        if isPlaying {
+            pauseAnimation()
+        } else {
+            startPlayback()
+        }
+    }
+
+    private func startPlayback() {
+        guard canAnimate else { return }
+        pauseAnimation()
+        isPlaying = true
+
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            DispatchQueue.main.async {
+                guard !self.frames.isEmpty else { return }
+                let next = (self.currentFrameIndex + 1) % self.frames.count
+                if next != self.currentFrameIndex {
+                    self.currentFrameIndex = next
+                }
+            }
+        }
+    }
+
+    private func pauseAnimation() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+        isPlaying = false
     }
 }

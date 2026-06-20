@@ -11,6 +11,7 @@ import SwiftUI
 import Foundation
 import CoreLocation
 import WeatherKit
+import UIKit
 
 // MARK: - Unit Enums (Duplicated for Widget Usage)
 
@@ -236,24 +237,32 @@ class WidgetLocationManager: NSObject, CLLocationManagerDelegate {
 // MARK: - Weather Data Store
 
 struct WeatherDataStore {
-    private static let key = "BreezyWidgetData"
-    private static let lastRefreshKey = "BreezyLastRefresh"
+    private static let keyPrefix = "BreezyWidgetData"
+    private static let lastRefreshKeyPrefix = "BreezyLastRefresh"
+
+    private static func key(for source: WidgetWeatherSource) -> String {
+        "\(keyPrefix).\(source.rawValue)"
+    }
+
+    private static func lastRefreshKey(for source: WidgetWeatherSource) -> String {
+        "\(lastRefreshKeyPrefix).\(source.rawValue)"
+    }
     
-    static var isDataFresh: Bool {
+    static func isDataFresh(for source: WidgetWeatherSource = .selected) -> Bool {
         guard let defaults = UserDefaults(suiteName: "group.com.breezy.weather"),
-              let lastRefresh = defaults.object(forKey: lastRefreshKey) as? Date else {
+              let lastRefresh = defaults.object(forKey: lastRefreshKey(for: source)) as? Date else {
             return false
         }
         let freshnessInterval: TimeInterval = 30 * 60 // 30 minutes
         return Date().timeIntervalSince(lastRefresh) < freshnessInterval
     }
     
-    static func load() -> WidgetWeatherData? {
+    static func load(for source: WidgetWeatherSource = .selected) -> WidgetWeatherData? {
         guard let defaults = UserDefaults(suiteName: "group.com.breezy.weather") else {
             return nil
         }
         
-        guard let data = defaults.data(forKey: key) else {
+        guard let data = defaults.data(forKey: key(for: source)) else {
             return nil
         }
         
@@ -270,45 +279,75 @@ struct WeatherDataStore {
 
 struct WeatherThemeHelper {
     static let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
-    
-    static func gradientColors(for condition: String, isDark: Bool, conditionCode: String? = nil, isDaylight: Bool? = nil) -> [Color] {
-        // 1. Determine Effective Dark Mode
+
+    struct WidgetTheme {
+        let topColor: Color
+        let bottomColor: Color
+        let textColor: Color
+    }
+
+    private struct PersistedCustomTheme: Codable {
+        let topColor: Data
+        let bottomColor: Data
+        let textColor: Data
+    }
+
+    private static func color(from data: Data, fallback: Color) -> Color {
+        guard let uiColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: UIColor.self, from: data) else {
+            return fallback
+        }
+        return Color(uiColor)
+    }
+
+    private static func selectedCustomTheme() -> WidgetTheme? {
+        guard let data = defaults?.data(forKey: "Breezy.selectedCustomTheme") ?? defaults?.data(forKey: "Breezy.customTheme"),
+              let theme = try? JSONDecoder().decode(PersistedCustomTheme.self, from: data) else {
+            return nil
+        }
+
+        return WidgetTheme(
+            topColor: color(from: theme.topColor, fallback: .blue),
+            bottomColor: color(from: theme.bottomColor, fallback: .purple),
+            textColor: color(from: theme.textColor, fallback: .white)
+        )
+    }
+
+    static func resolvedTheme(for condition: String, isDark: Bool, conditionCode: String? = nil, isDaylight: Bool? = nil) -> WidgetTheme {
         let appearanceMode = defaults?.string(forKey: "Breezy.appearanceMode") ?? "System"
         var effectiveIsDark = isDark
-        
+
         if appearanceMode == "Dark" {
             effectiveIsDark = true
         } else if appearanceMode == "Light" {
             effectiveIsDark = false
         }
-        
-        // 2. Check App Theme Preference
+
         let themeModeRaw = defaults?.string(forKey: "Breezy.themeMode") ?? "Weather"
-        
+
+        if themeModeRaw == "Custom", let customTheme = selectedCustomTheme() {
+            return customTheme
+        }
+
         if themeModeRaw == "Pro Theme" {
-            // Use Preset
             let presetName = defaults?.string(forKey: "Breezy.presetTheme") ?? "Cotton Candy"
             if let preset = presets.first(where: { $0.name == presetName }) {
-                let theme = effectiveIsDark ? preset.dark : preset.light
-                // Adapt to Watch/Widget theme structure (Top/Bottom)
-                return [theme.topColor, theme.bottomColor]
+                return effectiveIsDark ? preset.dark : preset.light
             }
         }
-        
-        // 3. Fallback to Weather-based (Auto)
-        
-        // We prioritise the App/System appearance preference (effectiveIsDark)
-        // over the raw "isDaylight" flag, to ensure the UI matches the requested mode.
-        // (The app uses isDark to switch between Light/Dark palettes).
-        
+
         let code = conditionCode ?? condition
-        return getGradient(for: code, isNight: effectiveIsDark, fallbackCondition: condition)
+        let gradient = getGradient(for: code, isNight: effectiveIsDark, fallbackCondition: condition)
+        let textColor = effectiveIsDark ? Color.white : Color(red: 0.2, green: 0.2, blue: 0.25)
+        return WidgetTheme(topColor: gradient[0], bottomColor: gradient[1], textColor: textColor)
     }
     
-    // MARK: - Presets Definition (Mirrored from App)
-    struct WidgetTheme {
-        let topColor: Color
-        let bottomColor: Color
+    static func gradientColors(for condition: String, isDark: Bool, conditionCode: String? = nil, isDaylight: Bool? = nil) -> [Color] {
+        let theme = resolvedTheme(for: condition, isDark: isDark, conditionCode: conditionCode, isDaylight: isDaylight)
+        return [theme.topColor, theme.bottomColor]
+    }
+
+    static func textColor(for condition: String, isDark: Bool, conditionCode: String? = nil, isDaylight: Bool? = nil) -> Color {
+        resolvedTheme(for: condition, isDark: isDark, conditionCode: conditionCode, isDaylight: isDaylight).textColor
     }
     
     struct NamedTheme {
@@ -320,43 +359,43 @@ struct WeatherThemeHelper {
     static let presets: [NamedTheme] = [
         NamedTheme(
             name: "Cotton Candy",
-            light: WidgetTheme(topColor: Color(red: 1.0, green: 0.76, blue: 0.63), bottomColor: Color(red: 1.0, green: 0.69, blue: 0.74)),
-            dark: WidgetTheme(topColor: Color(red: 0.67, green: 0.39, blue: 0.45), bottomColor: Color(red: 0.55, green: 0.31, blue: 0.38))
+            light: WidgetTheme(topColor: Color(red: 1.0, green: 0.76, blue: 0.63), bottomColor: Color(red: 1.0, green: 0.69, blue: 0.74), textColor: Color(red: 0.37, green: 0.29, blue: 0.34)),
+            dark: WidgetTheme(topColor: Color(red: 0.67, green: 0.39, blue: 0.45), bottomColor: Color(red: 0.55, green: 0.31, blue: 0.38), textColor: .white)
         ),
         NamedTheme(
             name: "Ocean",
-            light: WidgetTheme(topColor: Color(red: 0.13, green: 0.58, blue: 0.69), bottomColor: Color(red: 0.43, green: 0.84, blue: 0.93)),
-            dark: WidgetTheme(topColor: Color(red: 0.06, green: 0.25, blue: 0.36), bottomColor: Color(red: 0.16, green: 0.32, blue: 0.60))
+            light: WidgetTheme(topColor: Color(red: 0.13, green: 0.58, blue: 0.69), bottomColor: Color(red: 0.43, green: 0.84, blue: 0.93), textColor: .white),
+            dark: WidgetTheme(topColor: Color(red: 0.06, green: 0.25, blue: 0.36), bottomColor: Color(red: 0.16, green: 0.32, blue: 0.60), textColor: .white)
         ),
         NamedTheme(
             name: "Forest",
-            light: WidgetTheme(topColor: Color(red: 0.44, green: 0.70, blue: 0.50), bottomColor: Color(red: 0.07, green: 0.31, blue: 0.37)),
-            dark: WidgetTheme(topColor: Color(red: 0.11, green: 0.31, blue: 0.16), bottomColor: Color(red: 0.04, green: 0.17, blue: 0.15))
+            light: WidgetTheme(topColor: Color(red: 0.44, green: 0.70, blue: 0.50), bottomColor: Color(red: 0.07, green: 0.31, blue: 0.37), textColor: .white),
+            dark: WidgetTheme(topColor: Color(red: 0.11, green: 0.31, blue: 0.16), bottomColor: Color(red: 0.04, green: 0.17, blue: 0.15), textColor: .white)
         ),
         NamedTheme(
             name: "Sunset",
-            light: WidgetTheme(topColor: Color(red: 1.0, green: 0.32, blue: 0.18), bottomColor: Color(red: 0.87, green: 0.14, blue: 0.46)),
-            dark: WidgetTheme(topColor: Color(red: 0.56, green: 0.14, blue: 0.14), bottomColor: Color(red: 0.35, green: 0.11, blue: 0.24))
+            light: WidgetTheme(topColor: Color(red: 1.0, green: 0.32, blue: 0.18), bottomColor: Color(red: 0.87, green: 0.14, blue: 0.46), textColor: .white),
+            dark: WidgetTheme(topColor: Color(red: 0.56, green: 0.14, blue: 0.14), bottomColor: Color(red: 0.35, green: 0.11, blue: 0.24), textColor: .white)
         ),
         NamedTheme(
             name: "Midnight",
-            light: WidgetTheme(topColor: Color(red: 0.56, green: 0.62, blue: 0.67), bottomColor: Color(red: 0.93, green: 0.95, blue: 0.95)),
-            dark: WidgetTheme(topColor: Color(red: 0.14, green: 0.15, blue: 0.15), bottomColor: Color(red: 0.25, green: 0.26, blue: 0.27))
+            light: WidgetTheme(topColor: Color(red: 0.56, green: 0.62, blue: 0.67), bottomColor: Color(red: 0.93, green: 0.95, blue: 0.95), textColor: Color(red: 0.17, green: 0.24, blue: 0.31)),
+            dark: WidgetTheme(topColor: Color(red: 0.14, green: 0.15, blue: 0.15), bottomColor: Color(red: 0.25, green: 0.26, blue: 0.27), textColor: .white)
         ),
         NamedTheme(
             name: "Lavender",
-            light: WidgetTheme(topColor: Color(red: 0.88, green: 0.76, blue: 0.99), bottomColor: Color(red: 0.56, green: 0.77, blue: 0.99)),
-            dark: WidgetTheme(topColor: Color(red: 0.34, green: 0.24, blue: 0.50), bottomColor: Color(red: 0.23, green: 0.25, blue: 0.44))
+            light: WidgetTheme(topColor: Color(red: 0.88, green: 0.76, blue: 0.99), bottomColor: Color(red: 0.56, green: 0.77, blue: 0.99), textColor: Color(red: 0.29, green: 0.29, blue: 0.29)),
+            dark: WidgetTheme(topColor: Color(red: 0.34, green: 0.24, blue: 0.50), bottomColor: Color(red: 0.23, green: 0.25, blue: 0.44), textColor: .white)
         ),
         NamedTheme(
             name: "Royal",
-            light: WidgetTheme(topColor: Color(red: 0.33, green: 0.41, blue: 0.46), bottomColor: Color(red: 0.16, green: 0.18, blue: 0.29)),
-            dark: WidgetTheme(topColor: Color(red: 0.08, green: 0.12, blue: 0.19), bottomColor: Color(red: 0.14, green: 0.23, blue: 0.33))
+            light: WidgetTheme(topColor: Color(red: 0.33, green: 0.41, blue: 0.46), bottomColor: Color(red: 0.16, green: 0.18, blue: 0.29), textColor: .white),
+            dark: WidgetTheme(topColor: Color(red: 0.08, green: 0.12, blue: 0.19), bottomColor: Color(red: 0.14, green: 0.23, blue: 0.33), textColor: .white)
         ),
         NamedTheme(
             name: "Mango",
-            light: WidgetTheme(topColor: Color(red: 1.0, green: 0.89, blue: 0.35), bottomColor: Color(red: 1.0, green: 0.65, blue: 0.32)),
-            dark: WidgetTheme(topColor: Color(red: 0.70, green: 0.49, blue: 0.13), bottomColor: Color(red: 0.55, green: 0.31, blue: 0.09))
+            light: WidgetTheme(topColor: Color(red: 1.0, green: 0.89, blue: 0.35), bottomColor: Color(red: 1.0, green: 0.65, blue: 0.32), textColor: Color(red: 0.37, green: 0.29, blue: 0.34)),
+            dark: WidgetTheme(topColor: Color(red: 0.70, green: 0.49, blue: 0.13), bottomColor: Color(red: 0.55, green: 0.31, blue: 0.09), textColor: .white)
         )
     ]
     
@@ -539,7 +578,7 @@ struct Provider: TimelineProvider {
         }
 
         let entry: WeatherEntry
-        if let weather = WeatherDataStore.load() {
+        if let weather = WeatherDataStore.load(for: .selected) {
             entry = WeatherEntry(date: Date(), weather: weather)
         } else {
             // Provide minimal placeholder entry with no sample data
@@ -553,7 +592,9 @@ struct Provider: TimelineProvider {
         let calendar = Calendar.current
         
         // 1. Load cached data first to check for coordinates
-        guard let cachedData = WeatherDataStore.load() else {
+        let selectedSource = WidgetWeatherSource.selected
+
+        guard let cachedData = WeatherDataStore.load(for: selectedSource) else {
             // No data at all - return placeholder and retry soon
             let entries = [placeholder(in: context)]
             let timeline = Timeline(entries: entries, policy: .after(currentDate.addingTimeInterval(15 * 60)))
@@ -591,7 +632,7 @@ struct Provider: TimelineProvider {
                          futureWeather = WidgetWeatherData(
                             city: data.city,
                             temperature: matchingForecast.temperature,
-                            condition: matchingForecast.condition ?? data.condition,
+                            condition: matchingForecast.condition,
                             emoji: matchingForecast.emoji,
                             highTemp: data.highTemp,
                             lowTemp: data.lowTemp,
@@ -674,15 +715,31 @@ struct Provider: TimelineProvider {
             
             // OPTIMIZATION: Check if data is already fresh (within 30 mins)
             // If app refreshed recently, skip API call and use cached data
-            if WeatherDataStore.isDataFresh {
+            if WeatherDataStore.isDataFresh(for: selectedSource) {
                 print("📱 Widget: Data is fresh, using cache instead of fetching")
                 createTimeline(from: cachedData)
                 return
             }
             
-                // 4. Fetch Fresh Data
-             do {
-                 let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
+            // 4. Fetch Fresh Data
+            do {
+                if selectedSource == .openMeteo {
+                    let openMeteoData = try await WidgetOpenMeteoClient.shared.fetchWeather(
+                        latitude: coords.lat,
+                        longitude: coords.lon,
+                        cachedCity: cachedData.city,
+                        defaults: defaults
+                    )
+                    if let encoded = try? JSONEncoder().encode(openMeteoData) {
+                        defaults?.set(encoded, forKey: "BreezyWidgetData.\(selectedSource.rawValue)")
+                        defaults?.set(Date(), forKey: "BreezyLastRefresh.\(selectedSource.rawValue)")
+                    }
+                    print("✅ Widget: Fetched fresh Open-Meteo data for \(openMeteoData.city)")
+                    createTimeline(from: openMeteoData)
+                    return
+                }
+
+                let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
                 let weatherService = WeatherService.shared
                 let weather = try await weatherService.weather(for: location)
                 
@@ -868,6 +925,11 @@ struct Provider: TimelineProvider {
                     dailyForecast: dailyForecasts
                 )
                 
+                if let encoded = try? JSONEncoder().encode(newData) {
+                    defaults?.set(encoded, forKey: "BreezyWidgetData.\(selectedSource.rawValue)")
+                    defaults?.set(Date(), forKey: "BreezyLastRefresh.\(selectedSource.rawValue)")
+                }
+
                 print("✅ Widget: Fetched fresh data for \(cachedData.city)")
                 createTimeline(from: newData)
                 
@@ -918,13 +980,17 @@ struct SmallWidgetView: View {
     let entry: WeatherEntry
     @Environment(\.colorScheme) var colorScheme
     
+    private var theme: WeatherThemeHelper.WidgetTheme {
+        WeatherThemeHelper.resolvedTheme(for: entry.weather.condition, isDark: colorScheme == .dark)
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
                 Text(entry.weather.city)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.textColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
@@ -941,7 +1007,7 @@ struct SmallWidgetView: View {
                 if entry.weather.useMinimalistIcons ?? true {
                     Image(systemName: icon)
                         .font(.system(size: 40, weight: .light))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.textColor)
                         .symbolRenderingMode(.hierarchical)
                 } else {
                     Text(icon)
@@ -950,13 +1016,13 @@ struct SmallWidgetView: View {
                 
                 Text(entry.weather.temperature)
                     .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.textColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 
                 Text(entry.weather.condition)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundColor(theme.textColor.opacity(0.85))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .padding(.horizontal, 8)
@@ -972,11 +1038,11 @@ struct SmallWidgetView: View {
                         .font(.system(size: 10, weight: .medium))
                     Text("•")
                         .font(.system(size: 8))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(theme.textColor.opacity(0.5))
                     Text("L:\(low)")
                         .font(.system(size: 10, weight: .medium))
                 }
-                .foregroundColor(.white.opacity(0.75))
+                .foregroundColor(theme.textColor.opacity(0.75))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .padding(.horizontal, 14)
@@ -1015,6 +1081,10 @@ struct MediumWidgetView: View {
     let entry: WeatherEntry
     @Environment(\.colorScheme) var colorScheme
     
+    private var theme: WeatherThemeHelper.WidgetTheme {
+        WeatherThemeHelper.resolvedTheme(for: entry.weather.condition, isDark: colorScheme == .dark)
+    }
+    
     var body: some View {
         HStack(spacing: 16) {
             // Left side - Current weather (centered vertically)
@@ -1024,7 +1094,7 @@ struct MediumWidgetView: View {
                 VStack(alignment: .center, spacing: 6) {
                     Text(entry.weather.city)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.textColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     
@@ -1034,7 +1104,7 @@ struct MediumWidgetView: View {
                     if entry.weather.useMinimalistIcons ?? true {
                         Image(systemName: icon)
                             .font(.system(size: 44, weight: .light))
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.textColor)
                             .symbolRenderingMode(.hierarchical)
                             .padding(.vertical, 4)
                     } else {
@@ -1045,13 +1115,13 @@ struct MediumWidgetView: View {
                     
                     Text(entry.weather.temperature)
                         .font(.system(size: 34, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.textColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     
                     Text(entry.weather.condition)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.85))
+                        .foregroundColor(theme.textColor.opacity(0.85))
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .padding(.horizontal, 4)
@@ -1062,11 +1132,11 @@ struct MediumWidgetView: View {
                                 .font(.system(size: 11, weight: .medium))
                             Text("•")
                                 .font(.system(size: 9))
-                                .foregroundColor(.white.opacity(0.5))
+                                .foregroundColor(theme.textColor.opacity(0.5))
                             Text("L:\(low)")
                                 .font(.system(size: 11, weight: .medium))
                         }
-                        .foregroundColor(.white.opacity(0.75))
+                        .foregroundColor(theme.textColor.opacity(0.75))
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .padding(.top, 2)
@@ -1080,7 +1150,7 @@ struct MediumWidgetView: View {
             
             // Divider
             Rectangle()
-                .fill(Color.white.opacity(0.2))
+                .fill(theme.textColor.opacity(0.2))
                 .frame(width: 1)
                 .padding(.vertical, 16)
             
@@ -1091,14 +1161,14 @@ struct MediumWidgetView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Today")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(theme.textColor.opacity(0.9))
                         .padding(.bottom, 2)
                     
                     ForEach(entry.nextThreeHours, id: \.time) { hour in
                         HStack(spacing: 8) {
                             Text(hour.time)
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.white.opacity(0.8))
+                                .foregroundColor(theme.textColor.opacity(0.8))
                                 .frame(width: 36, alignment: .leading)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
@@ -1109,7 +1179,7 @@ struct MediumWidgetView: View {
                             if entry.weather.useMinimalistIcons ?? true {
                                 Image(systemName: hourIcon)
                                     .font(.system(size: 18, weight: .light))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(theme.textColor)
                                     .symbolRenderingMode(.hierarchical)
                             } else {
                                 Text(hourIcon)
@@ -1120,15 +1190,16 @@ struct MediumWidgetView: View {
                             
                             Text(hour.temperature)
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(theme.textColor)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                         }
                         .padding(.vertical, 5)
                         .padding(.horizontal, 8)
-                        .background(Color.white.opacity(0.15))
+                        .background(theme.textColor.opacity(0.15))
                         .cornerRadius(8)
                     }
+                }
                 
                 Spacer()
             }
@@ -1156,7 +1227,6 @@ struct MediumWidgetView: View {
                     .offset(x: 50, y: 25)
             }
         }
-        }
     }
     
     var gradientColors: [Color] {
@@ -1168,6 +1238,10 @@ struct LargeWidgetView: View {
     let entry: WeatherEntry
     @Environment(\.colorScheme) var colorScheme
     
+    private var theme: WeatherThemeHelper.WidgetTheme {
+        WeatherThemeHelper.resolvedTheme(for: entry.weather.condition, isDark: colorScheme == .dark)
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -1175,13 +1249,13 @@ struct LargeWidgetView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.weather.city)
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.textColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     
                     Text("Updated \(timeAgo)")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(theme.textColor.opacity(0.7))
                 }
                 Spacer()
             }
@@ -1197,7 +1271,7 @@ struct LargeWidgetView: View {
                 if entry.weather.useMinimalistIcons ?? true {
                     Image(systemName: icon)
                         .font(.system(size: 50, weight: .light)) // Adjusted from 56
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.textColor)
                         .symbolRenderingMode(.hierarchical)
                 } else {
                     Text(icon)
@@ -1206,13 +1280,13 @@ struct LargeWidgetView: View {
                 
                 Text(entry.weather.temperature)
                     .font(.system(size: 42, weight: .bold)) // Adjusted from 48
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.textColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 
                 Text(entry.weather.condition)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(theme.textColor.opacity(0.9))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 
@@ -1222,11 +1296,11 @@ struct LargeWidgetView: View {
                             .font(.system(size: 14, weight: .semibold))
                         Text("•")
                             .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(theme.textColor.opacity(0.5))
                         Text("L:\(low)")
                             .font(.system(size: 14, weight: .semibold))
                     }
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(theme.textColor.opacity(0.8))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 }
@@ -1239,14 +1313,14 @@ struct LargeWidgetView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Today")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.textColor)
                 
                 VStack(spacing: 6) {
                     ForEach(entry.nextThreeHours, id: \.time) { hour in
                         HStack(spacing: 12) {
                             Text(hour.time)
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white.opacity(0.8))
+                                .foregroundColor(theme.textColor.opacity(0.8))
                                 .frame(width: 48, alignment: .leading)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
@@ -1257,7 +1331,7 @@ struct LargeWidgetView: View {
                             if entry.weather.useMinimalistIcons ?? true {
                                 Image(systemName: hourIcon)
                                     .font(.system(size: 20, weight: .light))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(theme.textColor)
                                     .symbolRenderingMode(.hierarchical)
                             } else {
                                 Text(hourIcon)
@@ -1268,13 +1342,13 @@ struct LargeWidgetView: View {
                             
                             Text(hour.temperature)
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(theme.textColor)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                         }
                         .padding(.vertical, 7)
                         .padding(.horizontal, 12)
-                        .background(Color.white.opacity(0.15))
+                        .background(theme.textColor.opacity(0.15))
                         .cornerRadius(10)
                     }
                 }
@@ -1333,6 +1407,10 @@ struct CustomWidgetView: View {
     let config: CustomWidgetConfiguration
     @Environment(\.colorScheme) var colorScheme
     
+    private var theme: WeatherThemeHelper.WidgetTheme {
+        WeatherThemeHelper.resolvedTheme(for: entry.weather.condition, isDark: colorScheme == .dark)
+    }
+    
     var body: some View {
         ZStack {
             // Content based on Layout Style
@@ -1353,7 +1431,7 @@ struct CustomWidgetView: View {
         .clipShape(ContainerRelativeShape())
         .overlay(
             ContainerRelativeShape()
-                .strokeBorder(Color.white.opacity(config.showBorder ? 0.3 : 0), lineWidth: 1)
+                .strokeBorder(theme.textColor.opacity(config.showBorder ? 0.3 : 0), lineWidth: 1)
         )
     }
     
@@ -1410,7 +1488,7 @@ struct CustomWidgetView: View {
                 metricView(for: .bottomLeft)
             }
             
-            Divider().background(Color.white.opacity(0.3))
+            Divider().background(theme.textColor.opacity(0.3))
             
             // Right Column
             VStack {
@@ -1473,11 +1551,11 @@ struct CustomWidgetView: View {
             ReferenceBackgroundView(entry: entry)
                 .overlay(.ultraThinMaterial)
         case .weatherMatch:
-            LinearGradient(
-                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
-                startPoint: .top,
-                endPoint: .bottom
-            )
+                LinearGradient(
+                    gradient: Gradient(colors: [theme.topColor, theme.bottomColor]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
         }
     }
     
@@ -1500,7 +1578,7 @@ struct CustomWidgetView: View {
             VStack(alignment: align, spacing: 2) {
                 content(for: type, position: position)
             }
-            .foregroundColor(.white)
+            .foregroundColor(theme.textColor)
         } else {
             Color.clear.frame(width: 10, height: 10)
         }

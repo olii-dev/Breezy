@@ -7,7 +7,6 @@
 
 import SwiftUI
 import UserNotifications
-import WeatherKit
 
 struct SettingsView: View {
     @ObservedObject var viewModel: WeatherViewModel
@@ -102,6 +101,7 @@ struct SettingsView: View {
 
                                 NavigationLink {
                                     PrivacySupportView(
+                                        weatherSource: viewModel.weatherSource,
                                         attributionURL: viewModel.attribution?.legalPageURL,
                                         textColor: theme.textColor,
                                         glassOpacity: viewModel.glassOpacity
@@ -192,6 +192,8 @@ struct SettingsView: View {
     }
     
     private func resetDefaults() {
+        viewModel.weatherSource = .weatherKit
+        viewModel.radarPrecipitationSource = .rainViewer
         viewModel.temperatureUnit = .celsius
         viewModel.cacheDurationMinutes = 30
         viewModel.appearanceMode = .auto
@@ -253,6 +255,7 @@ struct SettingsNavCard<Destination: View>: View {
 }
 
 struct PrivacySupportView: View {
+    let weatherSource: WeatherSource
     let attributionURL: URL?
     let textColor: Color
     let glassOpacity: Double
@@ -273,7 +276,7 @@ struct PrivacySupportView: View {
                 infoCard(
                     title: "Weather Data",
                     systemImage: "cloud.sun.fill",
-                    body: "Weather forecasts are provided through Apple Weather and WeatherKit."
+                    body: weatherSource.privacySummary
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -282,8 +285,8 @@ struct PrivacySupportView: View {
                         .foregroundColor(textColor)
 
                     VStack(spacing: 0) {
-                        LinkRow(title: "WeatherKit data sources", subtitle: "Apple Weather attribution and legal") {
-                            openURL(attributionURL ?? weatherKitURL)
+                        LinkRow(title: weatherSource == .weatherKit ? "WeatherKit data sources" : "Open-Meteo docs & attribution", subtitle: weatherSource == .weatherKit ? "Apple Weather attribution and legal" : "Provider docs and usage information") {
+                            openURL(attributionURL ?? weatherSource.legalURL ?? weatherKitURL)
                         }
                     }
                     .background(
@@ -495,6 +498,79 @@ struct DataSettingsView: View {
                             }
                             .padding()
                         }
+                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                    }
+
+                    VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                        Text("WEATHER SOURCE")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                            .padding(.leading, 8)
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("Weather Source", selection: Binding(
+                                get: { viewModel.weatherSource },
+                                set: { newSource in
+                                    HapticsManager.shared.selectionChanged()
+                                    let previousSource = viewModel.weatherSource
+                                    guard previousSource != newSource else { return }
+                                    let preferredLocation = viewModel.preferredLocationForCurrentSelection()
+                                    viewModel.weatherSource = newSource
+                                    viewModel.weather = nil
+                                    viewModel.currentLocation = preferredLocation
+                                    viewModel.loadCacheIfValid(expectedLocation: preferredLocation)
+                                    if viewModel.weather == nil, let location = preferredLocation {
+                                        Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
+                                    }
+                                }
+                            )) {
+                                ForEach(WeatherSource.allCases) { source in
+                                    Text(source.shortLabel).tag(source)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(viewModel.weatherSource.privacySummary)
+                                .font(.caption)
+                                .foregroundColor(theme.textColor.opacity(0.6))
+
+                            Text(viewModel.providerCapabilities.historicalAvailabilityDescription)
+                                .font(.caption2)
+                                .foregroundColor(theme.textColor.opacity(0.45))
+                        }
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                    }
+
+                    VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                        Text("RADAR")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                            .padding(.leading, 8)
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("Precipitation Radar Source", selection: Binding(
+                                get: { viewModel.radarPrecipitationSource },
+                                set: { newSource in
+                                    HapticsManager.shared.selectionChanged()
+                                    viewModel.radarPrecipitationSource = newSource
+                                }
+                            )) {
+                                ForEach(RadarPrecipitationSource.allCases) { source in
+                                    Text(source.displayName).tag(source)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(viewModel.radarPrecipitationSource.subtitle)
+                                .font(.caption)
+                                .foregroundColor(theme.textColor.opacity(0.6))
+
+                            Text("This affects the precipitation layer only. Wind, clouds, temperature, and pressure continue using Breezy's existing weather map tiles.")
+                                .font(.caption2)
+                                .foregroundColor(theme.textColor.opacity(0.45))
+                        }
+                        .padding()
                         .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                     }
                     
@@ -1235,6 +1311,11 @@ struct DesignStudioView: View {
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) var colorScheme
     @AppStorage("Breezy.showEditModeButton") private var showEditModeButton = true
+
+    private var navigationRefreshID: String {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        return "design-studio-\(viewModel.appearanceMode.rawValue)-\(theme.isDark)-\(theme.textColor.description)"
+    }
     
     var body: some View {
         ZStack {
@@ -1243,6 +1324,14 @@ struct DesignStudioView: View {
             
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: DesignSystem.spacingXL) {
+                    VStack(alignment: .leading, spacing: 6) {
+
+                        Text("Fine tune Breezy's look, typography, and dashboard.")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(theme.textColor.opacity(0.62))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
                     
                     // 1. Style Section (Theme & Icons)
                     VStack(alignment: .leading, spacing: DesignSystem.spacingM) {
@@ -1421,12 +1510,12 @@ struct DesignStudioView: View {
                                     Image(systemName: "slider.horizontal.3")
                                         .foregroundColor(.white)
                                         .font(.system(size: 16, weight: .semibold))
-                                }
+                                }	
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Daily View")
                                         .foregroundColor(theme.textColor)
-                                    Text("Choose which sections appear when you open a day in the 10-day forecast.")
+                                    Text("Choose which sections appear when you open a day in the 10 day forecast.")
                                         .font(.caption)
                                         .foregroundColor(theme.textColor.opacity(0.62))
                                         .multilineTextAlignment(.leading)
@@ -1457,7 +1546,7 @@ struct DesignStudioView: View {
                                     Text("Manage your dashboard layout directly on the home screen.")
                                         .font(.subheadline.weight(.medium))
                                         .foregroundColor(theme.textColor)
-                                    Text("Long-press any widget to enter Edit Mode, then drag to reorder or tap (+) to add new widgets.")
+                                    Text("Long press any widget to enter Edit Mode (or hold down on blank space), then drag to reorder or tap (+) to add new widgets.")
                                         .font(.caption)
                                         .foregroundColor(theme.textColor.opacity(0.6))
                                 }
@@ -1474,8 +1563,16 @@ struct DesignStudioView: View {
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }
+        .id(navigationRefreshID)
         .navigationTitle("Design Studio")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Design Studio")
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+            }
+        }
         .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
     }
 }

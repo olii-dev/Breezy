@@ -42,153 +42,208 @@ struct TimeMachineView: View {
         )
         .ignoresSafeArea()
     }
+
+    private var historicalStartDate: Date {
+        viewModel.providerCapabilities.historicalStartDate ?? Date.distantPast
+    }
+
+    private var historicalDateRange: ClosedRange<Date> {
+        historicalStartDate...Date()
+    }
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                backgroundGradient
-                
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // HEADER
-                        Text("TIME MACHINE")
-                            .font(.system(size: 22, weight: .bold, design: viewModel.typography.design))
-                            .tracking(3)
-                            .foregroundStyle(theme.textColor)
-                            .padding(.top, 8)
-                        
-                        // MODE SELECTOR
-                        HStack(spacing: 12) {
-                            ForEach(ViewMode.allCases, id: \.self) { mode in
-                                Button {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        viewMode = mode
-                                    }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: mode.icon)
-                                            .font(.headline)
-                                        Text(mode.rawValue)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                    }
-                                    .foregroundStyle(viewMode == mode ? theme.topColor : theme.textColor.opacity(0.7))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(viewMode == mode ? Color.white.opacity(0.95) : Color.white.opacity(0.12))
-                                    )
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // CONTENT BASED ON MODE
-                        if viewMode == .details {
-                            detailsModeView
-                        } else {
-                            compareModeView
-                        }
-                        
-                        // Error State
-                        if let error = viewModel.historicalError {
-                            VStack(spacing: 16) {
-                                Image(systemName: "cloud.slash")
-                                    .font(.system(size: 40))
-                                    .foregroundStyle(theme.textColor.opacity(0.5))
-                                
-                                Text("No Data Available")
-                                    .font(.headline)
-                                    .foregroundStyle(theme.textColor)
-                                
-                                Text(error)
-                                    .font(.subheadline)
-                                    .multilineTextAlignment(.center)
-                                    .foregroundStyle(theme.textColor.opacity(0.7))
-                                
-                                VStack(alignment: .leading, spacing: 8) {
-                                    dataAvailabilityRow(icon: "checkmark.circle.fill", text: "Data is available from August 2021", available: true)
-                                    dataAvailabilityRow(icon: "checkmark.circle.fill", text: "Works for most locations worldwide", available: true)
-                                    dataAvailabilityRow(icon: "xmark.circle.fill", text: "Dates before August 2021 are not supported", available: false)
-                                    dataAvailabilityRow(icon: "xmark.circle.fill", text: "Some remote locations may have gaps", available: false)
-                                }
-                                .padding(.top, 4)
-                            }
-                            .padding(24)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(theme.textColor.opacity(0.12), lineWidth: 0.5)
-                                    )
-                            )
-                            .padding(.horizontal, 20)
-                        } else if viewModel.historicalWeather == nil && !viewModel.historicalLoading {
-                            VStack(spacing: 16) {
-                                Image(systemName: "calendar.badge.clock")
-                                    .font(.system(size: 48))
-                                    .foregroundStyle(theme.textColor.opacity(0.3))
-                                
-                                Text("Pick a date to travel back in time")
-                                    .font(.headline)
-                                    .foregroundStyle(theme.textColor.opacity(0.8))
-                                
-                                Text("Historical weather data is available from August 2021 onwards for most locations.")
-                                    .font(.subheadline)
-                                    .multilineTextAlignment(.center)
-                                    .foregroundStyle(theme.textColor.opacity(0.5))
-                                    .padding(.horizontal, 8)
-                                
-                                HStack(spacing: 12) {
-                                    quickDateButton(title: "Yesterday", date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!)
-                                    quickDateButton(title: "Last Week", date: Calendar.current.date(byAdding: .day, value: -7, to: Date())!)
-                                    quickDateButton(title: "Last Month", date: Calendar.current.date(byAdding: .month, value: -1, to: Date())!)
-                                }
-                                .padding(.top, 4)
-                            }
-                            .padding(24)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(theme.textColor.opacity(0.12), lineWidth: 0.5)
-                                    )
-                            )
-                            .padding(.horizontal, 20)
+            timeMachineScreen
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(theme.textColor.opacity(0.7))
+                                .font(.title3)
                         }
                     }
-                    .padding(.bottom, 20)
                 }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(theme.textColor.opacity(0.7))
-                            .font(.title3)
+        }
+        .onAppear(perform: restoreStoredDates)
+        .onChange(of: date1) { _, newValue in
+            storedDate1Epoch = newValue.timeIntervalSince1970
+        }
+        .onChange(of: date2) { _, newValue in
+            storedDate2Epoch = newValue.timeIntervalSince1970
+        }
+        .onChange(of: viewModel.weatherSource) { _, _ in
+            clampStoredDatesToActiveSource()
+        }
+    }
+
+    @ViewBuilder
+    private var timeMachineScreen: some View {
+        ZStack {
+            backgroundGradient
+
+            ScrollView {
+                VStack(spacing: 24) {
+                    headerView
+                    modeSelectorView
+
+                    if viewMode == .details {
+                        detailsModeView
+                    } else {
+                        compareModeView
                     }
+
+                    statusView
                 }
-            }
-            .onAppear {
-                let rememberedDate1 = Date(timeIntervalSince1970: storedDate1Epoch)
-                let rememberedDate2 = Date(timeIntervalSince1970: storedDate2Epoch)
-                date1 = rememberedDate1
-                date2 = rememberedDate2
-            }
-            .onChange(of: date1) { _, newValue in
-                storedDate1Epoch = newValue.timeIntervalSince1970
-            }
-            .onChange(of: date2) { _, newValue in
-                storedDate2Epoch = newValue.timeIntervalSince1970
+                .padding(.bottom, 20)
             }
         }
+    }
+
+    @ViewBuilder
+    private var headerView: some View {
+        Text("TIME MACHINE")
+            .font(.system(size: 22, weight: .bold, design: viewModel.typography.design))
+            .tracking(3)
+            .foregroundStyle(theme.textColor)
+            .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private var modeSelectorView: some View {
+        HStack(spacing: 12) {
+            ForEach(ViewMode.allCases, id: \.self) { mode in
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        viewMode = mode
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: mode.icon)
+                            .font(.headline)
+                        Text(mode.rawValue)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(viewMode == mode ? theme.topColor : theme.textColor.opacity(0.7))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(viewMode == mode ? Color.white.opacity(0.95) : Color.white.opacity(0.12))
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
+    @ViewBuilder
+    private var statusView: some View {
+        if let error = viewModel.historicalError {
+            historicalErrorView(error)
+        } else if viewModel.historicalWeather == nil && !viewModel.historicalLoading {
+            historicalEmptyStateView
+        }
+    }
+
+    private func restoreStoredDates() {
+        let rememberedDate1 = Date(timeIntervalSince1970: storedDate1Epoch)
+        let rememberedDate2 = Date(timeIntervalSince1970: storedDate2Epoch)
+        date1 = clampedHistoricalDate(rememberedDate1)
+        date2 = clampedHistoricalDate(rememberedDate2)
+        storedDate1Epoch = date1.timeIntervalSince1970
+        storedDate2Epoch = date2.timeIntervalSince1970
+    }
+
+    private func clampStoredDatesToActiveSource() {
+        let clampedDate1 = clampedHistoricalDate(date1)
+        let clampedDate2 = clampedHistoricalDate(date2)
+        if clampedDate1 != date1 {
+            date1 = clampedDate1
+        }
+        if clampedDate2 != date2 {
+            date2 = clampedDate2
+        }
+    }
+
+    @ViewBuilder
+    private func historicalErrorView(_ error: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "cloud.slash")
+                .font(.system(size: 40))
+                .foregroundStyle(theme.textColor.opacity(0.5))
+
+            Text("No Data Available")
+                .font(.headline)
+                .foregroundStyle(theme.textColor)
+
+            Text(error)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(theme.textColor.opacity(0.7))
+
+            VStack(alignment: .leading, spacing: 8) {
+                dataAvailabilityRow(icon: "checkmark.circle.fill", text: viewModel.providerCapabilities.historicalAvailabilityDescription.replacingOccurrences(of: "Historical weather is available from ", with: "Data is available from "), available: true)
+                dataAvailabilityRow(icon: "checkmark.circle.fill", text: "Works for most locations worldwide", available: true)
+                dataAvailabilityRow(icon: "xmark.circle.fill", text: "Dates before the provider archive window are not supported", available: false)
+                dataAvailabilityRow(icon: "xmark.circle.fill", text: "Some remote locations may have gaps", available: false)
+            }
+            .padding(.top, 4)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(theme.textColor.opacity(0.12), lineWidth: 0.5)
+                )
+        )
+        .padding(.horizontal, 20)
+    }
+
+    @ViewBuilder
+    private var historicalEmptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 48))
+                .foregroundStyle(theme.textColor.opacity(0.3))
+
+            Text("Pick a date to travel back in time")
+                .font(.headline)
+                .foregroundStyle(theme.textColor.opacity(0.8))
+
+            Text(viewModel.providerCapabilities.historicalAvailabilityDescription)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(theme.textColor.opacity(0.5))
+                .padding(.horizontal, 8)
+
+            HStack(spacing: 12) {
+                quickDateButton(title: "Yesterday", date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!)
+                quickDateButton(title: "Last Week", date: Calendar.current.date(byAdding: .day, value: -7, to: Date())!)
+                quickDateButton(title: "Last Month", date: Calendar.current.date(byAdding: .month, value: -1, to: Date())!)
+            }
+            .padding(.top, 4)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(theme.textColor.opacity(0.12), lineWidth: 0.5)
+                )
+        )
+        .padding(.horizontal, 20)
+    }
+
+    private func clampedHistoricalDate(_ date: Date) -> Date {
+        min(max(date, historicalStartDate), Date())
     }
     
     @ViewBuilder
@@ -231,7 +286,7 @@ struct TimeMachineView: View {
         VStack(spacing: 16) {
             // Date Picker
             HStack(spacing: 12) {
-                DatePicker("", selection: $date1, in: (Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1)) ?? Date.distantPast)...Date(), displayedComponents: .date)
+                DatePicker("", selection: $date1, in: historicalDateRange, displayedComponents: .date)
                     .datePickerStyle(.compact)
                     .tint(theme.textColor)
                     .labelsHidden()
@@ -338,6 +393,9 @@ struct TimeMachineView: View {
                                 if let windSpeed = metrics.windSpeed {
                                     EnhancedMetricCard(icon: "wind", label: "Wind", value: windSpeed, subValue: metrics.windDirectionCardinal ?? "", theme: theme, viewModel: viewModel)
                                 }
+                                if let windGust = metrics.windGust {
+                                    EnhancedMetricCard(icon: "wind.snow", label: "Wind Gust", value: windGust, subValue: "", theme: theme, viewModel: viewModel)
+                                }
                                 if let uv = metrics.uvIndex {
                                     EnhancedMetricCard(icon: "sun.max.fill", label: "UV Index", value: "\(uv)", subValue: metrics.uvIndexCategory ?? "", theme: theme, viewModel: viewModel)
                                 }
@@ -347,8 +405,17 @@ struct TimeMachineView: View {
                                 if let rain = metrics.rainChance {
                                     EnhancedMetricCard(icon: "drop.fill", label: "Rain", value: rain, subValue: "", theme: theme, viewModel: viewModel)
                                 }
+                                if let rainfall = metrics.todayRainfall {
+                                    EnhancedMetricCard(icon: "drop.degreesign", label: "Rainfall", value: rainfall, subValue: "Total", theme: theme, viewModel: viewModel)
+                                }
                                 if let pressure = metrics.pressure {
                                     EnhancedMetricCard(icon: "gauge.medium", label: "Pressure", value: pressure, subValue: "", theme: theme, viewModel: viewModel)
+                                }
+                                if let visibility = metrics.visibility {
+                                    EnhancedMetricCard(icon: "eye.fill", label: "Visibility", value: visibility, subValue: "", theme: theme, viewModel: viewModel)
+                                }
+                                if let cloudCover = metrics.cloudCover {
+                                    EnhancedMetricCard(icon: "cloud.fill", label: "Cloud Cover", value: cloudCover, subValue: "", theme: theme, viewModel: viewModel)
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -372,7 +439,7 @@ struct TimeMachineView: View {
                         Text("Date 1")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(theme.textColor.opacity(0.5))
-                        DatePicker("", selection: $date1, in: (Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1)) ?? Date.distantPast)...Date(), displayedComponents: .date)
+                        DatePicker("", selection: $date1, in: historicalDateRange, displayedComponents: .date)
                             .datePickerStyle(.compact)
                             .tint(theme.textColor)
                             .labelsHidden()
@@ -382,7 +449,7 @@ struct TimeMachineView: View {
                         Text("Date 2")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(theme.textColor.opacity(0.5))
-                        DatePicker("", selection: $date2, in: (Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1)) ?? Date.distantPast)...Date(), displayedComponents: .date)
+                        DatePicker("", selection: $date2, in: historicalDateRange, displayedComponents: .date)
                             .datePickerStyle(.compact)
                             .tint(theme.textColor)
                             .labelsHidden()

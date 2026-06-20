@@ -1325,8 +1325,10 @@ struct BreezyGeneralWidgetEntryView: View {
         switch family {
         case .accessoryCircular:
             AccessoryCircularComplicationView(entry: entry)
+        #if os(watchOS)
         case .accessoryCorner:
             AccessoryCornerComplicationView(entry: entry)
+        #endif
         case .accessoryRectangular:
             AccessoryRectangularComplicationView(entry: entry)
         case .accessoryInline:
@@ -1346,7 +1348,11 @@ struct BreezyGeneralWeatherWidget: Widget {
         }
         .configurationDisplayName("Weather (General)")
         .description("Temperature and overview.")
+        #if os(watchOS)
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
     }
 }
 

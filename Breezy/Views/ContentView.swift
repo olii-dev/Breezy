@@ -13,6 +13,7 @@ import CoreLocation
 struct ContentView: View {
     @StateObject private var viewModel = WeatherViewModel()
     @StateObject private var locationHelper = LocationHelper()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
     @State private var showingTimeMachine = false
     @State private var showingLocationPicker = false
@@ -30,6 +31,8 @@ struct ContentView: View {
     @State private var showingWidgetGallery = false
     @State private var configuringWidget: DashboardWidget?
     @State private var pendingWidgetRemoval: DashboardWidget?
+    @State private var suppressNextAutomaticLocationFetch = false
+    @State private var lastSceneInactiveDate: Date?
 
 
     var body: some View {
@@ -58,6 +61,10 @@ struct ContentView: View {
                 .onChange(of: locationHelper.userLocation) { oldValue, newLocation in
                     // Only auto-update if using GPS location
                     let useGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
+                    if suppressNextAutomaticLocationFetch {
+                        suppressNextAutomaticLocationFetch = false
+                        return
+                    }
                     if useGPS, let location = newLocation {
                         Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
                     }
@@ -65,13 +72,11 @@ struct ContentView: View {
                 .onChange(of: locationHelper.significantLocationChange) { oldValue, newLocation in
                     // Auto-refresh on significant location changes (only if using GPS)
                     let useGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
-                    if useGPS, let location = newLocation {
-                        Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
+                    if suppressNextAutomaticLocationFetch {
+                        suppressNextAutomaticLocationFetch = false
+                        return
                     }
-                }
-                .onChange(of: viewModel.currentLocation) { oldValue, newLocation in
-                    // Auto-refresh when location changes
-                    if let location = newLocation, viewModel.weather?.location.city != location.city {
+                    if useGPS, let location = newLocation {
                         Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
                     }
                 }
@@ -200,6 +205,18 @@ struct ContentView: View {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .cloudDataReconciled)) { _ in
                     loadDashboard()
+                }
+                .onChange(of: viewModel.weatherSource) { _, _ in
+                    loadDashboard()
+                }
+                .onChange(of: scenePhase) { oldPhase, newPhase in
+                    if oldPhase == .active, newPhase != .active {
+                        lastSceneInactiveDate = Date()
+                    }
+
+                    if newPhase == .active {
+                        Task { await refreshIfNeededOnForeground() }
+                    }
                 }
                 .sheet(isPresented: $showingSettings) {
                     SettingsView(viewModel: viewModel)
@@ -367,14 +384,8 @@ struct ContentView: View {
             }
             .refreshable {
                 HapticsManager.shared.impact(style: .medium)
-                if viewModel.shouldFollowGPS {
-                    // Re-acquire GPS location on pull-to-refresh
-                    if let location = try? await locationHelper.requestLocationAndGetData() {
-                        await viewModel.fetchWeather(for: location, isManualRefresh: true)
-                    }
-                } else if let location = viewModel.currentLocation {
-                    await viewModel.fetchWeather(for: location, isManualRefresh: true)
-                }
+                viewModel.error = nil
+                await refreshWeatherFromCurrentContext(isManualRefresh: true, preferLiveGPS: true)
             }
         }
         .simultaneousGesture(
@@ -429,13 +440,53 @@ struct ContentView: View {
             isEditMode = false
         }
     }
+
+    private func refreshIfNeededOnForeground() async {
+        guard !showingOnboarding else { return }
+        guard !viewModel.isLoading else { return }
+        guard viewModel.weather != nil || viewModel.currentLocation != nil else { return }
+
+        let now = Date()
+        let shouldRefreshBecauseAppWasAway = lastSceneInactiveDate.map { now.timeIntervalSince($0) >= 60 * 60 } ?? false
+        let shouldRefreshBecauseVisibleWeatherIsOld = viewModel.lastUpdatedDate.map { now.timeIntervalSince($0) >= 60 * 60 } ?? false
+
+        guard shouldRefreshBecauseAppWasAway || shouldRefreshBecauseVisibleWeatherIsOld else { return }
+        await refreshWeatherFromCurrentContext(isManualRefresh: false, preferLiveGPS: true)
+    }
+
+    private func refreshWeatherFromCurrentContext(isManualRefresh: Bool, preferLiveGPS: Bool) async {
+        if viewModel.shouldFollowGPS {
+            if preferLiveGPS {
+                suppressNextAutomaticLocationFetch = true
+            }
+
+            if preferLiveGPS, let location = try? await locationHelper.requestLocationAndGetData() {
+                await viewModel.fetchWeather(for: location, isManualRefresh: isManualRefresh)
+                return
+            }
+
+            suppressNextAutomaticLocationFetch = false
+
+            if let fallbackLocation = viewModel.currentLocation ?? locationHelper.userLocation {
+                await viewModel.fetchWeather(for: fallbackLocation, isManualRefresh: isManualRefresh)
+            } else if isManualRefresh {
+                viewModel.error = "Unable to refresh your location right now. Try again in a moment."
+            }
+        } else if let location = viewModel.currentLocation {
+            await viewModel.fetchWeather(for: location, isManualRefresh: isManualRefresh)
+        }
+    }
     
+    private var dashboardStorageKey: String {
+        "Breezy.DashboardWidgets.\(viewModel.weatherSource.rawValue)"
+    }
+
     private func loadDashboard() {
         // Try loading modern DashboardWidgets
-        if let data = CloudStorage.shared.data(forKey: "Breezy.DashboardWidgets") {
+        if let data = CloudStorage.shared.data(forKey: dashboardStorageKey) {
             if let decoded = try? JSONDecoder().decode([DashboardWidget].self, from: data) {
                 // Filter out any widgets that might have invalid types if decoding succeeded but enum changed
-                dashboardWidgets = withNarrativeWidgetIfNeeded(decoded)
+                dashboardWidgets = withNarrativeWidgetIfNeeded(decoded).map { sanitizedWidget($0) }
                 return
             }
         }
@@ -461,6 +512,8 @@ struct ContentView: View {
         
         // Fallback to defaults
         dashboardWidgets = DashboardWidget.defaultDashboard
+            .filter { $0.type.isSupported(by: viewModel.weatherSource) }
+            .map { sanitizedWidget($0) }
     }
 
     private func withNarrativeWidgetIfNeeded(_ widgets: [DashboardWidget]) -> [DashboardWidget] {
@@ -474,246 +527,281 @@ struct ContentView: View {
     
     private func saveDashboard() {
         if let encoded = try? JSONEncoder().encode(dashboardWidgets) {
-            CloudStorage.shared.set(encoded, forKey: "Breezy.DashboardWidgets")
+            CloudStorage.shared.set(encoded, forKey: dashboardStorageKey)
             // Removed redundant notification post to prevent reload loops
         }
     }
     
     @ViewBuilder
     private func renderWidget(_ widget: DashboardWidget, weather: WeatherInfo) -> some View {
-        switch widget.type {
-        case .hourlyForecast:
-            NewHourlyCardView(
-                hourlyData: weather.hourlyForecast,
-                allHourlyData: weather.allHourlyData,
-                viewModel: viewModel,
-                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
-                density: widget.config?["density"] ?? "regular"
+        if !widget.type.isSupported(by: viewModel.weatherSource) {
+            UnsupportedSourceWidgetCard(
+                widgetType: widget.type,
+                source: viewModel.weatherSource,
+                textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                glassOpacity: viewModel.glassOpacity
             )
             .padding(.horizontal, DesignSystem.spacingM)
-            
-        case .dailyForecast:
-            NewDailyForecastView(
-                forecast: weather.dailyForecast,
-                viewModel: viewModel,
-                config: widget.config
-            )
+        } else {
+            switch widget.type {
+            case .hourlyForecast:
+                NewHourlyCardView(
+                    hourlyData: weather.hourlyForecast,
+                    allHourlyData: weather.allHourlyData,
+                    viewModel: viewModel,
+                    rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                    density: widget.config?["density"] ?? "regular"
+                )
                 .padding(.horizontal, DesignSystem.spacingM)
-
-        case .forecastNarrative:
-            ForecastNarrativeWidget(
-                weather: weather,
-                viewModel: viewModel,
-                showsExpandedDetail: widget.config?["style"] != "compact"
-            )
-                .padding(.horizontal, DesignSystem.spacingM)
-            
-        case .deepDetails:
-            if let metrics = weather.metrics {
-                let metricsToUse = widget.visibleMetrics ?? Array(viewModel.visibleMetrics)
-                MetricsPillsView(metrics: metrics, weather: weather, viewModel: viewModel, customMetrics: metricsToUse)
+                
+            case .dailyForecast:
+                NewDailyForecastView(
+                    forecast: weather.dailyForecast,
+                    viewModel: viewModel,
+                    config: widget.config
+                )
                     .padding(.horizontal, DesignSystem.spacingM)
-            }
-            
-        case .rainSummary:
-            RainSummaryWidget(weather: weather, viewModel: viewModel, config: widget.config)
-                .padding(.horizontal, DesignSystem.spacingM)
 
-        case .rainfallToday:
-            RainfallTodayWidget(weather: weather, viewModel: viewModel, config: widget.config)
-                .padding(.horizontal, DesignSystem.spacingM)
-                
-        case .windSummary:
-            if widget.config?["style"] == "rose", let metrics = weather.metrics {
-               // Extract speed (remove " km/h" etc)
-                let speedString = metrics.windSpeed?.components(separatedBy: CharacterSet.decimalDigits.inverted).joined() ?? "0"
-                let speed = Double(speedString) ?? 0
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Wind Rose", systemImage: "wind")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                    
-                    WindRoseView(
-                        speed: speed,
-                        direction: metrics.windDirectionCardinal ?? "N",
-                        degree: metrics.windDirection ?? 0,
-                        color: viewModel.currentTheme(colorScheme: colorScheme).textColor
-                    )
-                    .padding(.bottom, 16)
-                    .padding(.horizontal)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+            case .forecastNarrative:
+                ForecastNarrativeWidget(
+                    weather: weather,
+                    viewModel: viewModel,
+                    showsExpandedDetail: widget.config?["style"] != "compact"
                 )
-                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
-                .padding(.horizontal, DesignSystem.spacingM)
-            } else {
-                WindSummaryWidget(weather: weather, viewModel: viewModel)
                     .padding(.horizontal, DesignSystem.spacingM)
-            }
                 
-        case .radar:
-            RadarCardView(viewModel: viewModel, locationHelper: locationHelper)
-                .padding(.horizontal, DesignSystem.spacingM)
-                
-        case .smartStack:
-            SmartStackWidget(viewModel: viewModel, weather: weather, widget: widget)
-                .padding(.horizontal, DesignSystem.spacingM)
-                
-        case .uvIndex:
-            UVIndexWidget(
-                weather: weather,
-                viewModel: viewModel,
-                style: widget.config?["style"] ?? "standard",
-                showsCategory: (widget.config?["showCategory"] ?? "true") == "true"
-            )
-                .padding(.horizontal, DesignSystem.spacingM)
-                
-        case .feelsLike:
-            FeelsLikeWidget(weather: weather, viewModel: viewModel, config: widget.config)
-                .padding(.horizontal, DesignSystem.spacingM)
-                
-        case .sunPath:
-            if let sunrise = weather.metrics?.sunrise, let sunset = weather.metrics?.sunset, 
-               let sunriseDate = DateFormatterHelper.parseTime(sunrise, timeZone: TimeZone(identifier: weather.timezone) ?? .current),
-               let sunsetDate = DateFormatterHelper.parseTime(sunset, timeZone: TimeZone(identifier: weather.timezone) ?? .current) {
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    Label("Sun Path", systemImage: "sun.max.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                    
-                    SunPathView(
-                        sunrise: sunriseDate,
-                        sunset: sunsetDate,
-                        currentTime: Date(),
-                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
-                        style: widget.config?["style"] ?? "full",
-                        showsCountdown: (widget.config?["showCountdown"] ?? "true") == "true"
-                    )
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                    .padding(.horizontal)
+            case .deepDetails:
+                if let metrics = weather.metrics {
+                    let metricsToUse = widget.visibleMetrics ?? Array(viewModel.visibleMetrics)
+                    MetricsPillsView(metrics: metrics, weather: weather, viewModel: viewModel, customMetrics: metricsToUse)
+                        .padding(.horizontal, DesignSystem.spacingM)
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
-                )
-                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
-                .padding(.horizontal, DesignSystem.spacingM)
-            }
-            
-        case .moonPhase:
-            if let today = weather.dailyForecast.first, let phase = today.moonPhase {
-                let moonCard = MoonPhaseCardView(
-                    phase: phase,
-                    moonrise: today.moonrise,
-                    moonset: today.moonset,
-                    style: widget.config?["style"] ?? "full",
-                    size: widget.config?["size"] ?? "medium",
-                    textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
-                    glassOpacity: viewModel.glassOpacity,
-                    showsDisclosure: !isEditMode
-                )
-                .padding(.horizontal, DesignSystem.spacingM)
+                
+            case .rainSummary:
+                RainSummaryWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
 
-                if isEditMode {
-                    moonCard
-                } else {
-                    NavigationLink(destination: AstronomyDetailView(weather: weather, viewModel: viewModel)) {
-                        moonCard
+            case .rainfallToday:
+                RainfallTodayWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                    
+            case .windSummary:
+                if widget.config?["style"] == "rose", let metrics = weather.metrics {
+                   // Extract speed (remove " km/h" etc)
+                    let speedString = metrics.windSpeed?.components(separatedBy: CharacterSet.decimalDigits.inverted).joined() ?? "0"
+                    let speed = Double(speedString) ?? 0
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Wind Rose", systemImage: "wind")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                        
+                        WindRoseView(
+                            speed: speed,
+                            direction: metrics.windDirectionCardinal ?? "N",
+                            degree: metrics.windDirection ?? 0,
+                            color: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                        )
+                        .padding(.bottom, 16)
+                        .padding(.horizontal)
                     }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            
-        case .uvIndexCurve:
-            if let hourly = weather.allHourlyData {
-                VStack(alignment: .leading, spacing: 0) {
-                    Label("UV Index", systemImage: "aqi.medium")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-
-                    UVIndexCurveView(
-                        hourlyForecast: hourly,
-                        currentUV: weather.metrics?.uvIndex ?? 0,
-                        colorScheme: colorScheme,
-                        rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
-                        showPeak: (widget.config?["showPeak"] ?? "true") == "true"
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                            .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
                     )
-                    .padding(.bottom, 16)
+                    .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                } else {
+                    WindSummaryWidget(weather: weather, viewModel: viewModel)
+                        .padding(.horizontal, DesignSystem.spacingM)
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
-                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                        .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                    
+            case .radar:
+                RadarCardView(viewModel: viewModel, locationHelper: locationHelper)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                    
+            case .smartStack:
+                SmartStackWidget(viewModel: viewModel, weather: weather, widget: widget)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                    
+            case .uvIndex:
+                UVIndexWidget(
+                    weather: weather,
+                    viewModel: viewModel,
+                    style: widget.config?["style"] ?? "standard",
+                    showsCategory: (widget.config?["showCategory"] ?? "true") == "true"
                 )
-                .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                    
+            case .feelsLike:
+                FeelsLikeWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                    
+            case .sunPath:
+                if let sunrise = weather.metrics?.sunrise, let sunset = weather.metrics?.sunset,
+                   let sunriseDate = DateFormatterHelper.parseTime(sunrise, timeZone: TimeZone(identifier: weather.timezone) ?? .current),
+                   let sunsetDate = DateFormatterHelper.parseTime(sunset, timeZone: TimeZone(identifier: weather.timezone) ?? .current) {
+                    
+                    VStack(alignment: .leading, spacing: 0) {
+                        Label("Sun Path", systemImage: "sun.max.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                        
+                        SunPathView(
+                            sunrise: sunriseDate,
+                            sunset: sunsetDate,
+                            currentTime: Date(),
+                            textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                            style: widget.config?["style"] ?? "full",
+                            showsCountdown: (widget.config?["showCountdown"] ?? "true") == "true"
+                        )
+                        .padding(.top, 16)
+                        .padding(.bottom, 16)
+                        .padding(.horizontal)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                            .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                    )
+                    .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                }
+                
+            case .moonPhase:
+                if let today = weather.dailyForecast.first, let phase = today.moonPhase {
+                    let moonCard = MoonPhaseCardView(
+                        phase: phase,
+                        moonrise: today.moonrise,
+                        moonset: today.moonset,
+                        style: widget.config?["style"] ?? "full",
+                        size: widget.config?["size"] ?? "medium",
+                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                        glassOpacity: viewModel.glassOpacity,
+                        showsDisclosure: !isEditMode
+                    )
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+                    if isEditMode {
+                        moonCard
+                    } else {
+                        NavigationLink(destination: AstronomyDetailView(weather: weather, viewModel: viewModel)) {
+                            moonCard
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                
+            case .uvIndexCurve:
+                if let hourly = weather.allHourlyData {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Label("UV Index", systemImage: "aqi.medium")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+
+                        UVIndexCurveView(
+                            hourlyForecast: hourly,
+                            currentUV: weather.metrics?.uvIndex ?? 0,
+                            colorScheme: colorScheme,
+                            rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                            showPeak: (widget.config?["showPeak"] ?? "true") == "true"
+                        )
+                        .padding(.bottom, 16)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                            .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
+                    )
+                    .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                }
+
+            case .windGraph:
+                WindGraphWidget(
+                    weather: weather,
+                    viewModel: viewModel,
+                    hoursWindow: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                    isChartInteracting: $isInteractingWithChart
+                )
+                    .padding(.horizontal, DesignSystem.spacingM)
+                
+            case .minutePrecipitation:
+                RainGraphWidget(
+                    weather: weather,
+                    viewModel: viewModel,
+                    minuteWindow: Int(widget.config?["rangeMinutes"] ?? "60") ?? 60
+                )
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+            case .hourlyTemperatures:
+                HourlyTemperaturesWidget(weather: weather, viewModel: viewModel, isChartInteracting: $isInteractingWithChart, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+            case .humidityStrip:
+                HumidityStripWidget(
+                    weather: weather,
+                    viewModel: viewModel,
+                    rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                    isChartInteracting: $isInteractingWithChart
+                )
                 .padding(.horizontal, DesignSystem.spacingM)
+
+            case .precipitationTimeline:
+                PrecipitationTimelineWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+            case .visibilityCard:
+                VisibilityWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+            case .cloudCoverCard:
+                CloudCoverWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+            case .windHistory:
+                WindHistoryWidget(
+                    weather: weather,
+                    viewModel: viewModel,
+                    rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
+                    isChartInteracting: $isInteractingWithChart
+                )
+                .padding(.horizontal, DesignSystem.spacingM)
+
+            case .airQualityCard:
+                AirQualityCardWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+            case .marineOutlook:
+                MarineOutlookWidget(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
             }
-
-        case .windGraph:
-            WindGraphWidget(
-                weather: weather,
-                viewModel: viewModel,
-                hoursWindow: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
-                isChartInteracting: $isInteractingWithChart
-            )
-                .padding(.horizontal, DesignSystem.spacingM)
-            
-        case .minutePrecipitation:
-            RainGraphWidget(
-                weather: weather,
-                viewModel: viewModel,
-                minuteWindow: Int(widget.config?["rangeMinutes"] ?? "60") ?? 60
-            )
-                .padding(.horizontal, DesignSystem.spacingM)
-
-        case .hourlyTemperatures:
-            HourlyTemperaturesWidget(weather: weather, viewModel: viewModel, isChartInteracting: $isInteractingWithChart, config: widget.config)
-                .padding(.horizontal, DesignSystem.spacingM)
-
-        case .humidityStrip:
-            HumidityStripWidget(
-                weather: weather,
-                viewModel: viewModel,
-                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
-                isChartInteracting: $isInteractingWithChart
-            )
-            .padding(.horizontal, DesignSystem.spacingM)
-
-        case .precipitationTimeline:
-            PrecipitationTimelineWidget(weather: weather, viewModel: viewModel, config: widget.config)
-                .padding(.horizontal, DesignSystem.spacingM)
-
-        case .visibilityCard:
-            VisibilityWidget(weather: weather, viewModel: viewModel, config: widget.config)
-                .padding(.horizontal, DesignSystem.spacingM)
-
-        case .cloudCoverCard:
-            CloudCoverWidget(weather: weather, viewModel: viewModel, config: widget.config)
-                .padding(.horizontal, DesignSystem.spacingM)
-
-        case .windHistory:
-            WindHistoryWidget(
-                weather: weather,
-                viewModel: viewModel,
-                rangeHours: Int(widget.config?["rangeHours"] ?? "24") ?? 24,
-                isChartInteracting: $isInteractingWithChart
-            )
-            .padding(.horizontal, DesignSystem.spacingM)
         }
+    }
+
+    private func sanitizedWidget(_ widget: DashboardWidget) -> DashboardWidget {
+        var updated = widget
+        if widget.type == .smartStack, let configured = widget.config?["widgets"] {
+            let supportedTypes = configured
+                .split(separator: ",")
+                .compactMap { WidgetType(rawValue: String($0)) }
+                .filter { $0 != .smartStack && $0 != .radar && $0.isSupported(by: viewModel.weatherSource) }
+
+            var config = updated.config ?? [:]
+            config["widgets"] = (supportedTypes.isEmpty ? smartStackDefaultTypes.filter { $0.isSupported(by: viewModel.weatherSource) } : supportedTypes)
+                .map(\.rawValue)
+                .joined(separator: ",")
+            updated.config = config
+        }
+        return updated
     }
 }
 
@@ -1462,6 +1550,31 @@ struct NewWeatherHeaderView: View {
     }
 }
 
+private func upcomingHourlySlice(from source: [HourlyForecast], limit: Int, includeRecentGracePeriod: TimeInterval = 1800) -> [HourlyForecast] {
+    let sorted = source.sorted { lhs, rhs in
+        switch (lhs.sourceDate, rhs.sourceDate) {
+        case let (left?, right?):
+            return left < right
+        case (.some, nil):
+            return true
+        case (nil, .some):
+            return false
+        case (nil, nil):
+            return lhs.hourValue < rhs.hourValue
+        }
+    }
+
+    let now = Date()
+    let upcoming = sorted.filter { hour in
+        guard let sourceDate = hour.sourceDate else { return true }
+        return sourceDate >= now.addingTimeInterval(-includeRecentGracePeriod)
+    }
+
+    let filtered = upcoming.isEmpty ? sorted : upcoming
+    let displayedCount = limit > 0 ? min(limit, filtered.count) : filtered.count
+    return Array(filtered.prefix(displayedCount))
+}
+
 struct NewHourlyCardView: View {
     let hourlyData: [HourlyForecast]
     let allHourlyData: [HourlyForecast]?
@@ -1479,15 +1592,13 @@ struct NewHourlyCardView: View {
     }
 
     private var titleText: String {
-        let hoursToShow = allHourlyData ?? hourlyData
-        let displayed = min(rangeHours, hoursToShow.count)
+        let displayed = displayedHours.count
         return "\(displayed)-Hour Forecast"
     }
 
     private var displayedHours: [HourlyForecast] {
         let source = allHourlyData ?? hourlyData
-        let displayedCount = rangeHours > 0 ? min(rangeHours, source.count) : source.count
-        return Array(source.prefix(displayedCount))
+        return upcomingHourlySlice(from: source, limit: rangeHours)
     }
     
     // Find the index of the current hour (or closest hour)
@@ -2410,6 +2521,13 @@ struct RainfallTodayWidget: View {
                 }
             }
 
+            if style == "detailed" {
+                HStack(spacing: 12) {
+                    WeatherStatBlock(title: "Status", value: viewModel.rainSoonLabel ?? "Quiet", textColor: textColor)
+                    WeatherStatBlock(title: "Accumulation", value: totalRainfall, textColor: textColor)
+                }
+            }
+
             if style != "minimal", let rainDetail = viewModel.rainSoonDetail, let rainHeadline = viewModel.rainSoonLabel {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(rainHeadline)
@@ -2497,7 +2615,7 @@ struct WindGraphWidget: View {
     var isChartInteracting: Binding<Bool>? = nil
 
     private var windPoints: [WindPoint] {
-        Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(hoursWindow).enumerated()).compactMap { index, hour in
+        upcomingHourlySlice(from: weather.allHourlyData ?? weather.hourlyForecast, limit: hoursWindow).enumerated().compactMap { index, hour in
             guard let speed = numericWindSpeed(from: hour.windSpeed) else { return nil }
             return WindPoint(index: index, time: hour.time, speed: speed)
         }
@@ -2685,7 +2803,7 @@ struct HumidityStripWidget: View {
     var isChartInteracting: Binding<Bool>? = nil
 
     private var hours: [HourlyForecast] {
-        Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(rangeHours))
+        upcomingHourlySlice(from: weather.allHourlyData ?? weather.hourlyForecast, limit: rangeHours)
             .filter { $0.humidity != nil }
     }
 
@@ -2853,9 +2971,18 @@ struct PrecipitationTimelineWidget: View {
         }
     }
 
+    private var style: String {
+        config?["style"] ?? "standard"
+    }
+
+    private var showLabels: Bool {
+        (config?["showLabels"] ?? "true") == "true"
+    }
+
     var body: some View {
         let theme = viewModel.currentTheme(colorScheme: colorScheme)
         let textColor = theme.textColor
+        let compact = style == "compact"
 
         VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
             Label("Precipitation Forecast", systemImage: "chart.bar.xaxis")
@@ -2884,24 +3011,28 @@ struct PrecipitationTimelineWidget: View {
                                 endPoint: .bottom
                             )
                         )
-                        .cornerRadius(6)
+                        .cornerRadius(compact ? 4 : 6)
                         .annotation(position: .top) {
-                            Text(day.chance > 0 ? "\(day.chance)%" : "")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(textColor.opacity(0.75))
+                            if showLabels {
+                                Text(day.chance > 0 ? "\(day.chance)%" : "")
+                                    .font(.system(size: compact ? 8 : 9, weight: .semibold))
+                                    .foregroundColor(textColor.opacity(0.75))
+                            }
                         }
                     }
                 }
                 .chartYScale(domain: 0...100)
                 .chartYAxis {
-                    AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
-                            .foregroundStyle(textColor.opacity(0.12))
-                        AxisValueLabel {
-                            if let pct = value.as(Int.self) {
-                                Text("\(pct)%")
-                                    .font(.system(size: 9, weight: .medium))
-                                    .foregroundColor(textColor.opacity(0.65))
+                    if !compact {
+                        AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
+                                .foregroundStyle(textColor.opacity(0.12))
+                            AxisValueLabel {
+                                if let pct = value.as(Int.self) {
+                                    Text("\(pct)%")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .foregroundColor(textColor.opacity(0.65))
+                                }
                             }
                         }
                     }
@@ -2917,7 +3048,7 @@ struct PrecipitationTimelineWidget: View {
                         }
                     }
                 }
-                .frame(height: 160)
+                .frame(height: compact ? 132 : 160)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 16)
             }
@@ -3121,6 +3252,240 @@ struct CloudCoverWidget: View {
     }
 }
 
+// MARK: - Air Quality Widget
+
+struct AirQualityCardWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
+
+    private var style: String {
+        config?["style"] ?? "detailed"
+    }
+
+    private var badgeColor: Color {
+        switch weather.metrics?.airQuality?.category {
+        case "Good":
+            return .green.opacity(0.85)
+        case "Moderate":
+            return .yellow.opacity(0.9)
+        case "Unhealthy for Sensitive Groups":
+            return .orange.opacity(0.9)
+        case "Unhealthy":
+            return .red.opacity(0.85)
+        case "Very Unhealthy":
+            return .purple.opacity(0.85)
+        case "Hazardous":
+            return Color(red: 0.45, green: 0.08, blue: 0.12)
+        default:
+            return DesignSystem.skyBlue
+        }
+    }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        let textColor = theme.textColor
+
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Air Quality", systemImage: "aqi.medium")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            if let airQuality = weather.metrics?.airQuality, let aqi = airQuality.aqi {
+                if style == "compact" {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(aqi)")
+                                .font(.system(size: 34, weight: .bold, design: viewModel.typography.design))
+                                .foregroundColor(textColor)
+                            Text("US AQI")
+                                .font(.caption2)
+                                .foregroundColor(textColor.opacity(0.58))
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Text(airQuality.category ?? "Unavailable")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(badgeColor.opacity(0.2)))
+                            .overlay(Capsule().stroke(badgeColor.opacity(0.9), lineWidth: 0.8))
+                            .foregroundColor(badgeColor)
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(aqi)")
+                                .font(.system(size: 38, weight: .bold, design: viewModel.typography.design))
+                                .foregroundColor(textColor)
+                            Text("US AQI")
+                                .font(.caption2)
+                                .foregroundColor(textColor.opacity(0.58))
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(airQuality.category ?? "Unavailable")
+                                .font(.headline)
+                                .foregroundColor(textColor)
+
+                            if let pollutant = airQuality.dominantPollutant {
+                                Text("Dominant pollutant: \(pollutant)")
+                                    .font(.caption)
+                                    .foregroundColor(textColor.opacity(0.72))
+                            }
+
+                            Text(AirQualityHelper.recommendation(for: aqi))
+                                .font(.caption)
+                                .foregroundColor(textColor.opacity(0.68))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+
+                    Capsule()
+                        .fill(badgeColor.opacity(0.22))
+                        .overlay(
+                            Capsule()
+                                .stroke(badgeColor.opacity(0.9), lineWidth: 0.8)
+                        )
+                        .frame(height: 10)
+                }
+            } else {
+                Text("Air quality data is unavailable for this location right now.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.68))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+
+// MARK: - Marine Outlook Widget
+
+struct MarineOutlookWidget: View {
+    let weather: WeatherInfo
+    @ObservedObject var viewModel: WeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+    var config: [String: String]?
+
+    private var style: String {
+        config?["style"] ?? "detailed"
+    }
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+        let textColor = theme.textColor
+        let marine = weather.metrics?.marine
+
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Marine Outlook", systemImage: "water.waves")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            if let marine,
+               marine.waveHeight != nil || marine.wavePeriod != nil || marine.seaSurfaceTemperature != nil || marine.currentSpeed != nil {
+                if style == "compact" {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            MarineMetricTile(
+                                title: "Wave Height",
+                                value: marine.waveHeight ?? "Unavailable",
+                                icon: "water.waves",
+                                textColor: textColor
+                            )
+                            MarineMetricTile(
+                                title: "Sea Temp",
+                                value: marine.seaSurfaceTemperature ?? "Unavailable",
+                                icon: "thermometer.medium",
+                                textColor: textColor
+                            )
+                        }
+
+                        let current = [marine.currentSpeed, marine.currentDirection].compactMap { $0 }.joined(separator: " ")
+                        if !current.isEmpty {
+                            Text("Current: \(current)")
+                                .font(.caption)
+                                .foregroundColor(textColor.opacity(0.68))
+                        }
+                    }
+                } else {
+                    Text("Helpful for coastal trips, surf checks, and boat planning.")
+                        .font(.caption)
+                        .foregroundColor(textColor.opacity(0.7))
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        MarineMetricTile(
+                            title: "Wave Height",
+                            value: marine.waveHeight ?? "Unavailable",
+                            icon: "water.waves",
+                            textColor: textColor
+                        )
+                        MarineMetricTile(
+                            title: "Wave Period",
+                            value: marine.wavePeriod ?? "Unavailable",
+                            icon: "timer",
+                            textColor: textColor
+                        )
+                        MarineMetricTile(
+                            title: "Sea Temp",
+                            value: marine.seaSurfaceTemperature ?? "Unavailable",
+                            icon: "thermometer.medium",
+                            textColor: textColor
+                        )
+                        MarineMetricTile(
+                            title: "Current",
+                            value: [marine.currentSpeed, marine.currentDirection].compactMap { $0 }.joined(separator: " "),
+                            icon: "arrow.trianglehead.2.clockwise.rotate.90",
+                            textColor: textColor
+                        )
+                    }
+
+                    if let swell = marine.swellHeight {
+                        Text("Swell height: \(swell)")
+                            .font(.caption)
+                            .foregroundColor(textColor.opacity(0.68))
+                    }
+                }
+            } else {
+                Text("Marine data is patchy inland, but it becomes useful when you are near the coast.")
+                    .font(.caption)
+                    .foregroundColor(textColor.opacity(0.68))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softGlassCard()
+    }
+}
+
+private struct MarineMetricTile: View {
+    let title: String
+    let value: String
+    let icon: String
+    let textColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: icon)
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(textColor.opacity(0.62))
+            Text(value.isEmpty ? "Unavailable" : value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(textColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusS)
+                .fill(Color.white.opacity(0.08))
+        )
+    }
+}
+
 // MARK: - Wind History Widget
 
 struct WindHistoryWidget: View {
@@ -3146,7 +3511,7 @@ struct WindHistoryWidget: View {
     }
 
     private var windPoints: [WindPoint] {
-        Array((weather.allHourlyData ?? weather.hourlyForecast).prefix(rangeHours).enumerated()).compactMap { index, hour in
+        upcomingHourlySlice(from: weather.allHourlyData ?? weather.hourlyForecast, limit: rangeHours).enumerated().compactMap { index, hour in
             guard let speed = numericSpeed(hour.windSpeed) else { return nil }
             return WindPoint(index: index, time: hour.time, sustained: speed, gust: hour.windGust)
         }
@@ -3165,7 +3530,7 @@ struct WindHistoryWidget: View {
         let textColor = theme.textColor
 
         VStack(alignment: .leading, spacing: 12) {
-            Label("Wind History", systemImage: "lines.measurement.horizontal")
+            Label("Wind Outlook", systemImage: "lines.measurement.horizontal")
                 .font(.caption.weight(.bold))
                 .foregroundColor(textColor.opacity(0.6))
 
@@ -3530,6 +3895,7 @@ private let smartStackSupportedTypes: [WidgetType] = [
     .rainfallToday,
     .windSummary,
     .uvIndex,
+    .airQualityCard,
     .feelsLike,
     .humidityStrip,
     .visibilityCard,
@@ -3546,13 +3912,13 @@ struct SmartStackWidget: View {
         let configuredTypes = widget.config?["widgets"]?
             .split(separator: ",")
             .compactMap { WidgetType(rawValue: String($0)) }
-            .filter { $0 != .smartStack && $0 != .radar }
+            .filter { $0 != .smartStack && $0 != .radar && $0.isSupported(by: viewModel.weatherSource) }
 
         if let configuredTypes, !configuredTypes.isEmpty {
             return configuredTypes
         }
 
-        return smartStackDefaultTypes
+        return smartStackDefaultTypes.filter { $0.isSupported(by: viewModel.weatherSource) }
     }
     
     private var theme: WeatherTheme {
@@ -3566,6 +3932,10 @@ struct SmartStackWidget: View {
 
         if stackedTypes.contains(.windSummary), hasStrongWindSignal {
             return .windSummary
+        }
+
+        if stackedTypes.contains(.airQualityCard), hasAirQualitySignal {
+            return .airQualityCard
         }
 
         if stackedTypes.contains(.uvIndex), hasHighUVSignal {
@@ -3595,6 +3965,8 @@ struct SmartStackWidget: View {
             return "Wind is the strongest weather story right now."
         case .uvIndex:
             return "UV exposure is elevated, so this is the most useful card right now."
+        case .airQualityCard:
+            return "Air quality is the strongest extra signal from your Open-Meteo feed right now."
         case .hourlyForecast:
             return "Showing the literal next few hours so you can glance ahead quickly."
         case .forecastNarrative:
@@ -3605,6 +3977,11 @@ struct SmartStackWidget: View {
             return "This card is the most relevant weather detail right now."
         }
     }
+
+    private var hasAirQualitySignal: Bool {
+        guard let aqi = weather.metrics?.airQuality?.aqi else { return false }
+        return aqi >= 75
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -3614,7 +3991,7 @@ struct SmartStackWidget: View {
                         .font(.caption.weight(.bold))
                         .foregroundColor(theme.textColor.opacity(0.62))
 
-                    Text(featuredType.rawValue)
+                    Text(featuredType.displayName)
                         .font(.headline)
                         .foregroundColor(theme.textColor)
                 }
@@ -3803,6 +4180,37 @@ struct SmartStackWidget: View {
                         SmartStackMetricTile(title: "Gust", value: weather.metrics?.windGust ?? "None", textColor: theme.textColor)
                         SmartStackMetricTile(title: "Direction", value: weather.metrics?.windDirectionCardinal ?? "Variable", textColor: theme.textColor)
                     }
+                }
+            }
+        case .airQualityCard:
+            SmartStackPageCard(
+                title: "Air Quality",
+                subtitle: weather.metrics?.airQuality?.category ?? "Current AQI snapshot",
+                icon: "aqi.medium",
+                accent: .green,
+                textColor: theme.textColor
+            ) {
+                if let airQuality = weather.metrics?.airQuality, let aqi = airQuality.aqi {
+                    HStack(alignment: .top, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("\(aqi)")
+                                .font(.system(size: 34, weight: .bold, design: viewModel.typography.design))
+                                .foregroundColor(theme.textColor)
+                            Text(airQuality.category ?? "AQI")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(theme.textColor.opacity(0.72))
+                            if let pollutant = airQuality.dominantPollutant {
+                                Text("Dominant pollutant: \(pollutant)")
+                                    .font(.caption)
+                                    .foregroundColor(theme.textColor.opacity(0.58))
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                } else {
+                    Text("Air quality data is unavailable right now.")
+                        .font(.caption)
+                        .foregroundColor(theme.textColor.opacity(0.58))
                 }
             }
         case .uvIndex:
@@ -4120,6 +4528,40 @@ private struct SmartStackMetricTile: View {
     }
 }
 
+private struct UnsupportedSourceWidgetCard: View {
+    let widgetType: WidgetType
+    let source: WeatherSource
+    let textColor: Color
+    let glassOpacity: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Unavailable with \(source.shortLabel)", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.7))
+
+            Text(widgetType.rawValue)
+                .font(.headline)
+                .foregroundColor(textColor)
+
+            Text(source.capabilities.unsupportedReason(for: widgetType))
+                .font(.subheadline)
+                .foregroundColor(textColor.opacity(0.68))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .stroke(textColor.opacity(0.18), lineWidth: 0.5)
+                )
+        )
+    }
+}
+
 // MARK: - Gallery & Config
 
 struct WidgetGalleryView: View {
@@ -4169,7 +4611,7 @@ struct WidgetGalleryView: View {
                                 .font(.system(size: 28, weight: .bold, design: viewModel.typography.design))
                                 .foregroundColor(theme.textColor)
                             
-                            Text("Tap a widget to add it to your main view.")
+                            Text("Tap a card to add it to your dashboard. Forecasts show what is ahead, while details focus on the conditions right now.")
                                 .font(.system(size: 16, weight: .medium, design: viewModel.typography.design))
                                 .foregroundColor(theme.textColor.opacity(0.7))
                         }
@@ -4177,31 +4619,58 @@ struct WidgetGalleryView: View {
                         .padding(.top, DesignSystem.spacingS)
                         
                         // Categorized Grid
-                        ForEach(WidgetCategory.allCases) { category in
-                            VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
-                                Text(category.rawValue.uppercased())
-                                    .font(.system(size: 13, weight: .bold, design: viewModel.typography.design))
-                                    .tracking(1.2)
-                                    .foregroundColor(theme.textColor.opacity(0.6))
-                                    .padding(.horizontal)
+                            ForEach(WidgetCategory.allCases) { category in
+                                VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(category.rawValue.uppercased())
+                                        .font(.system(size: 13, weight: .bold, design: viewModel.typography.design))
+                                        .tracking(1.2)
+                                        .foregroundColor(theme.textColor.opacity(0.6))
+
+                                    Text(category.subtitle)
+                                        .font(.system(size: 12, weight: .medium, design: viewModel.typography.design))
+                                        .foregroundColor(theme.textColor.opacity(0.48))
+                                }
+                                .padding(.horizontal)
                                 
                                 LazyVGrid(columns: columns, spacing: DesignSystem.spacingS) {
-                                    ForEach(WidgetType.allCases.filter { $0.category == category }) { type in
+                                    ForEach(WidgetType.allCases.filter { $0.category == category && $0.isSupported(by: viewModel.weatherSource) }) { type in
                                         Button {
                                             onAdd(type)
                                         } label: {
                                             VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
-                                                ZStack {
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .fill(DesignSystem.skyBlue.opacity(0.15))
-                                                        .frame(width: 44, height: 44)
-                                                    Image(systemName: type.icon)
-                                                        .font(.system(size: 22, weight: .medium))
-                                                        .foregroundColor(DesignSystem.skyBlue)
+                                                HStack(alignment: .top) {
+                                                    ZStack {
+                                                        RoundedRectangle(cornerRadius: 12)
+                                                            .fill(DesignSystem.skyBlue.opacity(0.15))
+                                                            .frame(width: 44, height: 44)
+                                                        Image(systemName: type.icon)
+                                                            .font(.system(size: 22, weight: .medium))
+                                                            .foregroundColor(DesignSystem.skyBlue)
+                                                    }
+
+                                                    Spacer(minLength: 8)
+
+                                                    if let badge = providerBadge(for: type) {
+                                                        Text(badge)
+                                                            .font(.system(size: 10, weight: .bold, design: viewModel.typography.design))
+                                                            .tracking(0.4)
+                                                            .foregroundColor(DesignSystem.skyBlue)
+                                                            .padding(.horizontal, 8)
+                                                            .padding(.vertical, 5)
+                                                            .background(
+                                                                Capsule()
+                                                                    .fill(DesignSystem.skyBlue.opacity(0.18))
+                                                            )
+                                                            .overlay(
+                                                                Capsule()
+                                                                    .stroke(DesignSystem.skyBlue.opacity(0.5), lineWidth: 0.7)
+                                                            )
+                                                    }
                                                 }
                                                 
                                                 VStack(alignment: .leading, spacing: 2) {
-                                                    Text(type.rawValue)
+                                                    Text(type.displayName)
                                                         .font(.system(size: 16, weight: .bold, design: viewModel.typography.design))
                                                         .foregroundColor(theme.textColor)
                                                         .multilineTextAlignment(.leading)
@@ -4260,8 +4729,19 @@ struct WidgetGalleryView: View {
         case .precipitationTimeline: return "7-day rain probability bars"
         case .visibilityCard: return "Current visibility & category"
         case .cloudCoverCard: return "Cloud cover percentage"
-        case .windHistory: return "Sustained vs gust wind chart"
+        case .windHistory: return "Wind trend with sustained vs gust speeds"
+        case .airQualityCard: return "Open-Meteo only: AQI and pollutant snapshot"
+        case .marineOutlook: return "Open-Meteo only: waves, currents, and water temp"
         case .smartStack: return "Adaptive widget stack"
+        }
+    }
+
+    private func providerBadge(for type: WidgetType) -> String? {
+        switch type {
+        case .airQualityCard, .marineOutlook:
+            return "OPEN-METEO ONLY"
+        default:
+            return nil
         }
     }
 }
@@ -4290,7 +4770,7 @@ struct WidgetConfigView: View {
         case .humidityStrip:
             return "Choose how many hours of humidity data to display."
         case .windHistory:
-            return "Pick how far ahead to show sustained vs gust wind speeds."
+            return "Pick how far ahead to show sustained and gust wind trends."
         case .uvIndex:
             return "Control how prominent the UV reading is and whether the category label stays visible."
         case .sunPath:
@@ -4315,6 +4795,10 @@ struct WidgetConfigView: View {
             return "Configure visibility display style and units."
         case .cloudCoverCard:
             return "Choose how cloud cover data is visualized."
+        case .airQualityCard:
+            return "Pick how much air quality context this card shows."
+        case .marineOutlook:
+            return "Choose whether this marine card stays compact or shows the full set of sea conditions."
         case .radar:
             return "Set the default radar map layer and zoom level."
         case .smartStack:
@@ -4536,7 +5020,7 @@ struct WidgetConfigView: View {
                             let selectedTypes = widget.config?["widgets"]?
                                 .split(separator: ",")
                                 .compactMap { WidgetType(rawValue: String($0)) }
-                                .filter { smartStackSupportedTypes.contains($0) } ?? smartStackDefaultTypes
+                                .filter { smartStackSupportedTypes.contains($0) && $0.isSupported(by: viewModel.weatherSource) } ?? smartStackDefaultTypes.filter { $0.isSupported(by: viewModel.weatherSource) }
 
                             VStack(alignment: .leading, spacing: 14) {
                                 Text("Stacked Cards")
@@ -4545,7 +5029,7 @@ struct WidgetConfigView: View {
                                     .padding(.horizontal)
 
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                    ForEach(smartStackSupportedTypes) { stackType in
+                                    ForEach(smartStackSupportedTypes.filter { $0.isSupported(by: viewModel.weatherSource) }) { stackType in
                                         let isSelected = selectedTypes.contains(stackType)
                                         let canRemove = selectedTypes.count > 1
 
@@ -4567,7 +5051,7 @@ struct WidgetConfigView: View {
                                                     .font(.caption.weight(.semibold))
                                                     .foregroundColor(isSelected ? DesignSystem.skyBlue : theme.textColor.opacity(0.65))
 
-                                                Text(stackType.rawValue)
+                                                Text(stackType.displayName)
                                                     .font(.caption.weight(.medium))
                                                     .foregroundColor(theme.textColor)
                                                     .multilineTextAlignment(.leading)
@@ -4790,6 +5274,7 @@ struct WidgetConfigView: View {
                                 )) {
                                     Text("Minimal").tag("minimal")
                                     Text("Standard").tag("standard")
+                                    Text("Detailed").tag("detailed")
                                 }
                                 .pickerStyle(.segmented)
                                 .padding(.horizontal)
@@ -4842,25 +5327,65 @@ struct WidgetConfigView: View {
                         }
                         
                         if widget.type == .precipitationTimeline {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Forecast Days")
-                                    .font(.subheadline)
-                                    .foregroundColor(theme.textColor.opacity(0.7))
-                                    .padding(.horizontal)
-                                Picker("Days", selection: Binding(
-                                    get: { widget.config?["rangeDays"] ?? "0" },
-                                    set: { newValue in
-                                        if widget.config == nil { widget.config = [:] }
-                                        widget.config?["rangeDays"] = newValue
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Forecast Days")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+                                    Picker("Days", selection: Binding(
+                                        get: { widget.config?["rangeDays"] ?? "0" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["rangeDays"] = newValue
+                                        }
+                                    )) {
+                                        Text("All").tag("0")
+                                        Text("5 days").tag("5")
+                                        Text("7 days").tag("7")
+                                        Text("10 days").tag("10")
                                     }
-                                )) {
-                                    Text("All").tag("0")
-                                    Text("5 days").tag("5")
-                                    Text("7 days").tag("7")
-                                    Text("10 days").tag("10")
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
                                 }
-                                .pickerStyle(.segmented)
-                                .padding(.horizontal)
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Display Style")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+                                    Picker("Style", selection: Binding(
+                                        get: { widget.config?["style"] ?? "standard" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["style"] = newValue
+                                        }
+                                    )) {
+                                        Text("Compact").tag("compact")
+                                        Text("Standard").tag("standard")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Value Labels")
+                                        .font(.subheadline)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                        .padding(.horizontal)
+                                    Picker("Labels", selection: Binding(
+                                        get: { widget.config?["showLabels"] ?? "true" },
+                                        set: { newValue in
+                                            if widget.config == nil { widget.config = [:] }
+                                            widget.config?["showLabels"] = newValue
+                                        }
+                                    )) {
+                                        Text("Show").tag("true")
+                                        Text("Hide").tag("false")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .padding(.horizontal)
+                                }
                             }
                         }
                         
@@ -4941,6 +5466,48 @@ struct WidgetConfigView: View {
                                 )) {
                                     Text("Compact").tag("compact")
                                     Text("Standard").tag("standard")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        if widget.type == .airQualityCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Detail Level")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "detailed" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Detailed").tag("detailed")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        if widget.type == .marineOutlook {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Detail Level")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "detailed" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Detailed").tag("detailed")
                                 }
                                 .pickerStyle(.segmented)
                                 .padding(.horizontal)

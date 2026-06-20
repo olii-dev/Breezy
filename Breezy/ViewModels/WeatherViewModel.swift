@@ -53,11 +53,7 @@ class WeatherViewModel: ObservableObject {
             self.syncWatchContext()
             
             // Fetch initial attribution
-            do {
-                self.attribution = try await weatherService.attribution
-            } catch {
-                self.attribution = nil
-            }
+            self.attribution = await weatherProviderManager.attribution()
         }
     }
     
@@ -73,18 +69,21 @@ class WeatherViewModel: ObservableObject {
         showSunMoonInDayDetail = UserDefaults.standard.object(forKey: "Breezy.showSunMoonInDayDetail") as? Bool ?? true
         themeMode = ThemeMode(rawValue: UserDefaults.standard.string(forKey: "Breezy.themeMode") ?? "") ?? .auto
         selectedPresetThemeName = UserDefaults.standard.string(forKey: "Breezy.presetTheme") ?? "Cotton Candy"
+        weatherSourceRaw = WeatherSourceStore.selectedSource.rawValue
         
         if let data = UserDefaults.standard.data(forKey: "Breezy.customTheme"),
            let theme = try? JSONDecoder().decode(WeatherTheme.self, from: data) {
             customThemes = [theme]
             selectedCustomThemeID = theme.id
         }
+
+        syncSelectedCustomThemeToSharedDefaults()
         
         objectWillChange.send()
     }
     @Published var currentLocation: LocationData?
     @Published var weather: WeatherInfo?
-    @Published var attribution: WeatherAttribution?
+    @Published var attribution: AppWeatherAttribution?
     @Published var historicalWeather: WeatherInfo? // Time Machine Data - Date 1
     @Published var historicalWeather2: WeatherInfo? // Time Machine Data - Date 2 (for comparison)
     @Published var historicalRange: [HistoricalDataPoint] = [] // For Charts (deprecated)
@@ -92,6 +91,7 @@ class WeatherViewModel: ObservableObject {
     @Published var historicalLoading = false
     @Published var error: String?
     @Published var historicalError: String?
+    @Published var isUsingCachedFallback = false
 
     @AppStorage("Breezy.temperatureUnit") private var temperatureUnitRaw: String = TemperatureUnit.celsius.rawValue
     @AppStorage("Breezy.windSpeedUnit") private var windSpeedUnitRaw: String = WindSpeedUnit.metersPerSecond.rawValue
@@ -101,6 +101,8 @@ class WeatherViewModel: ObservableObject {
     @AppStorage("Breezy.dateFormat") private var dateFormatRaw: String = DateFormat.short.rawValue
     @AppStorage("Breezy.cacheDurationMinutes") var cacheDurationMinutes: Int = 30
     @AppStorage("Breezy.glassOpacity") var glassOpacity: Double = 0.35
+    @AppStorage(WeatherSourceStore.storageKey) private var weatherSourceRaw: String = WeatherSource.weatherKit.rawValue
+    @AppStorage(RadarPrecipitationSource.storageKey) private var radarPrecipitationSourceRaw: String = RadarPrecipitationSource.rainViewer.rawValue
 
 
     
@@ -224,7 +226,12 @@ class WeatherViewModel: ObservableObject {
         didSet {
             if let data = try? JSONEncoder().encode(customThemes) {
                 UserDefaults.standard.set(data, forKey: "Breezy.customThemes")
+                if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                    defaults.set(data, forKey: "Breezy.customThemes")
+                }
             }
+            syncSelectedCustomThemeToSharedDefaults()
+            WidgetCenter.shared.reloadAllTimelines()
             syncWatchContext()
             objectWillChange.send()
         }
@@ -233,6 +240,13 @@ class WeatherViewModel: ObservableObject {
     @Published var selectedCustomThemeID: String? = UserDefaults.standard.string(forKey: "Breezy.selectedCustomThemeID") {
         didSet {
             UserDefaults.standard.set(selectedCustomThemeID, forKey: "Breezy.selectedCustomThemeID")
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(selectedCustomThemeID, forKey: "Breezy.selectedCustomThemeID")
+            }
+            syncSelectedCustomThemeToSharedDefaults()
+            WidgetCenter.shared.reloadAllTimelines()
+            syncWatchContext()
+            objectWillChange.send()
         }
     }
     
@@ -245,12 +259,32 @@ class WeatherViewModel: ObservableObject {
         }
         return WeatherTheme.defaultCustom
     }
+
+    private func syncSelectedCustomThemeToSharedDefaults() {
+        guard let defaults = UserDefaults(suiteName: "group.com.breezy.weather") else { return }
+
+        if let data = try? JSONEncoder().encode(customThemes) {
+            defaults.set(data, forKey: "Breezy.customThemes")
+        }
+
+        if let selected = customThemes.first(where: { $0.id == selectedCustomThemeID }) ?? customThemes.first,
+           let selectedData = try? JSONEncoder().encode(selected) {
+            defaults.set(selectedData, forKey: "Breezy.selectedCustomTheme")
+            defaults.set(selectedData, forKey: "Breezy.customTheme")
+        } else {
+            defaults.removeObject(forKey: "Breezy.selectedCustomTheme")
+            defaults.removeObject(forKey: "Breezy.customTheme")
+        }
+
+        defaults.set(Date().timeIntervalSince1970, forKey: "Breezy.lastUpdate")
+    }
     
     // Computed property to resolve the current active theme
 
-    private let weatherService = WeatherService.shared
+    private let weatherProviderManager = WeatherProviderManager.shared
     private let notificationManager = NotificationManager.shared
     private var previousWeather: WeatherInfo?
+    private var latestWeatherFetchID = UUID()
 
     var lastUpdatedDate: Date? {
         guard let timestamp = weather?.timestamp else { return nil }
@@ -260,11 +294,20 @@ class WeatherViewModel: ObservableObject {
     var isShowingStaleWeather: Bool {
         guard let weather else { return false }
         let age = Date().timeIntervalSince1970 - weather.timestamp
-        return error != nil || age > Double(cacheDurationMinutes * 60)
+        let cacheAgeLimit = Double(cacheDurationMinutes * 60)
+        let cachedFallbackBannerDelay: TimeInterval = 5 * 60
+
+        if age > cacheAgeLimit {
+            return true
+        }
+
+        // Avoid warning about "saved weather" when the app has just restored a very
+        // fresh payload from disk. If the data stays cached for a while, we surface it.
+        return isUsingCachedFallback && age > cachedFallbackBannerDelay
     }
 
     var staleWeatherMessage: String? {
-        if let error, weather != nil {
+        if isShowingStaleWeather, isUsingCachedFallback, let error, weather != nil {
             return error
         }
 
@@ -330,6 +373,35 @@ class WeatherViewModel: ObservableObject {
             dateFormatRaw = newValue.rawValue
             syncWatchContext() // Although we don't sync this yet, good for future
         }
+    }
+
+    var weatherSource: WeatherSource {
+        get { WeatherSource(rawValue: weatherSourceRaw) ?? .weatherKit }
+        set {
+            weatherSourceRaw = newValue.rawValue
+            WeatherSourceStore.selectedSource = newValue
+            attribution = nil
+            historicalWeather = nil
+            historicalWeather2 = nil
+            historicalRange = []
+            WidgetCenter.shared.reloadAllTimelines()
+            syncWatchContext()
+            objectWillChange.send()
+        }
+    }
+
+    var providerCapabilities: WeatherProviderCapabilities {
+        weatherSource.capabilities
+    }
+
+    private var formattingContext: WeatherFormattingContext {
+        WeatherFormattingContext(
+            temperatureUnit: temperatureUnit,
+            windSpeedUnit: windSpeedUnit,
+            pressureUnit: pressureUnit,
+            visibilityUnit: visibilityUnit,
+            precipitationUnit: precipitationUnit
+        )
     }
 
     var rainTimingSummary: RainTimingSummary? {
@@ -647,6 +719,14 @@ class WeatherViewModel: ObservableObject {
             objectWillChange.send()
         }
     }
+
+    var radarPrecipitationSource: RadarPrecipitationSource {
+        get { RadarPrecipitationSource(rawValue: radarPrecipitationSourceRaw) ?? .rainViewer }
+        set {
+            radarPrecipitationSourceRaw = newValue.rawValue
+            objectWillChange.send()
+        }
+    }
     
     func formattedTemperature(_ tempRaw: Double) -> String {
         let symbol = temperatureUnit.symbol
@@ -715,12 +795,33 @@ class WeatherViewModel: ObservableObject {
         }
     }
 
-    func loadCacheIfValid() {
-        if let cached = WeatherCache.load() {
+    func savedManualLocation() -> LocationData? {
+        guard let savedLocationData = UserDefaults.standard.data(forKey: "Breezy.selectedLocation") else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(LocationData.self, from: savedLocationData)
+    }
+
+    func preferredLocationForCurrentSelection() -> LocationData? {
+        if shouldFollowGPS {
+            return currentLocation
+        }
+
+        return savedManualLocation() ?? currentLocation
+    }
+
+    func loadCacheIfValid(expectedLocation: LocationData? = nil) {
+        if let cached = WeatherCache.load(source: weatherSource) {
             let age = Date().timeIntervalSince1970 - cached.timestamp
             if age <= Double(cacheDurationMinutes * 60) {
+                if let expectedLocation, cached.location.id != expectedLocation.id {
+                    return
+                }
+
                 self.weather = cached
-                self.currentLocation = cached.location
+                self.currentLocation = expectedLocation ?? cached.location
+                self.isUsingCachedFallback = true
                 
                 // Always save cached data to widget/Watch app
                 let rainChance = cached.dailyForecast.first?.chanceOfRain
@@ -732,13 +833,14 @@ class WeatherViewModel: ObservableObject {
                     highTemp: cached.highTemp,
                     lowTemp: cached.lowTemp,
                     todayHourlyForecast: cached.hourlyForecast,
-                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                     rainChance: rainChance,
                     rainAmount: cached.metrics?.todayRainfall,
                     dailyForecast: cached.dailyForecast
                 )
             } else {
-                WeatherCache.clear()
+                WeatherCache.clear(source: weatherSource)
+                self.isUsingCachedFallback = false
             }
         }
     }
@@ -753,15 +855,14 @@ class WeatherViewModel: ObservableObject {
         // Check if user has a saved custom location (not GPS)
         let useGPS = shouldFollowGPS
         
-        if !useGPS, let savedLocationData = UserDefaults.standard.data(forKey: "Breezy.selectedLocation"),
-           let savedLocation = try? JSONDecoder().decode(LocationData.self, from: savedLocationData) {
+        if !useGPS, let savedLocation = savedManualLocation() {
             // Restore custom location
             Task {
                 // Check if cached data is still valid for this location
-                loadCacheIfValid()
+                loadCacheIfValid(expectedLocation: savedLocation)
                 
                 // If cache is valid and matches saved location, we're done
-                if let cached = weather, cached.location.city == savedLocation.city {
+                if let cached = weather, cached.location.id == savedLocation.id {
                     return
                 }
                 
@@ -793,101 +894,44 @@ class WeatherViewModel: ObservableObject {
     // MARK: - Weather Fetching
     
     func fetchWeather(for location: LocationData, saveToCache: Bool = true, isManualRefresh: Bool = false) async {
-        // Prevent duplicate requests - if already loading, check if same location
-        if isLoading {
-            if currentLocation?.city == location.city && weather != nil {
+        // Prevent duplicate automatic requests, but always let a manual refresh win.
+        if isLoading && !isManualRefresh {
+            if currentLocation?.id == location.id && weather != nil {
                 return
             }
         }
-        
+
+        let requestID = UUID()
+        latestWeatherFetchID = requestID
         self.isLoading = true
         self.error = nil
         self.currentLocation = location
-        
-        let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
-        
+
         do {
-            let weather = try await weatherService.weather(for: clLocation)
-            let hourly = weather.hourlyForecast
-            let daily = weather.dailyForecast
-            
-            let cityName = location.city
-            
-            // Get timezone for the location
-            let geocoder = CLGeocoder()
-            let placemarks = try? await geocoder.reverseGeocodeLocation(clLocation)
-            let tz = placemarks?.first?.timeZone ?? TimeZone.current
-            
-            // Get current temperature
-            let (tempValue, feelsValue) = getCurrentTemperatures(from: weather.currentWeather)
-            let symbol = temperatureUnit.symbol
-            let tempRaw = String(format: "%.0f°%@", tempValue, symbol)
-            let feelsRaw = String(format: "%.0f°%@", feelsValue, symbol)
-            
-            let cond = WeatherConditionConverter.description(from: weather.currentWeather.condition)
-            
-            // Get today's high/low
-            let (highTemp, lowTemp) = getTodayHighLow(from: daily)
-            
-            // Parse hourly forecast for today (every 3 hours for display)
-            let todayHourlyForecast = parseHourlyForecast(from: hourly, timeZone: tz)
-            
-            // Parse ALL hours for drag interpolation
-                let allHoursData = parseAllHourlyForecast(from: hourly, timeZone: tz)
-            
-            // Parse daily forecast (10 days)
-            let dailyForecastArray = parseDailyForecast(from: daily, hourly: hourly, timeZone: tz)
-            
-            // Extract additional metrics
-            let metrics = extractMetrics(from: weather.currentWeather, daily: daily, hourly: hourly, minuteForecast: weather.minuteForecast, timeZone: tz)
-            
-            let emoji = WeatherIconHelper.emoji(for: cond)
-            
-            var updatedLocation = LocationData(
-                city: cityName,
-                latitude: location.latitude,
-                longitude: location.longitude
-            )
-            updatedLocation.timezoneIdentifier = tz.identifier
-            
-            let info = WeatherInfo(
-                location: updatedLocation,
-                temperature: tempRaw,
-                feelsLike: feelsRaw,
-                highTemp: highTemp,
-                lowTemp: lowTemp,
-                condition: cond,
-                emoji: emoji,
-                hourlyForecast: todayHourlyForecast,
-                allHourlyData: allHoursData,
-                dailyForecast: dailyForecastArray,
-                metrics: metrics,
-                timezone: tz.identifier
-            )
+            let result = try await weatherProviderManager.fetchWeather(for: location, formatting: formattingContext)
+            guard latestWeatherFetchID == requestID else { return }
+            let info = result.weather
             self.weather = info
-            if saveToCache { WeatherCache.save(info) }
-            
-            // Save widget data
-            let todayRainChance = daily.forecast.first.map { Int($0.precipitationChance * 100) }
-            
-            // Extract accurate condition/daylight for widget icons
-            let isDaylight = weather.currentWeather.isDaylight
-            let conditionCode = weather.currentWeather.condition.description
+            self.isUsingCachedFallback = false
+            if saveToCache {
+                WeatherCache.save(info, source: weatherSource)
+            }
+            self.attribution = result.attribution
             
             saveWidgetData(
-                cityName: cityName,
-                tempRaw: tempRaw,
-                cond: cond,
-                emoji: emoji,
-                highTemp: highTemp,
-                lowTemp: lowTemp,
-                todayHourlyForecast: todayHourlyForecast,
-                metrics: metrics,
-                rainChance: todayRainChance.map { "\($0)%" },
-                rainAmount: metrics.todayRainfall,
-                conditionCode: conditionCode,
-                isDaylight: isDaylight,
-                dailyForecast: dailyForecastArray
+                cityName: info.location.city,
+                tempRaw: info.temperature,
+                cond: info.condition,
+                emoji: info.emoji,
+                highTemp: info.highTemp,
+                lowTemp: info.lowTemp,
+                todayHourlyForecast: info.hourlyForecast,
+                metrics: info.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                rainChance: info.dailyForecast.first?.chanceOfRain,
+                rainAmount: info.metrics?.todayRainfall,
+                conditionCode: result.conditionCode ?? info.condition,
+                isDaylight: result.isDaylight,
+                dailyForecast: info.dailyForecast
             )
             
             // Check for minute precipitation alerts (with cooldown built-in)
@@ -908,12 +952,15 @@ class WeatherViewModel: ObservableObject {
             
             // Refresh attribution periodically or on fetch
             if attribution == nil {
-                self.attribution = try await weatherService.attribution
+                self.attribution = await weatherProviderManager.attribution()
             }
         } catch {
+            guard latestWeatherFetchID == requestID else { return }
             self.error = userFriendlyError(error)
         }
-        self.isLoading = false
+        if latestWeatherFetchID == requestID {
+            self.isLoading = false
+        }
     }
     
     private func userFriendlyError(_ error: Error) -> String {
@@ -957,160 +1004,22 @@ class WeatherViewModel: ObservableObject {
             self.historicalWeather2 = nil
         }
         
-        let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
-        
         do {
-            // WeatherKit historical fetch requires requesting specific collections with start/end dates
-            let endDate = Calendar.current.date(byAdding: .day, value: 1, to: date)!
-            
-            // Fetch Daily and Hourly separately for the date range
-            let dailyCollection = try await weatherService.weather(for: clLocation, including: .daily(startDate: date, endDate: endDate))
-            let hourlyCollection = try await weatherService.weather(for: clLocation, including: .hourly(startDate: date, endDate: endDate))
-            
-            // Get timezone
-            let geocoder = CLGeocoder()
-            let placemarks = try? await geocoder.reverseGeocodeLocation(clLocation)
-            let tz = placemarks?.first?.timeZone ?? TimeZone.current
-            
-            // Ensure we have data
-            guard let dayWeather = dailyCollection.first else {
-                throw NSError(domain: "Breezy", code: 404, userInfo: [NSLocalizedDescriptionKey: "No historical data found"])
-            }
-            
-            // Parse High/Low
-            let (highTemp, lowTemp) = getDayHighLow(from: dayWeather)
-            
-            // Parse Hourly
-            // Convert to Forecast<HourWeather> wrapper to reuse existing parser or parse manually?
-            // Existing parser 'parseHourlyForecast(from:timeZone:)' takes 'Forecast<HourWeather>'
-            // We can just parse manually here for simplicity as the object types match (HourWeather)
-            
-            var hourlyResults: [HourlyForecast] = []
-            let calendar = Calendar.current
-            
-            for hour in hourlyCollection {
-                let hourInt = calendar.component(.hour, from: hour.date)
-                // Filter every 3 hours or show all? Let's show all for detail in retro view
-                
-                let tempRaw: Double
-                if temperatureUnit == .fahrenheit {
-                    tempRaw = hour.temperature.converted(to: .fahrenheit).value
-                } else {
-                    tempRaw = hour.temperature.converted(to: .celsius).value
-                }
-                
-                let weatherDesc = WeatherConditionConverter.description(from: hour.condition)
-                let timeDisplay = DateFormatterHelper.formatHour(hourInt)
-                let hourlyWindSpeedValue = windSpeedUnit == .milesPerHour
-                    ? hour.wind.speed.converted(to: .milesPerHour).value
-                    : hour.wind.speed.converted(to: .metersPerSecond).value
-                let hourlyWindSpeed = String(format: "%.0f %@", hourlyWindSpeedValue, windSpeedUnit.symbol)
-                let hourlyWindDirection = WindDirectionHelper.cardinalDirection(from: hour.wind.direction.value)
-                
-                hourlyResults.append(HourlyForecast(
-                    sourceDate: hour.date,
-                    time: timeDisplay,
-                    temperatureRaw: tempRaw,
-                    condition: weatherDesc,
-                    emoji: WeatherIconHelper.emoji(for: weatherDesc),
-                    hourValue: hourInt,
-                    precipitationChance: hour.precipitationChance,
-                    precipitationAmount: hour.precipitationAmount.value,
-                    windSpeed: hourlyWindSpeed,
-                    windGust: nil,
-                    windDirection: hourlyWindDirection,
-                    uvIndex: Int(hour.uvIndex.value),
-                    humidity: Int(hour.humidity * 100)
-                ))
-            }
-            
-            // Representative Condition (from DayWeather)
-            let cond = WeatherConditionConverter.description(from: dayWeather.condition)
-            let emoji = WeatherIconHelper.emoji(for: cond)
-            
-            // Representative Temperature
-            let symbol = temperatureUnit.symbol
-            let tempValue = temperatureUnit == .fahrenheit ? dayWeather.highTemperature.converted(to: .fahrenheit).value : dayWeather.highTemperature.converted(to: .celsius).value
-            let tempRaw = String(format: "%.0f°%@", tempValue, symbol)
-            
-            // --- POPULATE DETAILED METRICS FOR TIME MACHINE V2 ---
-            
-            // Wind
-            let windSpeedVal = windSpeedUnit == .milesPerHour ? dayWeather.wind.speed.converted(to: .milesPerHour).value : dayWeather.wind.speed.converted(to: .metersPerSecond).value
-            let windSpeedStr = String(format: "%.0f %@", windSpeedVal, windSpeedUnit.symbol)
-            let windDir = dayWeather.wind.direction.value
-            let windCard = WindDirectionHelper.cardinalDirection(from: windDir)
-            
-            // UV
-            // DayWeather usually has uvIndex (Quantity<UnitGradient>) or we can take max from hourly if needed.
-            // DayWeather.uvIndex is available in newer WeatherKit, but fallback to 0 if not.
-            let uvIndex = Int(dayWeather.uvIndex.value)
-            let uvCategory = UVIndexHelper.category(for: uvIndex)
-            
-            // Sun times
-            let sunriseStr = dayWeather.sun.sunrise.map { DateFormatterHelper.formatTime($0, timeZone: tz) }
-            let sunsetStr = dayWeather.sun.sunset.map { DateFormatterHelper.formatTime($0, timeZone: tz) }
-            
-            // Precip
-            let precipChance = String(format: "%.0f%%", dayWeather.precipitationChance * 100)
-            
-            // Humidity (DayWeather has average humidity usually, or use hourly)
-            // Let's use the humidity from the hourly forecast roughly at noon as a proxy or average
-            // Actually DayWeather doesn't expose humidity directly in all versions. 
-            // We'll take the first hour (midnight) or noon. Let's take noon (12:00)
-            let noonHour = hourlyCollection.first { calendar.component(.hour, from: $0.date) == 12 } ?? hourlyCollection.first
-            let humidityVal = Int((noonHour?.humidity ?? 0) * 100)
-            
-            // Pressure
-            let pressureVal = pressureUnit == .inchesOfMercury ? (noonHour?.pressure.converted(to: .inchesOfMercury).value ?? 0) : (noonHour?.pressure.converted(to: .hectopascals).value ?? 0)
-            let pressureStr = String(format: "%.0f %@", pressureVal, pressureUnit.symbol)
-            
-            let metrics = WeatherMetrics(
-                uvIndex: uvIndex,
-                uvIndexCategory: uvCategory,
-                airQuality: nil, // Historical AQI is hard to get
-                pressure: pressureStr,
-                visibility: nil, // Not critical
-                dewPoint: nil,
-                humidity: humidityVal,
-                windDirection: windDir,
-                windDirectionCardinal: windCard,
-                windSpeed: windSpeedStr,
-                windGust: nil,
-                rainChance: precipChance,
-                todayRainfall: nil,
-                todayMaxRainIntensity: nil,
-                cloudCover: nil,
-                sunrise: sunriseStr,
-                sunset: sunsetStr,
-                minuteForecast: nil
-            )
-            
-            let info = WeatherInfo(
-                location: location,
-                temperature: tempRaw,
-                feelsLike: "", 
-                highTemp: highTemp,
-                lowTemp: lowTemp,
-                condition: cond,
-                emoji: emoji,
-                hourlyForecast: hourlyResults,
-                allHourlyData: hourlyResults,
-                dailyForecast: [],
-                metrics: metrics,
-                timezone: tz.identifier
-            )
-            
-            // Assign to appropriate slot
+            let info = try await weatherProviderManager.fetchHistoricalWeather(for: location, date: date, formatting: formattingContext)
             if slot == 1 {
                 self.historicalWeather = info
             } else {
                 self.historicalWeather2 = info
             }
-            
         } catch {
             print("Historical Fetch Error: \(error)")
-            self.historicalError = "Historical data is generally only available from August 2021 onwards for most locations."
+            let nsError = error as NSError
+            if let description = nsError.userInfo[NSLocalizedDescriptionKey] as? String,
+               !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                self.historicalError = description
+            } else {
+                self.historicalError = providerCapabilities.historicalAvailabilityDescription
+            }
         }
         
         self.historicalLoading = false
@@ -1125,40 +1034,13 @@ class WeatherViewModel: ObservableObject {
         self.historicalError = nil
         self.historicalRange = []
         
-        let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
-        
         do {
-            // Fetch daily weather for the range
-            let dailyCollection = try await weatherService.weather(for: clLocation, including: .daily(startDate: startDate, endDate: endDate))
-            
-            var dataPoints: [HistoricalDataPoint] = []
-            
-            for dayWeather in dailyCollection {
-                // Extract temperature
-                let tempValue = temperatureUnit == .fahrenheit ? 
-                    dayWeather.highTemperature.converted(to: .fahrenheit).value : 
-                    dayWeather.highTemperature.converted(to: .celsius).value
-                
-                let highValue = temperatureUnit == .fahrenheit ? 
-                    dayWeather.highTemperature.converted(to: .fahrenheit).value : 
-                    dayWeather.highTemperature.converted(to: .celsius).value
-                
-                let lowValue = temperatureUnit == .fahrenheit ? 
-                    dayWeather.lowTemperature.converted(to: .fahrenheit).value : 
-                    dayWeather.lowTemperature.converted(to: .celsius).value
-                
-                let condition = WeatherConditionConverter.description(from: dayWeather.condition)
-                
-                dataPoints.append(HistoricalDataPoint(
-                    date: dayWeather.date,
-                    temperature: tempValue,
-                    high: highValue,
-                    low: lowValue,
-                    condition: condition
-                ))
-            }
-            
-            self.historicalRange = dataPoints
+            self.historicalRange = try await weatherProviderManager.fetchHistoricalRange(
+                for: location,
+                startDate: startDate,
+                endDate: endDate,
+                formatting: formattingContext
+            )
             
         } catch {
             print("Historical Range Fetch Error: \(error)")
@@ -1614,6 +1496,7 @@ class WeatherViewModel: ObservableObject {
                 uvIndex: uvIndex,
                 uvIndexCategory: uvCategory,
                 airQuality: airQuality,
+                marine: nil,
                 pressure: pressure,
                 visibility: visibility,
                 dewPoint: dewPoint,
@@ -1667,6 +1550,7 @@ class WeatherViewModel: ObservableObject {
             uvIndex: uvIndex,
             uvIndexCategory: uvCategory,
             airQuality: airQuality,
+            marine: nil,
             pressure: pressure,
             visibility: visibility,
             dewPoint: dewPoint,
@@ -1799,12 +1683,13 @@ class WeatherViewModel: ObservableObject {
         )
         
         
-        WidgetDataStore.save(widgetData)
+        WidgetDataStore.save(widgetData, source: weatherSource)
         
         // Save Unit Preferences to App Group so Widget can use them for background updates
         
         // Save Unit Preferences to App Group so Widget can use them for background updates
         if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+            defaults.set(weatherSource.rawValue, forKey: WeatherSourceStore.storageKey)
             defaults.set(temperatureUnit.rawValue, forKey: "Breezy.temperatureUnit")
             defaults.set(windSpeedUnit.rawValue, forKey: "Breezy.windSpeedUnit")
             defaults.set(pressureUnit.rawValue, forKey: "Breezy.pressureUnit")
@@ -1871,6 +1756,7 @@ class WeatherViewModel: ObservableObject {
         }
 
         WatchSessionManager.shared.updateContext(
+            weatherSource: weatherSource,
             useMinimalistIcons: useMinimalistIcons,
             typography: typography,
             visibleMetrics: visibleMetrics,
@@ -1883,7 +1769,8 @@ class WeatherViewModel: ObservableObject {
             presetTheme: selectedPresetThemeName,
             currentTheme: theme,
             customTheme: customTheme,
-            mapStyle: mapStyle
+            mapStyle: mapStyle,
+            radarPrecipitationSource: radarPrecipitationSource
         )
     }
 }

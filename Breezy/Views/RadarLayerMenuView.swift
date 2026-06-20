@@ -9,6 +9,7 @@ import SwiftUI
 
 struct RadarLayerMenuView: View {
     @Binding var selectedLayer: RadarLayer
+    let precipitationSource: RadarPrecipitationSource
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
     
@@ -76,7 +77,7 @@ struct RadarLayerMenuView: View {
                                 // Color preview gradient
                                 HStack(spacing: 1) {
                                     ForEach(0..<5, id: \.self) { index in
-                                        let colors = layer.legendGradient
+                                        let colors = layer.legendGradient(for: precipitationSource)
                                         let colorIndex = min((index * colors.count) / 5, colors.count - 1)
                                         Rectangle()
                                             .fill(Color(hex: colors[colorIndex].color))
@@ -119,7 +120,8 @@ struct RadarLayerMenuView: View {
     
     private func layerDescription(for layer: RadarLayer) -> String {
         switch layer {
-        case .precipitation: return "Rain and snow intensity"
+        case .precipitation:
+            return precipitationSource == .rainViewer ? "Live radar precipitation via RainViewer" : "Rain and snow intensity"
         case .wind: return "Wind speed patterns"
         case .clouds: return "Cloud cover density"
         case .temperature: return "Global temperature map"

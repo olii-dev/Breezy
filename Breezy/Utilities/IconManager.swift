@@ -24,6 +24,8 @@ class IconManager: ObservableObject {
     
     enum AppIcon: String, CaseIterable {
         case primary = "Default"
+        case glassCloud = "GlassCloudIcon"
+        case nightGlow = "NightGlowIcon"
         case dark = "DarkIcon"
         case sunset = "SunsetIcon"
         case minimalist = "MinimalistIcon"
@@ -37,6 +39,8 @@ class IconManager: ObservableObject {
         var displayName: String {
             switch self {
             case .primary: return "Default"
+            case .glassCloud: return "Glass Cloud"
+            case .nightGlow: return "Night Glow"
             case .dark: return "Bubble"
             case .minimalist: return "Minimalist"
             case .sunset: return "Translucent"
@@ -51,6 +55,8 @@ class IconManager: ObservableObject {
         var previewImage: String {
             switch self {
             case .primary: return "sun.max.fill"
+            case .glassCloud: return "cloud.sun.fill"
+            case .nightGlow: return "moon.stars.fill"
             case .dark: return "moon.fill"
             case .minimalist: return "cloud.fill"
             case .sunset: return "sun.haze.fill"
@@ -65,6 +71,8 @@ class IconManager: ObservableObject {
         var previewImageName: String {
             switch self {
             case .primary: return "DefaultIconPreview"
+            case .glassCloud: return "GlassCloudIconPreview"
+            case .nightGlow: return "NightGlowIconPreview"
             case .dark: return "DarkIconPreview"
             case .minimalist: return "MinimalistIconPreview"
             case .sunset: return "SunsetIconPreview"
@@ -86,7 +94,7 @@ class IconManager: ObservableObject {
         
         // Prevent redundant calls
         if iconName == UIApplication.shared.alternateIconName {
-             return true 
+             return true
         }
         
         do {

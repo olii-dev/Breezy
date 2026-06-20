@@ -144,7 +144,39 @@ enum PrecipitationUnit: String, CaseIterable, Identifiable, Codable {
 enum WatchWeatherDataSource: String, Codable {
     case phone
     case weatherKit
+    case openMeteo
     case cache
+}
+
+enum WatchSelectedWeatherSource: String, Codable, CaseIterable, Identifiable {
+    case weatherKit = "weatherkit"
+    case openMeteo = "open-meteo"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .weatherKit:
+            return "WeatherKit"
+        case .openMeteo:
+            return "Open-Meteo"
+        }
+    }
+
+    var historicalStartDate: Date {
+        switch self {
+        case .weatherKit:
+            return Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1)) ?? .distantPast
+        case .openMeteo:
+            return Calendar.current.date(from: DateComponents(year: 1940, month: 1, day: 1)) ?? .distantPast
+        }
+    }
+
+    var historicalAvailabilityDescription: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM yyyy"
+        return "Data available from \(formatter.string(from: historicalStartDate))"
+    }
 }
 
 struct WatchWeatherMetadata {
@@ -210,8 +242,148 @@ struct WatchDailyForecast: Identifiable {
     let hourlyForecast: [WatchHourlyForecast]
 }
 
+struct WatchHistoricalDay {
+    let date: Date
+    let condition: String
+    let emoji: String
+    let iconName: String
+    let highTemp: String
+    let lowTemp: String
+    let precipChance: String?
+    let maxWind: String?
+    let hourlyTemps: [WatchTempPoint]
+}
+
+struct WatchTempPoint: Identifiable {
+    let id = UUID()
+    let index: Int
+    let temp: Double
+}
+
+// MARK: - Radar Types
+
+enum WatchRadarLayer: String, CaseIterable, Identifiable, Codable {
+    case precipitation = "precipitation_new"
+    case wind = "wind_new"
+    case clouds = "clouds_new"
+    case temperature = "temp_new"
+    case pressure = "pressure_new"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .precipitation: return "Precipitation"
+        case .wind: return "Wind"
+        case .clouds: return "Clouds"
+        case .temperature: return "Temperature"
+        case .pressure: return "Pressure"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .precipitation: return "cloud.rain.fill"
+        case .wind: return "wind"
+        case .clouds: return "cloud.fill"
+        case .temperature: return "thermometer.medium"
+        case .pressure: return "gauge.medium"
+        }
+    }
+
+    var emoji: String {
+        switch self {
+        case .precipitation: return "🌧"
+        case .wind: return "💨"
+        case .clouds: return "☁️"
+        case .temperature: return "🌡"
+        case .pressure: return "⏲"
+        }
+    }
+
+    var supportsRainViewer: Bool { self == .precipitation }
+
+    func legendGradient(for source: WatchRadarPrecipitationSource) -> [(value: Double, hexColor: String, label: String)] {
+        switch self {
+        case .precipitation:
+            if source == .rainViewer {
+                return [
+                    (0, "#00000000", "Light"),
+                    (20, "#6CCB5F", ""),
+                    (40, "#F3D250", ""),
+                    (60, "#F58B2A", ""),
+                    (80, "#E34A4A", ""),
+                    (100, "#B7349B", "Heavy")
+                ]
+            } else {
+                return [
+                    (0, "#00000000", "0"),
+                    (0.1, "#C89696", "0.1"),
+                    (0.5, "#7878BE", "0.5"),
+                    (1, "#6E6ECD", "1"),
+                    (10, "#5050E1", "10"),
+                    (50, "#1414FF", "50+ mm/h")
+                ]
+            }
+        case .wind:
+            return [
+                (0, "#00000000", "0"),
+                (5, "#94B6D6", "5"),
+                (10, "#308DC4", "10"),
+                (20, "#2F67B3", "20"),
+                (40, "#1953A2", "40+ m/s")
+            ]
+        case .clouds:
+            return [
+                (0, "#00000000", "0%"),
+                (25, "#BCC7CC", "25%"),
+                (50, "#8E9CA3", "50%"),
+                (75, "#5E6B72", "75%"),
+                (100, "#2F393D", "100%")
+            ]
+        case .temperature:
+            return [
+                (-40, "#8C39DE", "-40"),
+                (-20, "#3B6FCE", "-20"),
+                (0, "#4FAFF1", "0"),
+                (15, "#2EBC4D", "15"),
+                (30, "#E8B929", "30"),
+                (40, "#E04A1D", "40+ °C")
+            ]
+        case .pressure:
+            return [
+                (960, "#710D0D", "960"),
+                (990, "#D64545", "990"),
+                (1013, "#2BAE66", "1013"),
+                (1030, "#3D7CD6", "1030"),
+                (1060, "#0D1F71", "1060 hPa")
+            ]
+        }
+    }
+}
+
+enum WatchRadarPrecipitationSource: String, CaseIterable, Identifiable, Codable {
+    case rainViewer = "RainViewer"
+    case openWeather = "OpenWeather"
+
+    var id: String { rawValue }
+
+    var displayName: String { rawValue }
+
+    var subtitle: String {
+        switch self {
+        case .rainViewer:
+            return "Global radar mosaic."
+        case .openWeather:
+            return "Matches other Breezy layers."
+        }
+    }
+}
+
 enum WatchAppStorageKey {
     static let appGroup = "group.com.breezy.weather"
+    static let weatherSource = "WatchWeatherSource"
+    static let phoneWeatherSource = "Breezy.weatherSource"
     static let temperatureUnit = "Breezy.temperatureUnit"
     static let selectedLocationID = "WatchSelectedLocationID"
     static let savedLocations = "WatchSavedLocations"
@@ -224,6 +396,7 @@ enum WatchAppStorageKey {
     static let lastHighTemp = "WatchLastHighTemp"
     static let lastLowTemp = "WatchLastLowTemp"
     static let lastCacheTimestamp = "WatchLastCacheTimestamp"
+    static let lastWeatherSource = "WatchLastWeatherSource"
     static let windSpeedUnit = "Breezy.windSpeedUnit"
     static let pressureUnit = "Breezy.pressureUnit"
     static let visibilityUnit = "Breezy.visibilityUnit"
@@ -235,4 +408,9 @@ enum WatchAppStorageKey {
     static let showDaySunSchedule = "WatchShowDaySunSchedule"
     static let showDayHourlyChart = "WatchShowDayHourlyChart"
     static let showDayHourlyForecast = "WatchShowDayHourlyForecast"
+    static let radarLayer = "Breezy.watch.radarLayer"
+    static let radarPrecipitationSource = "Breezy.radarPrecipitationSource"
+    static let radarShowLegend = "Breezy.watch.radarShowLegend"
+    static let radarShowBaseMap = "Breezy.watch.radarShowBaseMap"
+    static let radarAnimationEnabled = "Breezy.watch.radarAnimationEnabled"
 }

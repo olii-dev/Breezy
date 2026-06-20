@@ -12,6 +12,24 @@
     <dict>
         <key>CFBundleAlternateIcons</key>
         <dict>
+            <key>GlassCloudIcon</key>
+            <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                    <string>GlassCloudIcon</string>
+                </array>
+                <key>UIPrerenderedIcon</key>
+                <false/>
+            </dict>
+            <key>NightGlowIcon</key>
+            <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                    <string>NightGlowIcon</string>
+                </array>
+                <key>UIPrerenderedIcon</key>
+                <false/>
+            </dict>
             <key>DarkIcon</key>
             <dict>
                 <key>CFBundleIconFiles</key>

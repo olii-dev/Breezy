@@ -17,6 +17,10 @@ struct RadarCardView: View {
     @State private var showFullScreen = false
     @State private var showLayerMenu = false
     @State private var isLoading = true
+
+    private var precipitationSource: RadarPrecipitationSource {
+        viewModel.radarPrecipitationSource
+    }
     
     init(viewModel: WeatherViewModel, locationHelper: LocationHelper? = nil) {
         self.viewModel = viewModel
@@ -71,6 +75,7 @@ struct RadarCardView: View {
                 RadarMapView(
                     region: $region,
                     layer: selectedLayer,
+                    precipitationSource: precipitationSource,
                     isLoading: $isLoading,
                     coordinate: CLLocationCoordinate2D(
                         latitude: viewModel.currentLocation?.latitude ?? 0,
@@ -120,10 +125,13 @@ struct RadarCardView: View {
             FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
         }
         .sheet(isPresented: $showLayerMenu) {
-            RadarLayerMenuView(selectedLayer: $selectedLayer)
+            RadarLayerMenuView(selectedLayer: $selectedLayer, precipitationSource: precipitationSource)
         }
         .onChange(of: selectedLayer) { oldValue, newValue in
             HapticsManager.shared.impact(style: .light)
+            withAnimation { isLoading = true }
+        }
+        .onChange(of: precipitationSource) { _, _ in
             withAnimation { isLoading = true }
         }
         .onChange(of: viewModel.currentLocation) { oldValue, newLocation in
@@ -144,12 +152,15 @@ struct RadarCardView: View {
 struct RadarMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let layer: RadarLayer
+    let precipitationSource: RadarPrecipitationSource
     @Binding var isLoading: Bool
     let coordinate: CLLocationCoordinate2D
     var userGPSLocation: CLLocationCoordinate2D?
     var showGPSDot: Bool = false
     var isDark: Bool
     var mapStyle: WeatherViewModel.RadarMapStyle
+    /// Optional RainViewer frame path for animation. Pass nil for latest frame.
+    var framePath: String?
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -166,9 +177,13 @@ struct RadarMapView: UIViewRepresentable {
         configureMapStyle(mapView)
         
         mapView.overrideUserInterfaceStyle = isDark ? .dark : .light
+
+        if layer == .precipitation, precipitationSource == .rainViewer {
+            RadarService.shared.refreshRainViewerMetadataIfNeeded()
+        }
         
         // Add radar overlay
-        let overlay = OpenWeatherTileOverlay(layer: layer)
+        let overlay = WeatherTileOverlay(layer: layer, precipitationSource: precipitationSource)
         overlay.canReplaceMapContent = false
         mapView.addOverlay(overlay, level: .aboveLabels)
         context.coordinator.beginLoading()
@@ -207,20 +222,36 @@ struct RadarMapView: UIViewRepresentable {
             mapView.setRegion(region, animated: true)
         }
         
-        // Update overlay if layer changed
-        let currentTileOverlay = mapView.overlays.first(where: { $0 is OpenWeatherTileOverlay }) as? OpenWeatherTileOverlay
-        
-        if currentTileOverlay?.layer != layer {
+        // Update overlay if layer, source, or animation frame changed
+        let currentTileOverlay = mapView.overlays.first(where: { $0 is WeatherTileOverlay }) as? WeatherTileOverlay
+
+        let needsSwap: Bool = {
+            guard let current = currentTileOverlay else { return true }
+            if current.layer != layer || current.precipitationSource != precipitationSource { return true }
+            // Frame path mismatch only matters when animating RainViewer precipitation
+            if layer == .precipitation && precipitationSource == .rainViewer {
+                return current.framePath != framePath
+            }
+            return false
+        }()
+
+        if needsSwap {
             // Remove existing radar overlays
-            let radarOverlays = mapView.overlays.filter { $0 is OpenWeatherTileOverlay }
+            let radarOverlays = mapView.overlays.filter { $0 is WeatherTileOverlay }
             if !radarOverlays.isEmpty {
                 mapView.removeOverlays(radarOverlays)
             }
-            
+
             // Add new overlay
-            let overlay = OpenWeatherTileOverlay(layer: layer)
+            if layer == .precipitation, precipitationSource == .rainViewer {
+                RadarService.shared.refreshRainViewerMetadataIfNeeded()
+            }
+            let overlay = WeatherTileOverlay(layer: layer, precipitationSource: precipitationSource, framePath: framePath)
             mapView.addOverlay(overlay, level: .aboveLabels)
-            context.coordinator.beginLoading()
+            // Only show loading spinner on layer/source changes, not frame animation steps
+            if currentTileOverlay?.layer != layer || currentTileOverlay?.precipitationSource != precipitationSource {
+                context.coordinator.beginLoading()
+            }
         }
         
         // Update annotation position

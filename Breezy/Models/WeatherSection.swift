@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum WidgetType: String, Codable, CaseIterable, Identifiable {
+enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
     // Forecasts
     case hourlyForecast = "Hourly Forecast"
     case dailyForecast = "Daily Forecast"
@@ -29,6 +29,8 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
     case visibilityCard = "Visibility"
     case cloudCoverCard = "Cloud Cover"
     case windHistory = "Wind History"
+    case airQualityCard = "Air Quality"
+    case marineOutlook = "Marine Outlook"
     
     // Astronomy
     case sunPath = "Sun Path"
@@ -41,6 +43,19 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
     case smartStack = "Smart Stack"
     
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .windHistory:
+            return "Wind Outlook"
+        case .airQualityCard:
+            return "Air Quality"
+        case .marineOutlook:
+            return "Marine Outlook"
+        default:
+            return rawValue
+        }
+    }
     
     var icon: String {
         switch self {
@@ -62,6 +77,8 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
         case .visibilityCard: return "eye.fill"
         case .cloudCoverCard: return "cloud.fill"
         case .windHistory: return "lines.measurement.horizontal"
+        case .airQualityCard: return "aqi.medium"
+        case .marineOutlook: return "water.waves"
         case .sunPath: return "sun.and.horizon.fill"
         case .moonPhase: return "moon.stars.fill"
         case .uvIndexCurve: return "chart.xyaxis.line"
@@ -129,8 +146,24 @@ enum WidgetCategory: String, CaseIterable, Identifiable {
     case details = "Details"
     case astronomy = "Astronomy"
     case maps = "Maps"
+    case adaptive = "Adaptive"
     
     var id: String { rawValue }
+
+    var subtitle: String {
+        switch self {
+        case .forecasts:
+            return "Forward-looking cards for the next few hours and days."
+        case .details:
+            return "Current conditions, focused metrics, and supporting charts."
+        case .astronomy:
+            return "Sun and moon views for the day ahead."
+        case .maps:
+            return "Live map-based weather views."
+        case .adaptive:
+            return "Cards that change what they show based on the strongest signal."
+        }
+    }
 }
 
 extension WidgetType {
@@ -138,14 +171,14 @@ extension WidgetType {
         switch self {
         case .hourlyForecast, .dailyForecast, .forecastNarrative, .hourlyTemperatures, .precipitationTimeline:
             return .forecasts
-        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory:
+        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .marineOutlook:
             return .details
         case .sunPath, .moonPhase:
             return .astronomy
         case .radar:
             return .maps
         case .smartStack:
-            return .forecasts
+            return .adaptive
         }
     }
 
@@ -170,7 +203,9 @@ extension WidgetType {
              .visibilityCard,
              .cloudCoverCard,
              .windHistory,
-             .smartStack:
+             .smartStack,
+             .airQualityCard,
+             .marineOutlook:
             return true
         default:
             return false

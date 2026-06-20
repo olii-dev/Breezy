@@ -2,7 +2,7 @@
 //  WatchWeatherViewModel.swift
 //  Breezy Watch Watch App
 //
-//  View model for Watch app - fetches weather directly from WeatherKit
+//  View model for Watch app.
 //
 
 import Foundation
@@ -11,7 +11,9 @@ import Combine
 import CoreLocation
 import WeatherKit
 import WidgetKit
+#if os(watchOS)
 import WatchKit
+#endif
 
 
 @MainActor
@@ -268,9 +270,11 @@ class WatchWeatherViewModel: ObservableObject {
         await performWeatherLoad(playHaptics: true)
     }
 
+    #if os(watchOS)
     func playHaptic(_ type: WKHapticType) {
         WKInterfaceDevice.current().play(type)
     }
+    #endif
 
     func refreshStatusText(for weather: WatchWeatherData) -> String {
         let sourceLabel: String
@@ -278,7 +282,9 @@ class WatchWeatherViewModel: ObservableObject {
         case .phone:
             sourceLabel = "iPhone"
         case .weatherKit:
-            sourceLabel = "Watch"
+            sourceLabel = "WeatherKit"
+        case .openMeteo:
+            sourceLabel = "Open-Meteo"
         case .cache:
             sourceLabel = weather.metadata.isStale ? "Cached" : "Saved"
         }
@@ -347,12 +353,15 @@ class WatchWeatherViewModel: ObservableObject {
         } catch {
             // Error Handling (Same as before)
             var errorMessage = error.localizedDescription
-            if let nsError = error as NSError?,
-               nsError.domain.contains("WeatherDaemon") || nsError.domain.contains("WeatherKit") {
-                if nsError.code == 2 {
-                    errorMessage = "WeatherKit authentication failed. Check Bundle ID."
-                } else {
-                    errorMessage = "WeatherKit error: \(error.localizedDescription)"
+            if let nsError = error as NSError? {
+                if nsError.domain.contains("WeatherDaemon") || nsError.domain.contains("WeatherKit") {
+                    if nsError.code == 2 {
+                        errorMessage = "WeatherKit authentication failed. Check the app ID setup."
+                    } else {
+                        errorMessage = "WeatherKit error: \(error.localizedDescription)"
+                    }
+                } else if nsError.domain.contains("WatchOpenMeteo") {
+                    errorMessage = "Open-Meteo error: \(error.localizedDescription)"
                 }
             }
             self.error = errorMessage

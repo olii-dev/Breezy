@@ -64,4 +64,3 @@ struct WeatherInfo: Identifiable, Codable, Equatable {
         self.timestamp = Date().timeIntervalSince1970
     }
 }
-

@@ -9,7 +9,6 @@ import Foundation
 import WatchConnectivity
 import Combine
 import CoreLocation
-import WeatherKit
 
 class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
     static let shared = WatchSessionManager()
@@ -44,6 +43,7 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
     }
     
     func updateContext(
+        weatherSource: WeatherSource,
         useMinimalistIcons: Bool,
         typography: WeatherFont,
         visibleMetrics: Set<WeatherMetric>,
@@ -56,13 +56,15 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         presetTheme: String,
         currentTheme: WeatherTheme,
         customTheme: WeatherTheme,
-        mapStyle: WeatherViewModel.RadarMapStyle
+        mapStyle: WeatherViewModel.RadarMapStyle,
+        radarPrecipitationSource: RadarPrecipitationSource
     ) {
         guard let session = session, session.activationState == .activated else { return }
         
         var context: [String: Any] = [
             "useMinimalistIcons": useMinimalistIcons,
             "typography": typography.rawValue,
+            WeatherSourceStore.storageKey: weatherSource.rawValue,
             "Breezy.temperatureUnit": temperatureUnit.rawValue,
             "Breezy.windSpeedUnit": windSpeedUnit.rawValue,
             "Breezy.pressureUnit": pressureUnit.displayName, // ID is rawValue
@@ -70,7 +72,8 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
             "Breezy.precipitationUnit": precipitationUnit.rawValue,
             "Breezy.themeMode": themeMode.rawValue,
             "Breezy.presetTheme": presetTheme,
-            "Breezy.mapStyle": mapStyle.rawValue
+            "Breezy.mapStyle": mapStyle.rawValue,
+            RadarPrecipitationSource.storageKey: radarPrecipitationSource.rawValue
         ]
         
         // Direct Color Sync (Bypassing Watch logic)
@@ -195,63 +198,64 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                 
                 // 2. Fetch Data
                 do {
-                    let service = WeatherService.shared
-                    let weather = try await service.weather(for: location)
+                    let formatting = WeatherFormattingContext(
+                        temperatureUnit: .celsius,
+                        windSpeedUnit: .metersPerSecond,
+                        pressureUnit: .hectopascals,
+                        visibilityUnit: .kilometers,
+                        precipitationUnit: .millimeters
+                    )
+                    let locationData = LocationData(city: targetCity, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+                    let result = try await WeatherProviderManager.shared.fetchWeather(for: locationData, formatting: formatting)
+                    let weather = result.weather
                     
                     // 3. Serialize Data (Simple lightweight payload)
                     // We'll send the raw values needed for `WatchWeatherData`
-                    
-                    let current = weather.currentWeather
-                    let daily = weather.dailyForecast.first
-                    
                     var reply: [String: Any] = [:]
-                    
-                    // Units (Send raw values, Watch handles conversion/display based on its prefs)
-                    // Actually, easier to send standardized values (Celsius/Metric) and let Watch convert.
-                    
                     reply["city"] = targetCity // Send City Name
-                    
-                    reply["temp_c"] = current.temperature.converted(to: .celsius).value
-                    reply["feels_c"] = current.apparentTemperature.converted(to: .celsius).value
-                    reply["condition"] = current.condition.description
-                    reply["uv"] = current.uvIndex.value
-                    reply["wind_mps"] = current.wind.speed.converted(to: .metersPerSecond).value
-                    reply["humidity"] = current.humidity
-                    reply["pressure_hpa"] = current.pressure.converted(to: .hectopascals).value
-                    reply["visibility_km"] = current.visibility.converted(to: .kilometers).value
-                    reply["dew_c"] = current.dewPoint.converted(to: .celsius).value
-                    reply["cloud"] = current.cloudCover
-                    
-                    if let d = daily {
-                        reply["high_c"] = d.highTemperature.converted(to: .celsius).value
-                        reply["low_c"] = d.lowTemperature.converted(to: .celsius).value
-                        reply["rainChance"] = d.precipitationChance
-                        reply["sunrise"] = d.sun.sunrise?.timeIntervalSince1970
-                        reply["sunset"] = d.sun.sunset?.timeIntervalSince1970
+                    reply["weatherSource"] = WeatherProviderManager.shared.selectedSource.rawValue
+                    reply["lat"] = location.coordinate.latitude
+                    reply["lon"] = location.coordinate.longitude
+                    reply["temp_c"] = parseCelsius(from: weather.temperature)
+                    reply["feels_c"] = weather.feelsLike.flatMap(parseCelsius(from:))
+                    reply["condition"] = weather.condition
+                    reply["uv"] = weather.metrics?.uvIndex ?? 0
+                    reply["wind_mps"] = parseWindMetersPerSecond(from: weather.metrics?.windSpeed)
+                    reply["humidity"] = (weather.metrics?.humidity).map { Double($0) / 100.0 } ?? 0
+                    reply["pressure_hpa"] = parsePressureHectopascals(from: weather.metrics?.pressure)
+                    reply["visibility_km"] = parseVisibilityKilometers(from: weather.metrics?.visibility)
+                    reply["cloud"] = parsePercentFraction(from: weather.metrics?.cloudCover)
+                    reply["rainChance"] = parsePercentFraction(from: weather.metrics?.rainChance)
+                    reply["high_c"] = weather.highTemp.flatMap(parseCelsius(from:))
+                    reply["low_c"] = weather.lowTemp.flatMap(parseCelsius(from:))
+
+                    if let sunrise = weather.dailyForecast.first?.sunriseDate {
+                        reply["sunrise"] = sunrise.timeIntervalSince1970
                     }
-                    
-                    // Minimal Hourly (Next 24h)
-                    let hourlyData = weather.hourlyForecast.prefix(24).map { h -> [String: Any] in
+                    if let sunset = weather.dailyForecast.first?.sunsetDate {
+                        reply["sunset"] = sunset.timeIntervalSince1970
+                    }
+
+                    let hourlyData = (weather.allHourlyData ?? weather.hourlyForecast).prefix(24).map { h -> [String: Any] in
                         return [
-                            "time": h.date.timeIntervalSince1970,
-                            "temp_c": h.temperature.converted(to: .celsius).value,
-                            "condition": h.condition.description
+                            "time": (h.sourceDate ?? Date()).timeIntervalSince1970,
+                            "temp_c": temperatureUnitToCelsius(h.temperatureRaw, from: weather.temperature),
+                            "condition": h.condition ?? weather.condition
                         ]
                     }
                     reply["hourly"] = hourlyData
                     
-                    // Daily (Next 10 days)
                     let dailyData = weather.dailyForecast.prefix(10).map { d -> [String: Any] in
                         return [
-                            "time": d.date.timeIntervalSince1970,
-                            "low_c": d.lowTemperature.converted(to: .celsius).value,
-                            "high_c": d.highTemperature.converted(to: .celsius).value,
-                            "condition": d.condition.description,
-                            "rainChance": d.precipitationChance,
-                            "uv": d.uvIndex.value,
-                            "wind_mps": d.wind.speed.converted(to: .metersPerSecond).value,
-                            "sunrise": d.sun.sunrise?.timeIntervalSince1970 ?? 0,
-                            "sunset": d.sun.sunset?.timeIntervalSince1970 ?? 0
+                            "time": DateFormatterHelper.dateFormatter.date(from: d.date)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970,
+                            "low_c": parseCelsius(from: d.lowTemp) ?? 0,
+                            "high_c": parseCelsius(from: d.highTemp) ?? 0,
+                            "condition": d.condition,
+                            "rainChance": parsePercentFraction(from: d.chanceOfRain),
+                            "uv": d.hourlyData.compactMap(\.uvIndex).max() ?? 0,
+                            "wind_mps": parseWindMetersPerSecond(from: d.windSpeed),
+                            "sunrise": d.sunriseDate?.timeIntervalSince1970 ?? 0,
+                            "sunset": d.sunsetDate?.timeIntervalSince1970 ?? 0
                         ]
                     }
                     reply["daily"] = dailyData
@@ -265,5 +269,58 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                 }
             }
         }
+    }
+
+    private func parseCelsius(from formattedTemperature: String) -> Double? {
+        let cleaned = formattedTemperature
+            .replacingOccurrences(of: "°F", with: "")
+            .replacingOccurrences(of: "°C", with: "")
+            .replacingOccurrences(of: "°", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        guard let value = Double(cleaned) else { return nil }
+        if formattedTemperature.contains("F") {
+            return (value - 32.0) * 5.0 / 9.0
+        }
+        return value
+    }
+
+    private func temperatureUnitToCelsius(_ value: Double, from currentDisplay: String) -> Double {
+        currentDisplay.contains("F") ? ((value - 32.0) * 5.0 / 9.0) : value
+    }
+
+    private func parseWindMetersPerSecond(from speed: String?) -> Double {
+        guard let speed else { return 0 }
+        let cleaned = speed.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        guard let value = Double(cleaned) else { return 0 }
+        if speed.contains("km/h") {
+            return value / 3.6
+        }
+        if speed.contains("mph") {
+            return value / 2.23694
+        }
+        if speed.lowercased().contains("knot") || speed.lowercased().contains("kn") {
+            return value / 1.94384
+        }
+        return value
+    }
+
+    private func parsePressureHectopascals(from pressure: String?) -> Double {
+        guard let pressure else { return 0 }
+        let cleaned = pressure.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        return Double(cleaned) ?? 0
+    }
+
+    private func parseVisibilityKilometers(from visibility: String?) -> Double {
+        guard let visibility else { return 0 }
+        let cleaned = visibility.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        guard let value = Double(cleaned) else { return 0 }
+        return visibility.contains("mi") ? (value * 1.60934) : value
+    }
+
+    private func parsePercentFraction(from percentage: String?) -> Double {
+        guard let percentage else { return 0 }
+        let cleaned = percentage.replacingOccurrences(of: "%", with: "")
+        guard let value = Double(cleaned) else { return 0 }
+        return value / 100.0
     }
 }

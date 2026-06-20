@@ -9,48 +9,79 @@ struct WatchChartsPageView: View {
     @AppStorage("Breezy.watch.chartUV") private var showUV = true
     @AppStorage("Breezy.watch.chartWind") private var showWind = true
     @AppStorage("Breezy.watch.chartHumidity") private var showHumidity = true
+    @State private var doubleTapSectionIndex = 0
+
+    private var scrollSectionIDs: [String] {
+        var ids = ["top"]
+        if showTemperature && !weather.hourlyForecast.isEmpty { ids.append("temperature") }
+        if showUV, weather.uvIndex != nil { ids.append("uv") }
+        if showWind, weather.windSpeed != nil { ids.append("wind") }
+        if showHumidity { ids.append("humidity") }
+        return ids
+    }
     
     var body: some View {
         let theme = viewModel.theme(for: weather.condition, isSystemDark: colorScheme == .dark)
-        
-        ScrollView {
-            VStack(spacing: 12) {
-                Text("CHARTS")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(theme.textColor.opacity(0.78))
-                    .padding(.top, 4)
-                
-                if showTemperature && !weather.hourlyForecast.isEmpty {
-                    WatchTemperatureChartView(
-                        hourly: weather.hourlyForecast,
-                        textColor: theme.textColor
-                    )
+
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 12) {
+                    Text("CHARTS")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.textColor.opacity(0.78))
+                        .padding(.top, 4)
+                        .id("top")
+                    
+                    if showTemperature && !weather.hourlyForecast.isEmpty {
+                        WatchTemperatureChartView(
+                            hourly: weather.hourlyForecast,
+                            textColor: theme.textColor
+                        )
+                        .id("temperature")
+                    }
+                    
+                    if showUV, let uvIndex = weather.uvIndex {
+                        WatchUVGaugeView(uvIndex: uvIndex, textColor: theme.textColor)
+                            .id("uv")
+                    }
+                    
+                    if showWind, weather.windSpeed != nil {
+                        WatchWindDetailView(
+                            windSpeed: weather.windSpeed,
+                            windDirection: weather.windDirection,
+                            textColor: theme.textColor
+                        )
+                        .id("wind")
+                    }
+                    
+                    if showHumidity {
+                        WatchHumidityBarView(
+                            humidity: weather.humidity,
+                            cloudCover: weather.cloudCover,
+                            textColor: theme.textColor
+                        )
+                        .id("humidity")
+                    }
                 }
-                
-                if showUV, let uvIndex = weather.uvIndex {
-                    WatchUVGaugeView(uvIndex: uvIndex, textColor: theme.textColor)
-                }
-                
-                if showWind, weather.windSpeed != nil {
-                    WatchWindDetailView(
-                        windSpeed: weather.windSpeed,
-                        windDirection: weather.windDirection,
-                        textColor: theme.textColor
-                    )
-                }
-                
-                if showHumidity {
-                    WatchHumidityBarView(
-                        humidity: weather.humidity,
-                        cloudCover: weather.cloudCover,
-                        textColor: theme.textColor
-                    )
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+            .overlay(alignment: .topTrailing) {
+                WatchDoubleTapScrollTrigger {
+                    scrollToNextSection(using: proxy)
                 }
             }
-            .padding(.horizontal)
-            .padding(.bottom, 20)
         }
         .focusable()
+    }
+
+    private func scrollToNextSection(using proxy: ScrollViewProxy) {
+        guard scrollSectionIDs.count > 1 else { return }
+        let nextIndex = doubleTapSectionIndex >= scrollSectionIDs.count - 1 ? 0 : doubleTapSectionIndex + 1
+        doubleTapSectionIndex = nextIndex
+        withAnimation(.easeInOut(duration: 0.28)) {
+            proxy.scrollTo(scrollSectionIDs[nextIndex], anchor: .top)
+        }
     }
 }
 

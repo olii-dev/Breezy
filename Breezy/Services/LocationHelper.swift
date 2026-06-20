@@ -9,7 +9,6 @@ import Foundation
 import CoreLocation
 import Combine
 import WidgetKit
-import WeatherKit
 
 class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
@@ -193,66 +192,49 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
         backgroundLocationTask?.cancel()
         backgroundLocationTask = Task {
             do {
-                let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
-                let weatherService = WeatherService.shared
-                let weather = try await weatherService.weather(for: clLocation)
-                
-                let tempUnitRaw = UserDefaults.standard.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
-                let isFahrenheit = tempUnitRaw == "Fahrenheit"
-                let tempSymbol = isFahrenheit ? "F" : "C"
-                
-                let tempValue = isFahrenheit 
-                    ? weather.currentWeather.temperature.converted(to: .fahrenheit).value
-                    : weather.currentWeather.temperature.converted(to: .celsius).value
-                let tempRaw = String(format: "%.0f°%@", tempValue, tempSymbol)
-                
-                let daily = weather.dailyForecast.first
-                let highTemp: String
-                let lowTemp: String
-                if let high = daily?.highTemperature, let low = daily?.lowTemperature {
-                    highTemp = String(format: "%.0f°%@", isFahrenheit ? high.converted(to: .fahrenheit).value : high.converted(to: .celsius).value, tempSymbol)
-                    lowTemp = String(format: "%.0f°%@", isFahrenheit ? low.converted(to: .fahrenheit).value : low.converted(to: .celsius).value, tempSymbol)
-                } else {
-                    highTemp = "--"
-                    lowTemp = "--"
-                }
-                
-                let condition = weather.currentWeather.condition.description
-                let emoji = WeatherIconHelper.emoji(for: condition)
-                
+                let formatting = WeatherFormattingContext(
+                    temperatureUnit: TemperatureUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.temperatureUnit") ?? TemperatureUnit.celsius.rawValue) ?? .celsius,
+                    windSpeedUnit: WindSpeedUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.windSpeedUnit") ?? WindSpeedUnit.metersPerSecond.rawValue) ?? .metersPerSecond,
+                    pressureUnit: PressureUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.pressureUnit") ?? PressureUnit.hectopascals.rawValue) ?? .hectopascals,
+                    visibilityUnit: VisibilityUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.visibilityUnit") ?? VisibilityUnit.kilometers.rawValue) ?? .kilometers,
+                    precipitationUnit: PrecipitationUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.precipitationUnit") ?? PrecipitationUnit.millimeters.rawValue) ?? .millimeters
+                )
+                let result = try await WeatherProviderManager.shared.fetchWeather(for: location, formatting: formatting)
+                let weather = result.weather
+
                 let widgetData = WidgetWeatherData(
                     city: location.city,
-                    temperature: tempRaw,
-                    condition: condition,
-                    emoji: emoji,
-                    highTemp: highTemp,
-                    lowTemp: lowTemp,
+                    temperature: weather.temperature,
+                    condition: weather.condition,
+                    emoji: weather.emoji,
+                    highTemp: weather.highTemp,
+                    lowTemp: weather.lowTemp,
                     hourlyForecast: [],
                     timestamp: Date(),
                     useMinimalistIcons: nil,
-                    uvIndex: nil,
-                    pressure: nil,
-                    windSpeed: nil,
-                    rainChance: nil,
-                    rainAmount: nil,
+                    uvIndex: weather.metrics?.uvIndex,
+                    pressure: weather.metrics?.pressure,
+                    windSpeed: weather.metrics?.windSpeed,
+                    rainChance: weather.dailyForecast.first?.chanceOfRain,
+                    rainAmount: weather.metrics?.todayRainfall,
                     latitude: location.latitude,
                     longitude: location.longitude,
-                    conditionCode: condition,
-                    isDaylight: weather.currentWeather.isDaylight,
-                    minTemp: lowTemp,
-                    maxTemp: highTemp,
-                    humidity: nil,
-                    visibility: nil,
+                    conditionCode: result.conditionCode ?? weather.condition,
+                    isDaylight: result.isDaylight,
+                    minTemp: weather.lowTemp,
+                    maxTemp: weather.highTemp,
+                    humidity: weather.metrics?.humidity.map { "\($0)%" },
+                    visibility: weather.metrics?.visibility,
                     dailyForecast: [],
-                    sunrise: daily?.sun.sunrise,
-                    sunset: daily?.sun.sunset,
-                    moonPhase: daily?.moon.phase.description,
+                    sunrise: nil,
+                    sunset: nil,
+                    moonPhase: nil,
                     moonIllumination: nil as Double?,
-                    windDirectionDegrees: nil as Double?
+                    windDirectionDegrees: weather.metrics?.windDirection
                 )
                 
                 // Save to widget store and refresh widget
-                WidgetDataStore.save(widgetData)
+                WidgetDataStore.save(widgetData, source: WeatherSourceStore.selectedSource)
             } catch {
                 DispatchQueue.main.async {
                     self.locationError = "Background refresh failed. Pull to refresh when you open the app."
@@ -288,4 +270,3 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
 }
-

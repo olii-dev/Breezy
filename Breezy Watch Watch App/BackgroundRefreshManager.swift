@@ -6,11 +6,10 @@
 //
 
 import Foundation
-
 import WidgetKit
-
+#if os(watchOS)
 import WatchKit
-import WidgetKit
+#endif
 
 @MainActor
 class BackgroundRefreshManager {
@@ -19,9 +18,12 @@ class BackgroundRefreshManager {
     private init() {}
     
     func setupBackgroundRefresh() {
+        #if os(watchOS)
         scheduleBackgroundTask()
+        #endif
     }
     
+    #if os(watchOS)
     func scheduleBackgroundTask() {
         let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
         let interval = defaults?.integer(forKey: "WatchRefreshInterval") ?? 15
@@ -56,6 +58,7 @@ class BackgroundRefreshManager {
             }
         }
     }
+    #endif
     
     private func refreshWeatherData() async {
         print("🔄 BackgroundRefreshManager: Executing background refresh...")
@@ -65,4 +68,3 @@ class BackgroundRefreshManager {
         WidgetCenter.shared.reloadAllTimelines()
     }
 }
-
