@@ -13,6 +13,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
     case dailyForecast = "Daily Forecast"
     case forecastNarrative = "Forecast Narrative"
     case hourlyTemperatures = "Hourly Temperatures"
+    case precipitationAmount = "Precipitation Amount"
     
     // Details
     case deepDetails = "Deep Details"
@@ -30,12 +31,14 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
     case cloudCoverCard = "Cloud Cover"
     case windHistory = "Wind History"
     case airQualityCard = "Air Quality"
+    case aqiTrend = "AQI Trend"
     case marineOutlook = "Marine Outlook"
     case surf = "Surf"
     
     // Astronomy
     case sunPath = "Sun Path"
     case moonPhase = "Moon Phase"
+    case goldenHour = "Golden Hour"
     
     // Maps
     case radar = "Weather Radar"
@@ -48,7 +51,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
     var displayName: String {
         switch self {
         case .windHistory:
-            return "Wind Outlook"
+            return "Wind History"
         case .airQualityCard:
             return "Air Quality"
         case .marineOutlook:
@@ -65,6 +68,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
         case .hourlyForecast: return "chart.xyaxis.line"
         case .dailyForecast: return "calendar"
         case .forecastNarrative: return "text.justify.left"
+        case .precipitationAmount: return "cloud.heavyrain.fill"
         case .deepDetails: return "speedometer"
         case .rainSummary: return "cloud.rain.fill"
         case .rainfallToday: return "drop.fill"
@@ -81,10 +85,12 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
         case .cloudCoverCard: return "cloud.fill"
         case .windHistory: return "lines.measurement.horizontal"
         case .airQualityCard: return "aqi.medium"
+        case .aqiTrend: return "chart.line.uptrend.xyaxis"
         case .marineOutlook: return "water.waves"
         case .surf: return "figure.surfing"
         case .sunPath: return "sun.and.horizon.fill"
         case .moonPhase: return "moon.stars.fill"
+        case .goldenHour: return "sunset.fill"
         case .uvIndexCurve: return "chart.xyaxis.line"
         case .smartStack: return "square.3.layers.3d"
         }
@@ -173,11 +179,11 @@ enum WidgetCategory: String, CaseIterable, Identifiable {
 extension WidgetType {
     var category: WidgetCategory {
         switch self {
-        case .hourlyForecast, .dailyForecast, .forecastNarrative, .hourlyTemperatures, .precipitationTimeline:
+        case .hourlyForecast, .dailyForecast, .forecastNarrative, .hourlyTemperatures, .precipitationTimeline, .precipitationAmount:
             return .forecasts
-        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .marineOutlook, .surf:
+        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .aqiTrend, .marineOutlook, .surf:
             return .details
-        case .sunPath, .moonPhase:
+        case .sunPath, .moonPhase, .goldenHour:
             return .astronomy
         case .radar:
             return .maps
@@ -206,7 +212,7 @@ extension WidgetType {
              .precipitationTimeline,
              .visibilityCard,
              .cloudCoverCard,
-             .windHistory,
+             .precipitationAmount,
              .smartStack,
              .airQualityCard,
              .marineOutlook,

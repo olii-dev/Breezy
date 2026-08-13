@@ -61,6 +61,8 @@ enum ProviderWeatherMapper {
             uvIndex: uvIndex,
             uvIndexCategory: uvIndex.map { UVIndexHelper.category(for: $0) },
             airQuality: nil,
+            airQualityTrend: nil,
+            windHistory: nil,
             marine: nil,
             surf: nil,
             pressure: formatting.formattedPressure(hectopascals: pressureHectopascals),
@@ -224,6 +226,8 @@ enum ProviderWeatherMapper {
             uvIndex: current.uvIndex,
             uvIndexCategory: UVIndexHelper.category(for: current.uvIndex),
             airQuality: current.airQuality,
+            airQualityTrend: current.airQualityTrend,
+            windHistory: makeWindHistory(from: payload.hourly),
             marine: current.marine.map { marine in
                 MarineConditions(
                     waveHeight: marine.waveHeightMeters.map { String(format: "%.1f m", $0) },
@@ -260,6 +264,27 @@ enum ProviderWeatherMapper {
         let startOfToday = calendar.startOfDay(for: Date())
         let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday.addingTimeInterval(86_400)
         return hourly.filter { $0.date >= startOfToday && $0.date < startOfTomorrow }
+    }
+
+    /// Build the past-24h wind series (sustained + gust) from provider hourly
+    /// data that precedes the current time.
+    private static func makeWindHistory(from hourly: [ProviderHourlyWeather]) -> [WindHistoryPoint]? {
+        let now = Date()
+        let pastHours = hourly
+            .filter { $0.date < now }
+            .sorted { $0.date < $1.date }
+            .suffix(24)
+
+        let points = pastHours.compactMap { hour -> WindHistoryPoint? in
+            guard hour.windSpeedMetersPerSecond != nil || hour.windGustMetersPerSecond != nil else { return nil }
+            return WindHistoryPoint(
+                time: hour.date,
+                sustainedMetersPerSecond: hour.windSpeedMetersPerSecond,
+                gustMetersPerSecond: hour.windGustMetersPerSecond
+            )
+        }
+
+        return points.isEmpty ? nil : points
     }
 
     /// Build surf conditions from raw marine data + current wind.

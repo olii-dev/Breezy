@@ -182,6 +182,8 @@ struct WidgetPreviewView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+        case .transparent:
+            Color.clear
         }
     }
     

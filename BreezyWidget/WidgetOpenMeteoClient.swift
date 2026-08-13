@@ -89,7 +89,7 @@ final class WidgetOpenMeteoClient {
             moonPhase: nil,
             moonIllumination: nil,
             windDirectionDegrees: response.current.windDirection10M,
-            dailyForecast: daily.prefix(10).map {
+            dailyForecast: daily.prefix(14).map {
                 WidgetWeatherData.WidgetDailyForecast(
                     dayName: $0.dayName,
                     highTemp: $0.highTemp,
@@ -110,7 +110,7 @@ final class WidgetOpenMeteoClient {
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,visibility"),
             URLQueryItem(name: "hourly", value: "temperature_2m,weather_code,uv_index"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset"),
-            URLQueryItem(name: "forecast_days", value: "10")
+            URLQueryItem(name: "forecast_days", value: "14")
         ]
 
         guard let url = components?.url else {

@@ -17,6 +17,16 @@ class WeatherViewModel: ObservableObject {
         let headline: String
         let detail: String?
         let isActive: Bool
+        let startDate: Date?
+        let stopDate: Date?
+
+        init(headline: String, detail: String?, isActive: Bool, startDate: Date? = nil, stopDate: Date? = nil) {
+            self.headline = headline
+            self.detail = detail
+            self.isActive = isActive
+            self.startDate = startDate
+            self.stopDate = stopDate
+        }
     }
 
     struct ForecastNarrativeSummary: Equatable {
@@ -453,13 +463,14 @@ class WeatherViewModel: ObservableObject {
         if isCurrentlyRaining {
             let startIndex = relevantMinutes.firstIndex(where: { isMeaningfulPrecipitation($0) }) ?? 0
             let rainBlock = relevantMinutes[startIndex...]
+            let blockStart = relevantMinutes[startIndex].time
             if let firstDryMinute = rainBlock.first(where: { !isMeaningfulPrecipitation($0) }) {
                 let minutesLeft = max(1, Int(ceil(firstDryMinute.time.timeIntervalSince(now) / 60)))
                 let detail = minutesLeft <= 2 ? "Should ease shortly." : "Likely easing in \(minutesLeft) min."
-                return RainTimingSummary(headline: "Rain right now", detail: detail, isActive: true)
+                return RainTimingSummary(headline: "Rain right now", detail: detail, isActive: true, startDate: blockStart, stopDate: firstDryMinute.time)
             }
 
-            return RainTimingSummary(headline: "Rain right now", detail: "Rain may linger through the next hour.", isActive: true)
+            return RainTimingSummary(headline: "Rain right now", detail: "Rain may linger through the next hour.", isActive: true, startDate: blockStart, stopDate: nil)
         }
 
         guard let startIndex = relevantMinutes.firstIndex(where: { $0.time > now && isMeaningfulPrecipitation($0) }) else {
@@ -470,6 +481,7 @@ class WeatherViewModel: ObservableObject {
         let minutesUntil = max(1, Int(ceil(startMinute.time.timeIntervalSince(now) / 60)))
         let block = relevantMinutes[startIndex...].prefix(while: { isMeaningfulPrecipitation($0) })
         let duration = max(1, block.count)
+        let stopDate = block.last.map { $0.time.addingTimeInterval(60) }
 
         let detail: String
         if duration <= 10 {
@@ -480,7 +492,7 @@ class WeatherViewModel: ObservableObject {
             detail = "Looks like a longer wet stretch once it starts."
         }
 
-        return RainTimingSummary(headline: "Rain in \(minutesUntil) min", detail: detail, isActive: false)
+        return RainTimingSummary(headline: "Rain in \(minutesUntil) min", detail: detail, isActive: false, startDate: startMinute.time, stopDate: stopDate)
     }
 
     private func hourlyRainTimingSummary(from hours: [HourlyForecast], now: Date) -> RainTimingSummary? {
@@ -499,15 +511,15 @@ class WeatherViewModel: ObservableObject {
             if delta < 0 { delta += 24 }
 
             if delta == 0 {
-                return RainTimingSummary(headline: "Rain likely this hour", detail: "Keep an eye out over the next hour.", isActive: false)
+                return RainTimingSummary(headline: "Rain likely this hour", detail: "Keep an eye out over the next hour.", isActive: false, startDate: hour.sourceDate ?? now)
             }
 
             if delta == 1 {
-                return RainTimingSummary(headline: "Rain within ~1 hour", detail: "Showers look more likely by \(hour.time).", isActive: false)
+                return RainTimingSummary(headline: "Rain within ~1 hour", detail: "Showers look more likely by \(hour.time).", isActive: false, startDate: hour.sourceDate)
             }
 
             if delta <= 6 {
-                return RainTimingSummary(headline: "Rain later today", detail: "Best chance is around \(hour.time).", isActive: false)
+                return RainTimingSummary(headline: "Rain later today", detail: "Best chance is around \(hour.time).", isActive: false, startDate: hour.sourceDate)
             }
         }
 
@@ -833,7 +845,7 @@ class WeatherViewModel: ObservableObject {
                     highTemp: cached.highTemp,
                     lowTemp: cached.lowTemp,
                     todayHourlyForecast: cached.hourlyForecast,
-                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, airQualityTrend: nil, windHistory: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                     rainChance: rainChance,
                     rainAmount: cached.metrics?.todayRainfall,
                     dailyForecast: cached.dailyForecast
@@ -926,7 +938,7 @@ class WeatherViewModel: ObservableObject {
                 highTemp: info.highTemp,
                 lowTemp: info.lowTemp,
                 todayHourlyForecast: info.hourlyForecast,
-                metrics: info.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                metrics: info.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, airQualityTrend: nil, windHistory: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                 rainChance: info.dailyForecast.first?.chanceOfRain,
                 rainAmount: info.metrics?.todayRainfall,
                 conditionCode: result.conditionCode ?? info.condition,
@@ -1490,6 +1502,8 @@ class WeatherViewModel: ObservableObject {
                 uvIndex: uvIndex,
                 uvIndexCategory: uvCategory,
                 airQuality: airQuality,
+                airQualityTrend: nil,
+                windHistory: nil,
                 marine: nil,
                 surf: nil,
                 pressure: pressure,
@@ -1545,6 +1559,8 @@ class WeatherViewModel: ObservableObject {
             uvIndex: uvIndex,
             uvIndexCategory: uvCategory,
             airQuality: airQuality,
+            airQualityTrend: nil,
+            windHistory: nil,
             marine: nil,
             surf: nil,
             pressure: pressure,

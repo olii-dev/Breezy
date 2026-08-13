@@ -106,7 +106,8 @@ final class OpenMeteoProvider: WeatherProviding {
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,pressure_msl,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,visibility"),
             URLQueryItem(name: "hourly", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,pressure_msl,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max"),
-            URLQueryItem(name: "forecast_days", value: "10")
+            URLQueryItem(name: "forecast_days", value: "14"),
+            URLQueryItem(name: "past_days", value: "1")
         ]
 
         guard let url = components?.url else {
@@ -125,7 +126,10 @@ final class OpenMeteoProvider: WeatherProviding {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone")
+            URLQueryItem(name: "current", value: "us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone"),
+            URLQueryItem(name: "hourly", value: "us_aqi,pm10,pm2_5,ozone"),
+            URLQueryItem(name: "past_days", value: "2"),
+            URLQueryItem(name: "forecast_days", value: "1")
         ]
 
         guard let url = components?.url else {
@@ -206,7 +210,14 @@ final class OpenMeteoProvider: WeatherProviding {
         marineResponse: OpenMeteoMarineResponse?
     ) -> ProviderWeatherPayload {
         let hourly = makeHourly(from: response.hourly, timezone: timezone)
+
+        // past_days returns yesterday's daily entry too; the app's "today" is
+        // always the first day, so drop any entry that started before today.
+        var calendar = Calendar.current
+        calendar.timeZone = timezone
+        let startOfToday = calendar.startOfDay(for: Date())
         let daily = makeDaily(from: response.daily, timezone: timezone)
+            .filter { $0.date >= startOfToday }
 
         let currentDate = parseCurrentDate(response.current.time, timezone: timezone)
         let currentCondition = OpenMeteoWeatherCodeConverter.description(from: response.current.weatherCode)
@@ -228,6 +239,7 @@ final class OpenMeteoProvider: WeatherProviding {
             precipitationIntensityMillimetersPerHour: response.current.precipitation,
             cloudCoverFraction: response.current.cloudCover.map { $0 / 100.0 },
             airQuality: makeAirQuality(from: airQualityResponse?.current),
+            airQualityTrend: makeAirQualityTrend(from: airQualityResponse?.hourly, timezone: timezone),
             marine: makeMarine(from: marineResponse?.current)
         )
 
@@ -327,6 +339,24 @@ final class OpenMeteoProvider: WeatherProviding {
         )
     }
 
+    private func makeAirQualityTrend(from hourly: OpenMeteoAirQualityHourlyBlock?, timezone: TimeZone) -> [AirQualityPoint]? {
+        guard let hourly else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        formatter.timeZone = timezone
+
+        let now = Date()
+        let points = zip(hourly.time, hourly.usAQI ?? [])
+            .compactMap { timeString, value -> AirQualityPoint? in
+                guard let date = formatter.date(from: timeString), let value else { return nil }
+                guard date <= now else { return nil }
+                return AirQualityPoint(time: date, aqi: Int(round(value)))
+            }
+            .sorted { $0.time < $1.time }
+
+        return points.isEmpty ? nil : Array(points.suffix(48))
+    }
+
     private func dominantPollutant(from current: OpenMeteoAirQualityCurrentBlock) -> String? {
         let pollutantPairs: [(String, Double?)] = [
             ("PM2.5", current.pm25),
@@ -399,6 +429,17 @@ private struct OpenMeteoArchiveResponse: Decodable {
 
 private struct OpenMeteoAirQualityResponse: Decodable {
     let current: OpenMeteoAirQualityCurrentBlock
+    let hourly: OpenMeteoAirQualityHourlyBlock?
+}
+
+private struct OpenMeteoAirQualityHourlyBlock: Decodable {
+    let time: [String]
+    let usAQI: [Double?]?
+
+    enum CodingKeys: String, CodingKey {
+        case time
+        case usAQI = "us_aqi"
+    }
 }
 
 private struct OpenMeteoAirQualityCurrentBlock: Decodable {

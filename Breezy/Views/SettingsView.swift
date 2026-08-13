@@ -285,6 +285,11 @@ struct PrivacySupportView: View {
                         .foregroundColor(textColor)
 
                     VStack(spacing: 0) {
+                        LinkRow(title: "Privacy Policy", subtitle: "Breezy's full privacy policy on the web") {
+                            openURL(URL(string: "https://olii-dev.github.io/breezy-site/privacy")!)
+                        }
+                        Divider()
+                            .padding(.leading, 14)
                         LinkRow(title: weatherSource == .weatherKit ? "WeatherKit data sources" : "Open-Meteo docs & attribution", subtitle: weatherSource == .weatherKit ? "Apple Weather attribution and legal" : "Provider docs and usage information") {
                             openURL(attributionURL ?? weatherSource.legalURL ?? weatherKitURL)
                         }

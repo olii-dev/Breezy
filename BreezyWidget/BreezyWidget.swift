@@ -1591,6 +1591,8 @@ struct CustomWidgetView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
+        case .transparent:
+            Color.clear
         }
     }
     
@@ -4260,6 +4262,7 @@ enum WidgetBackgroundStyle: String, CaseIterable, Codable, Identifiable {
     case gradient
     case blur
     case weatherMatch
+    case transparent
     
     var id: String { rawValue }
     var displayName: String {
@@ -4268,6 +4271,7 @@ enum WidgetBackgroundStyle: String, CaseIterable, Codable, Identifiable {
         case .gradient: return "Gradient"
         case .blur: return "Blur Material"
         case .weatherMatch: return "Match Weather"
+        case .transparent: return "Transparent"
         }
     }
 }

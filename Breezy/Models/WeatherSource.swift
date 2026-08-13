@@ -54,6 +54,7 @@ struct WeatherProviderCapabilities: Equatable {
     let source: WeatherSource
     let supportsMinuteForecast: Bool
     let supportsMoonData: Bool
+    let maxForecastDays: Int
     let historicalStartDate: Date?
     let supportedWidgets: Set<WidgetType>
 
@@ -67,7 +68,7 @@ struct WeatherProviderCapabilities: Equatable {
             return "\(source.displayName) does not provide Breezy's minute-by-minute precipitation feed."
         case .moonPhase:
             return "\(source.displayName) does not provide the moon phase data Breezy needs for this card."
-        case .airQualityCard, .marineOutlook, .surf:
+        case .airQualityCard, .aqiTrend, .marineOutlook, .surf:
             return "\(source.displayName) does not provide this Open-Meteo-only widget."
         default:
             return "This widget is not available with \(source.displayName)."
@@ -93,9 +94,10 @@ extension WeatherSource {
                 source: self,
                 supportsMinuteForecast: true,
                 supportsMoonData: true,
+                maxForecastDays: 10,
                 historicalStartDate: Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1)),
                 supportedWidgets: Set(WidgetType.allCases.filter { widget in
-                    widget != .airQualityCard && widget != .marineOutlook && widget != .surf
+                    widget != .airQualityCard && widget != .aqiTrend && widget != .marineOutlook && widget != .surf
                 })
             )
         case .openMeteo:
@@ -103,6 +105,7 @@ extension WeatherSource {
                 source: self,
                 supportsMinuteForecast: false,
                 supportsMoonData: false,
+                maxForecastDays: 14,
                 historicalStartDate: Calendar.current.date(from: DateComponents(year: 1940, month: 1, day: 1)),
                 supportedWidgets: Set(WidgetType.allCases.filter { widget in
                     widget != .minutePrecipitation && widget != .moonPhase

@@ -94,6 +94,7 @@ struct ProviderCurrentWeather {
     let precipitationIntensityMillimetersPerHour: Double?
     let cloudCoverFraction: Double?
     let airQuality: AirQuality?
+    let airQualityTrend: [AirQualityPoint]?
     let marine: ProviderMarineConditions?
 }
 

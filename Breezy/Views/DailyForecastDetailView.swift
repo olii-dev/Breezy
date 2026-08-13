@@ -425,21 +425,7 @@ struct DailyForecastDetailView: View {
     }
     
     private func isGoldenHour(sunriseDate: Date?, isMorning: Bool) -> Bool {
-        guard let sunDate = sunriseDate else { return false }
-        let now = Date()
-        let calendar = Calendar.current
-        
-        if isMorning {
-            // Golden hour is 1 hour before sunrise to 30 minutes after
-            let goldenStart = calendar.date(byAdding: .hour, value: -1, to: sunDate) ?? sunDate
-            let goldenEnd = calendar.date(byAdding: .minute, value: 30, to: sunDate) ?? sunDate
-            return now >= goldenStart && now <= goldenEnd
-        } else {
-            // Golden hour is 30 minutes before sunset to 1 hour after
-            let goldenStart = calendar.date(byAdding: .minute, value: -30, to: sunDate) ?? sunDate
-            let goldenEnd = calendar.date(byAdding: .hour, value: 1, to: sunDate) ?? sunDate
-            return now >= goldenStart && now <= goldenEnd
-        }
+        GoldenHourHelper.isGoldenHour(sunDate: sunriseDate, isMorning: isMorning)
     }
     
     private func uvBadge(for uv: Int) -> (String, Color) {

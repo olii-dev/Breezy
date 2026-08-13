@@ -11,6 +11,8 @@ struct WeatherMetrics: Codable, Equatable {
     let uvIndex: Int?
     let uvIndexCategory: String? // Low, Moderate, High, Very High, Extreme
     let airQuality: AirQuality?
+    let airQualityTrend: [AirQualityPoint]? // Open-Meteo only: hourly AQI series
+    let windHistory: [WindHistoryPoint]? // hourly wind for the past 24h
     let marine: MarineConditions?
     let surf: SurfConditions? // Open-Meteo only: surf data + quality rating
     let pressure: String? // in hPa or inHg
@@ -34,6 +36,17 @@ struct AirQuality: Codable, Equatable {
     let aqi: Int? // Air Quality Index
     let category: String? // Good, Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy, Hazardous
     let dominantPollutant: String?
+}
+
+struct AirQualityPoint: Codable, Equatable {
+    let time: Date
+    let aqi: Int?
+}
+
+struct WindHistoryPoint: Codable, Equatable {
+    let time: Date
+    let sustainedMetersPerSecond: Double?
+    let gustMetersPerSecond: Double?
 }
 
 struct MarineConditions: Codable, Equatable {

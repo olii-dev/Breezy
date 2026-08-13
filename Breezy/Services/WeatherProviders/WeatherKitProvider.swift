@@ -142,6 +142,7 @@ final class WeatherKitProvider: WeatherProviding {
             precipitationIntensityMillimetersPerHour: weather.minuteForecast?.forecast.first?.precipitationIntensity.value,
             cloudCoverFraction: weather.currentWeather.cloudCover,
             airQuality: nil,
+            airQualityTrend: nil,
             marine: nil
         )
 
