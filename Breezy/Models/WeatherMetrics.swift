@@ -12,6 +12,7 @@ struct WeatherMetrics: Codable, Equatable {
     let uvIndexCategory: String? // Low, Moderate, High, Very High, Extreme
     let airQuality: AirQuality?
     let marine: MarineConditions?
+    let surf: SurfConditions? // Open-Meteo only: surf data + quality rating
     let pressure: String? // in hPa or inHg
     let visibility: String? // in km or miles
     let dewPoint: String? // temperature

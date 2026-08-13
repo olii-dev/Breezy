@@ -33,13 +33,7 @@ class BackgroundRefreshManager {
         WKApplication.shared().scheduleBackgroundRefresh(
             withPreferredDate: when,
             userInfo: nil
-        ) { error in
-            if let error = error {
-                print("❌ BackgroundRefreshManager: Failed to schedule: \(error.localizedDescription)")
-            } else {
-                print("📅 BackgroundRefreshManager: Scheduled for \(when)")
-            }
-        }
+        ) { _ in }
     }
     
     func handleBackgroundRefresh(_ backgroundTasks: Set<WKRefreshBackgroundTask>) async {
@@ -61,7 +55,6 @@ class BackgroundRefreshManager {
     #endif
     
     private func refreshWeatherData() async {
-        print("🔄 BackgroundRefreshManager: Executing background refresh...")
         _ = try? await WatchWeatherDataService.shared.refreshStoredSelectionWeather()
         
         // Reload widget timelines

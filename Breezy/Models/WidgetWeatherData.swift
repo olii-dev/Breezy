@@ -40,19 +40,35 @@ struct WidgetWeatherData: Codable {
     let moonPhase: String?
     let moonIllumination: Double?
     let windDirectionDegrees: Double?
-    
+
+    /// Open-Meteo only. Surf conditions + pre-computed rating for the widget.
+    let surf: WidgetSurfData?
+
     struct WidgetHourlyForecast: Codable {
         let time: String
         let temperature: String
         let emoji: String
         let condition: String?
     }
-    
+
     struct WidgetDailyForecast: Codable {
         let dayName: String
         let highTemp: String
         let lowTemp: String
         let condition: String
+    }
+
+    /// Pre-formatted surf snapshot for widgets. Values are display-ready strings
+    /// so the widget does not need to replicate the rating engine or unit math.
+    struct WidgetSurfData: Codable, Equatable {
+        let ratingLabel: String        // e.g. "Good"
+        let ratingDetail: String       // e.g. "Chest-high waves, offshore winds, clean."
+        let ratingColorHex: String     // e.g. "#5BB381"
+        let waveHeight: String?        // e.g. "1.2 m"
+        let wavePeriod: String?        // e.g. "8 s"
+        let swellHeight: String?       // e.g. "0.9 m"
+        let seaTemp: String?           // e.g. "16°C"
+        let wind: String?              // e.g. "SW 6 mph"
     }
 }
 

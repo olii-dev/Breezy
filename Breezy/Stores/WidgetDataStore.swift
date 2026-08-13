@@ -41,13 +41,11 @@ struct WidgetDataStore {
     
     static func save(_ data: WidgetWeatherData, source: WeatherSource = WeatherSourceStore.selectedSource) {
         guard let defaults = UserDefaults.shared else {
-            print("❌ WidgetDataStore: Failed to access App Group")
             return
         }
         
         let encoder = JSONEncoder()
         guard let encoded = try? encoder.encode(data) else {
-            print("❌ WidgetDataStore: Failed to encode widget data")
             return
         }
         
@@ -55,8 +53,6 @@ struct WidgetDataStore {
         defaults.set(Date(), forKey: lastRefreshKey(for: source))
         defaults.synchronize()
         
-        print("✅ WidgetDataStore: Saved weather for \(data.city) at \(data.timestamp)")
-        print("🔄 WidgetDataStore: Calling reloadAllTimelines()")
         WidgetCenter.shared.reloadAllTimelines()
     }
     

@@ -62,6 +62,7 @@ enum ProviderWeatherMapper {
             uvIndexCategory: uvIndex.map { UVIndexHelper.category(for: $0) },
             airQuality: nil,
             marine: nil,
+            surf: nil,
             pressure: formatting.formattedPressure(hectopascals: pressureHectopascals),
             visibility: formatting.formattedVisibility(meters: visibilityMeters),
             dewPoint: nil,
@@ -234,6 +235,7 @@ enum ProviderWeatherMapper {
                     currentDirection: marine.currentDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) }
                 )
             },
+            surf: makeSurf(from: current.marine, windSpeedMetersPerSecond: current.windSpeedMetersPerSecond, windDirectionDegrees: current.windDirectionDegrees),
             pressure: formatting.formattedPressure(hectopascals: current.pressureHectopascals),
             visibility: formatting.formattedVisibility(meters: current.visibilityMeters),
             dewPoint: current.dewPointCelsius.map { formatting.formattedTemperature($0, includeUnit: false) },
@@ -258,6 +260,30 @@ enum ProviderWeatherMapper {
         let startOfToday = calendar.startOfDay(for: Date())
         let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday.addingTimeInterval(86_400)
         return hourly.filter { $0.date >= startOfToday && $0.date < startOfTomorrow }
+    }
+
+    /// Build surf conditions from raw marine data + current wind.
+    /// Surf needs wave direction for the offshore/onshore reading; we prefer
+    /// the swell direction (more relevant to surf) and fall back to wave direction.
+    private static func makeSurf(
+        from marine: ProviderMarineConditions?,
+        windSpeedMetersPerSecond: Double?,
+        windDirectionDegrees: Double?
+    ) -> SurfConditions? {
+        guard let marine else { return nil }
+        // Need at least a wave height to produce anything meaningful.
+        guard marine.waveHeightMeters != nil else { return nil }
+
+        let swellDirection = marine.swellDirectionDegrees ?? marine.waveDirectionDegrees
+        return SurfRatingEngine.conditions(
+            waveHeightMeters: marine.waveHeightMeters,
+            wavePeriodSeconds: marine.wavePeriodSeconds,
+            swellHeightMeters: marine.swellHeightMeters,
+            waveDirectionDegrees: swellDirection,
+            seaTempCelsius: marine.seaSurfaceTemperatureCelsius,
+            windSpeedMetersPerSecond: windSpeedMetersPerSecond,
+            windDirectionDegrees: windDirectionDegrees
+        )
     }
 
     private static func makeHourlyForecast(

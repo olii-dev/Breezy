@@ -32,7 +32,6 @@ class WidgetConfigStore: ObservableObject {
             let decoded = try JSONDecoder().decode(CustomWidgetConfiguration.self, from: data)
             self.currentConfig = decoded
         } catch {
-            print("WidgetConfigStore: Failed to decode config: \(error)")
         }
     }
     
@@ -40,7 +39,6 @@ class WidgetConfigStore: ObservableObject {
         self.currentConfig = config
         
         guard let defaults = UserDefaults(suiteName: suiteName) else {
-            print("WidgetConfigStore: Failed to access App Group defaults")
             return
         }
         
@@ -48,9 +46,7 @@ class WidgetConfigStore: ObservableObject {
             let data = try JSONEncoder().encode(config)
             defaults.set(data, forKey: key)
             WidgetCenter.shared.reloadAllTimelines()
-            print("WidgetConfigStore: Saved config and reloaded timelines")
         } catch {
-            print("WidgetConfigStore: Failed to encode config: \(error)")
         }
     }
     

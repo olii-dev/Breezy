@@ -13,9 +13,9 @@ enum WeatherFont: String, CaseIterable, Identifiable, Codable {
     case rounded = "Rounded"
     case serif = "Serif"
     case mono = "Monospace"
-    
+
     var id: String { rawValue }
-    
+
     var design: Font.Design {
         switch self {
         case .system: return .default

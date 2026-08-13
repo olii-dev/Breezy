@@ -188,7 +188,6 @@ class NotificationManager: NSObject, ObservableObject {
             
             // 1 = Sunday, 7 = Saturday
             if weekday == 1 || weekday == 7 {
-                print("📅 Skipping weekend daily forecast (weekdays-only enabled)")
                 return
             }
         }
@@ -227,11 +226,7 @@ class NotificationManager: NSObject, ObservableObject {
                 trigger: trigger
             )
             
-            notificationCenter.add(request) { error in
-                if let error = error {
-                    print("Error scheduling daily forecast at \(time.hour):\(time.minute): \(error)")
-                }
-            }
+            notificationCenter.add(request) { _ in }
         }
     }
     
@@ -788,13 +783,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         
         let request = UNNotificationRequest(identifier: "temperatureChange_\(UUID().uuidString)", content: content, trigger: nil)
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Error sending temperature change alert: \(error.localizedDescription)")
-            } else {
-                print("🌡️ Temperature change alert sent: \(changeFormatted)°\(unitSymbol) \(direction)")
-            }
-        }
+        UNUserNotificationCenter.current().add(request) { _ in }
     }
     
     // MARK: - Wind Speed Alerts
@@ -828,13 +817,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         
         let request = UNNotificationRequest(identifier: "windAlert_\(UUID().uuidString)", content: content, trigger: nil)
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Error sending wind alert: \(error.localizedDescription)")
-            } else {
-                print("💨 Wind alert sent: \(speed)")
-            }
-        }
+        UNUserNotificationCenter.current().add(request) { _ in }
     }
     
     // MARK: - Precipitation Probability Alerts
@@ -880,12 +863,6 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         
         let request = UNNotificationRequest(identifier: "precipProbability_\(UUID().uuidString)", content: content, trigger: nil)
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Error sending precipitation probability alert: \(error.localizedDescription)")
-            } else {
-                print("🌧️ Precipitation probability alert sent: \(probability)%")
-            }
-        }
+        UNUserNotificationCenter.current().add(request) { _ in }
     }
 }

@@ -41,7 +41,6 @@ class WatchLocationSearchResults: NSObject, ObservableObject, MKLocalSearchCompl
     }
     
     func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        print("Search error: \(error.localizedDescription)")
         isSearching = false
     }
 }

@@ -99,14 +99,12 @@ class IconManager: ObservableObject {
         
         do {
             try await UIApplication.shared.setAlternateIconName(iconName)
-            print("✅ Successfully changed app icon to: \(icon.displayName)")
             self.currentIcon = icon
             
             // Artificial delay to allow system propagation
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
             return true
         } catch {
-            print("❌ Failed to set app icon: \(error.localizedDescription)")
             return false
         }
     }

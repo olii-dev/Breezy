@@ -783,6 +783,9 @@ struct ContentView: View {
             case .marineOutlook:
                 MarineOutlookWidget(weather: weather, viewModel: viewModel, config: widget.config)
                     .padding(.horizontal, DesignSystem.spacingM)
+            case .surf:
+                SurfDashboardCard(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
             }
         }
     }
@@ -2283,6 +2286,15 @@ struct HourlyTemperaturesWidget: View {
             }
         }()
 
+        // X domain: derive from the min/max hour values rather than first/last.
+        // hourValue is local hour-of-day (0–23); when the forecast window
+        // spans midnight the array is chronologically ordered but its hour
+        // values wrap (e.g. 22,23,0,1…), so `first...last` can invert and
+        // trap (`Range requires lowerBound <= upperBound`).
+        let hourValues = hours.map(\.hourValue)
+        let hourDomainMin = hourValues.min() ?? 0
+        let hourDomainMax = max(hourValues.max() ?? 23, hourDomainMin)
+
         Chart {
             ForEach(hours) { hour in
                 AreaMark(
@@ -2328,7 +2340,7 @@ struct HourlyTemperaturesWidget: View {
                     }
             }
         }
-        .chartXScale(domain: (hours.first?.hourValue ?? 0)...(hours.last?.hourValue ?? 23))
+        .chartXScale(domain: hourDomainMin...hourDomainMax)
         .chartYScale(domain: range)
         .chartXAxis {
             AxisMarks(values: labelHourValues) { value in
@@ -2831,6 +2843,13 @@ struct HumidityStripWidget: View {
                 let interpolation: InterpolationMethod = hours.count >= 4 ? .catmullRom : .linear
                 let selectedHour = selectedHourID.flatMap { id in hours.first { $0.id == id } }
 
+                // X domain from min/max hour values (not first/last) so a
+                // midnight-spanning forecast (e.g. 22,23,0,1…) can't invert the
+                // ClosedRange and trap the Charts layout.
+                let hourVals = hours.map(\.hourValue)
+                let hourDomainMin = hourVals.min() ?? 0
+                let hourDomainMax = max(hourVals.max() ?? 23, hourDomainMin)
+
                 Chart {
                     ForEach(hours) { hour in
                         AreaMark(
@@ -2876,7 +2895,7 @@ struct HumidityStripWidget: View {
                             }
                     }
                 }
-                .chartXScale(domain: (hours.first?.hourValue ?? 0)...(hours.last?.hourValue ?? 23))
+                .chartXScale(domain: hourDomainMin...hourDomainMax)
                 .chartYScale(domain: 0...100)
                 .chartXAxis {
                     AxisMarks(values: labelHourValues) { value in
@@ -4732,13 +4751,14 @@ struct WidgetGalleryView: View {
         case .windHistory: return "Wind trend with sustained vs gust speeds"
         case .airQualityCard: return "Open-Meteo only: AQI and pollutant snapshot"
         case .marineOutlook: return "Open-Meteo only: waves, currents, and water temp"
+        case .surf: return "Open-Meteo only: wave height, period, swell and a surf-quality rating"
         case .smartStack: return "Adaptive widget stack"
         }
     }
 
     private func providerBadge(for type: WidgetType) -> String? {
         switch type {
-        case .airQualityCard, .marineOutlook:
+        case .airQualityCard, .marineOutlook, .surf:
             return "OPEN-METEO ONLY"
         default:
             return nil
@@ -4799,6 +4819,8 @@ struct WidgetConfigView: View {
             return "Pick how much air quality context this card shows."
         case .marineOutlook:
             return "Choose whether this marine card stays compact or shows the full set of sea conditions."
+        case .surf:
+            return "Choose whether this surf card stays compact or shows full wave, swell and wind detail."
         case .radar:
             return "Set the default radar map layer and zoom level."
         case .smartStack:
@@ -5494,6 +5516,27 @@ struct WidgetConfigView: View {
                         }
 
                         if widget.type == .marineOutlook {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Detail Level")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "detailed" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Detailed").tag("detailed")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        if widget.type == .surf {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Detail Level")
                                     .font(.subheadline)

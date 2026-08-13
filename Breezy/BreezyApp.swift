@@ -21,8 +21,7 @@ struct BreezyApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            // Log error but don't crash - app can still function without SwiftData
-            print("Warning: Could not create ModelContainer: \(error)")
+            // App can still function without SwiftData
             return nil
         }
     }()

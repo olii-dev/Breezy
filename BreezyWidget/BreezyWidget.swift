@@ -10,6 +10,30 @@ import WidgetKit
 import SwiftUI
 import Foundation
 import CoreLocation
+
+extension Color {
+    /// Parse "#RRGGBB" / "RRGGBB" into a Color. Used by the surf rating pill.
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r, g, b: UInt64
+        switch hex.count {
+        case 6:
+            (r, g, b) = (int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 3:
+            (r, g, b) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        default:
+            (r, g, b) = (0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255
+        )
+    }
+}
 import WeatherKit
 import UIKit
 
@@ -121,23 +145,38 @@ struct WidgetWeatherData: Codable {
     let moonPhase: String? // e.g. "Waxing Crescent"
     let moonIllumination: Double? // 0.0 to 1.0
     let windDirectionDegrees: Double? // Added for gauge
-    
-    let dailyForecast: [WidgetDailyForecast]
-    
 
-    
+    let dailyForecast: [WidgetDailyForecast]
+
+    /// Open-Meteo only. Pre-computed surf conditions for the Surf widget.
+    let surf: WidgetSurfData?
+
+
+
     struct WidgetHourlyForecast: Codable {
         let time: String
         let temperature: String
         let emoji: String
         let condition: String
     }
-    
+
     struct WidgetDailyForecast: Codable {
         let dayName: String
         let highTemp: String
         let lowTemp: String
         let condition: String
+    }
+
+    /// Pre-formatted surf snapshot. Values are display-ready strings.
+    struct WidgetSurfData: Codable, Equatable {
+        let ratingLabel: String
+        let ratingDetail: String
+        let ratingColorHex: String
+        let waveHeight: String?
+        let wavePeriod: String?
+        let swellHeight: String?
+        let seaTemp: String?
+        let wind: String?
     }
 }
 
@@ -162,7 +201,6 @@ class WidgetLocationManager: NSObject, CLLocationManagerDelegate {
         // OPTIMIZATION: Check if we have a recent location cached by the system
         if let lastLocation = manager.location, 
            lastLocation.timestamp.timeIntervalSinceNow > -300 { // 5 mins
-            print("Widget: Using recent system location (Age: \(Int(-lastLocation.timestamp.timeIntervalSinceNow))s)")
             return lastLocation
         }
         
@@ -657,7 +695,8 @@ struct Provider: TimelineProvider {
                             moonPhase: data.moonPhase,
                             moonIllumination: data.moonIllumination,
                             windDirectionDegrees: data.windDirectionDegrees,
-                            dailyForecast: data.dailyForecast
+                            dailyForecast: data.dailyForecast,
+                            surf: data.surf
                         )
                     }
                     
@@ -697,7 +736,6 @@ struct Provider: TimelineProvider {
                     defaults?.set(loc.coordinate.latitude, forKey: "LastLatitude")
                     defaults?.set(loc.coordinate.longitude, forKey: "LastLongitude")
                 } catch {
-                    print("Widget GPS failed: \(error). Falling back to cache.")
                 }
             }
             
@@ -716,7 +754,6 @@ struct Provider: TimelineProvider {
             // OPTIMIZATION: Check if data is already fresh (within 30 mins)
             // If app refreshed recently, skip API call and use cached data
             if WeatherDataStore.isDataFresh(for: selectedSource) {
-                print("📱 Widget: Data is fresh, using cache instead of fetching")
                 createTimeline(from: cachedData)
                 return
             }
@@ -734,7 +771,6 @@ struct Provider: TimelineProvider {
                         defaults?.set(encoded, forKey: "BreezyWidgetData.\(selectedSource.rawValue)")
                         defaults?.set(Date(), forKey: "BreezyLastRefresh.\(selectedSource.rawValue)")
                     }
-                    print("✅ Widget: Fetched fresh Open-Meteo data for \(openMeteoData.city)")
                     createTimeline(from: openMeteoData)
                     return
                 }
@@ -922,7 +958,8 @@ struct Provider: TimelineProvider {
                     moonPhase: daily?.moon.phase.description,
                     moonIllumination: getMoonIllumination(daily?.moon.phase),
                     windDirectionDegrees: windDirectionDegrees,
-                    dailyForecast: dailyForecasts
+                    dailyForecast: dailyForecasts,
+                    surf: nil
                 )
                 
                 if let encoded = try? JSONEncoder().encode(newData) {
@@ -930,11 +967,9 @@ struct Provider: TimelineProvider {
                     defaults?.set(Date(), forKey: "BreezyLastRefresh.\(selectedSource.rawValue)")
                 }
 
-                print("✅ Widget: Fetched fresh data for \(cachedData.city)")
                 createTimeline(from: newData)
                 
             } catch {
-                print("❌ Widget: Fetch failed: \(error.localizedDescription)")
                 // Fallback to cached data if fetch fails
                 createTimeline(from: cachedData)
             }
@@ -1736,8 +1771,9 @@ struct CustomWidgetView: View {
         case .serif: return .system(size: size, weight: weight, design: .serif)
         case .monospaced: return .system(size: size, weight: weight, design: .monospaced)
         }
+
     }
-    
+
     @ViewBuilder
     func DayForecastView(day: String, icon: String, temp: String) -> some View {
         VStack(spacing: 2) {
@@ -1839,6 +1875,7 @@ struct BreezyWidgetBundle: WidgetBundle {
         BreezyWindWidget() // New Wind Widget
         BreezySunWidget() // New Astronomy
         BreezyMoonWidget() // New Astronomy
+        BreezySurfWidget() // Surf (Open-Meteo only)
         #endif
         BreezyWeatherWidget() // Custom Widget moved to end
     }
@@ -1922,6 +1959,183 @@ struct BreezyUVWidgetEntryView: View {
         }
     }
 }
+
+// MARK: - Surf Widget (System Small + Medium) — Open-Meteo only
+
+#if os(iOS)
+struct BreezySurfWidget: Widget {
+    let kind: String = "BreezySurfWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            BreezySurfWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Surf")
+        .description("Wave height, swell, period and a surf-quality rating. Open-Meteo only.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+struct BreezySurfWidgetEntryView: View {
+    var entry: WeatherEntry
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.widgetFamily) var family
+
+    var body: some View {
+        let theme = WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)
+        let surf = entry.weather.surf
+
+        if let surf {
+            if family == .systemMedium {
+                surfMedium(surf: surf)
+            } else {
+                surfSmall(surf: surf)
+            }
+        } else {
+            // Graceful fallback — inland location or WeatherKit source.
+            surfUnavailable
+        }
+        // The chosen content is wrapped below in a containerBackground for consistency.
+        // (SwiftUI requires the modifier on the outermost view.)
+    }
+
+    private func surfSmall(surf: WidgetWeatherData.WidgetSurfData) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "figure.surfing")
+                    .font(.system(size: 10))
+                Text("SURF")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundColor(.white.opacity(0.8))
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Color(hex: surf.ratingColorHex))
+                    .frame(width: 10, height: 10)
+                Text(surf.ratingLabel)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.white)
+            }
+
+            if let wave = surf.waveHeight {
+                Text(wave)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+
+            Spacer()
+
+            if let period = surf.wavePeriod {
+                Text(period)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.75))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .containerBackground(for: .widget) {
+            LinearGradient(
+                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private func surfMedium(surf: WidgetWeatherData.WidgetSurfData) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "figure.surfing")
+                    .font(.system(size: 10))
+                Text("SURF")
+                    .font(.system(size: 10, weight: .bold))
+                Spacer()
+            }
+            .foregroundColor(.white.opacity(0.8))
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color(hex: surf.ratingColorHex))
+                    .frame(width: 12, height: 12)
+                Text(surf.ratingLabel)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+
+            Text(surf.ratingDetail)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer()
+
+            HStack(spacing: 16) {
+                if let wave = surf.waveHeight {
+                    surfStat(label: "Wave", value: wave, icon: "water.waves")
+                }
+                if let period = surf.wavePeriod {
+                    surfStat(label: "Period", value: period, icon: "timer")
+                }
+                if let swell = surf.swellHeight {
+                    surfStat(label: "Swell", value: swell, icon: "waveform.path.ecg")
+                }
+                if let temp = surf.seaTemp {
+                    surfStat(label: "Sea", value: temp, icon: "thermometer.medium")
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .containerBackground(for: .widget) {
+            LinearGradient(
+                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private func surfStat(label: String, value: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Label(label, systemImage: icon)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.white.opacity(0.7))
+            Text(value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white)
+        }
+    }
+
+    private var surfUnavailable: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "figure.surfing")
+                .font(.system(size: 28))
+                .foregroundColor(.white.opacity(0.8))
+            Text("Surf")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
+            Text("Surf data needs Open-Meteo and is best near the coast.")
+                .font(.system(size: 10))
+                .foregroundColor(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(for: .widget) {
+            LinearGradient(
+                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
+#endif
 
 struct UVGraphView: View {
     let currentUV: Int
@@ -3811,7 +4025,17 @@ extension WidgetWeatherData {
                 WidgetDailyForecast(dayName: "Friday", highTemp: "72°", lowTemp: "59°", condition: "sun.max.fill"),
                 WidgetDailyForecast(dayName: "Saturday", highTemp: "76°", lowTemp: "61°", condition: "sun.max.fill"),
                 WidgetDailyForecast(dayName: "Sunday", highTemp: "79°", lowTemp: "63°", condition: "sun.max.fill")
-            ]
+            ],
+            surf: WidgetWeatherData.WidgetSurfData(
+                ratingLabel: "Good",
+                ratingDetail: "Chest-high waves, offshore winds, clean.",
+                ratingColorHex: "#5BB381",
+                waveHeight: "1.2 m",
+                wavePeriod: "11 s",
+                swellHeight: "0.9 m",
+                seaTemp: "14°C",
+                wind: "W 8 mph"
+            )
         )
     }
     
@@ -3858,6 +4082,20 @@ extension WidgetWeatherData {
 } timeline: {
     WeatherEntry.mock
 }
+
+#if os(iOS)
+#Preview("Surf Small", as: .systemSmall) {
+    BreezySurfWidget()
+} timeline: {
+    WeatherEntry.mock
+}
+
+#Preview("Surf Medium", as: .systemMedium) {
+    BreezySurfWidget()
+} timeline: {
+    WeatherEntry.mock
+}
+#endif
 
 #Preview("Inline", as: .accessoryInline) {
     BreezyInlineWidget()
@@ -4039,10 +4277,10 @@ enum WidgetFontStyle: String, CaseIterable, Codable, Identifiable {
     case rounded
     case serif
     case monospaced
-    
+
     var id: String { rawValue }
     var displayName: String { rawValue.capitalized }
-    
+
     var design: Font.Design {
         switch self {
         case .system: return .default

@@ -29,9 +29,6 @@ class WatchSessionManager: NSObject, WCSessionDelegate {
     // MARK: - WCSessionDelegate
     
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        if let error = error {
-            print("WCSession activation failed: \(error.localizedDescription)")
-        }
     }
     
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {

@@ -31,6 +31,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
     case windHistory = "Wind History"
     case airQualityCard = "Air Quality"
     case marineOutlook = "Marine Outlook"
+    case surf = "Surf"
     
     // Astronomy
     case sunPath = "Sun Path"
@@ -52,11 +53,13 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
             return "Air Quality"
         case .marineOutlook:
             return "Marine Outlook"
+        case .surf:
+            return "Surf"
         default:
             return rawValue
         }
     }
-    
+
     var icon: String {
         switch self {
         case .hourlyForecast: return "chart.xyaxis.line"
@@ -79,6 +82,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
         case .windHistory: return "lines.measurement.horizontal"
         case .airQualityCard: return "aqi.medium"
         case .marineOutlook: return "water.waves"
+        case .surf: return "figure.surfing"
         case .sunPath: return "sun.and.horizon.fill"
         case .moonPhase: return "moon.stars.fill"
         case .uvIndexCurve: return "chart.xyaxis.line"
@@ -171,7 +175,7 @@ extension WidgetType {
         switch self {
         case .hourlyForecast, .dailyForecast, .forecastNarrative, .hourlyTemperatures, .precipitationTimeline:
             return .forecasts
-        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .marineOutlook:
+        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .marineOutlook, .surf:
             return .details
         case .sunPath, .moonPhase:
             return .astronomy
@@ -205,7 +209,8 @@ extension WidgetType {
              .windHistory,
              .smartStack,
              .airQualityCard,
-             .marineOutlook:
+             .marineOutlook,
+             .surf:
             return true
         default:
             return false

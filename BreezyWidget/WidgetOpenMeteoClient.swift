@@ -43,6 +43,17 @@ final class WidgetOpenMeteoClient {
         let todayRainChance = daily.first?.rainChance ?? "0%"
         let todayRainAmount = daily.first?.precipitationSumMillimeters ?? 0
 
+        // Marine data (non-fatal — inland locations return no marine block).
+        // Surf is Open-Meteo only; WeatherKit path never reaches this client.
+        let marineResponse = try? await fetchMarine(latitude: latitude, longitude: longitude)
+        let surf = makeSurfData(
+            from: marineResponse?.current,
+            windSpeedKmh: response.current.windSpeed10M,
+            windDirectionDegrees: response.current.windDirection10M,
+            isFahrenheit: isFahrenheit,
+            windUnit: windUnit
+        )
+
         return WidgetWeatherData(
             city: city,
             temperature: formatTemperature(response.current.temperature2M, isFahrenheit: isFahrenheit),
@@ -85,7 +96,8 @@ final class WidgetOpenMeteoClient {
                     lowTemp: $0.lowTemp,
                     condition: $0.condition
                 )
-            }
+            },
+            surf: surf
         )
     }
 
@@ -217,6 +229,81 @@ final class WidgetOpenMeteoClient {
         formatter.dateFormat = "EEE"
         return formatter.string(from: date)
     }
+
+    // MARK: - Marine / Surf
+
+    private func fetchMarine(latitude: Double, longitude: Double) async throws -> MarineResponse {
+        var components = URLComponents(string: "https://marine-api.open-meteo.com/v1/marine")
+        components?.queryItems = [
+            URLQueryItem(name: "latitude", value: String(latitude)),
+            URLQueryItem(name: "longitude", value: String(longitude)),
+            URLQueryItem(name: "timezone", value: "auto"),
+            URLQueryItem(name: "current", value: "wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height,swell_wave_direction,sea_surface_temperature")
+        ]
+
+        guard let url = components?.url else {
+            throw NSError(domain: "WidgetOpenMeteo.Marine", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid marine URL"])
+        }
+
+        let (data, response) = try await session.data(from: url)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw NSError(domain: "WidgetOpenMeteo.Marine", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "Marine API error"])
+        }
+        return try JSONDecoder().decode(MarineResponse.self, from: data)
+    }
+
+    /// Build the pre-formatted surf payload from raw marine + wind values.
+    /// Mirrors the app's SurfRatingEngine (kept in sync; pure logic).
+    private func makeSurfData(
+        from marine: MarineCurrentBlock?,
+        windSpeedKmh: Double?,
+        windDirectionDegrees: Double?,
+        isFahrenheit: Bool,
+        windUnit: WindSpeedUnit
+    ) -> WidgetWeatherData.WidgetSurfData? {
+        guard let marine, marine.waveHeight != nil else { return nil }
+
+        let windMps = windSpeedKmh.map { $0 / 3.6 }
+        let rating = WidgetSurfRatingEngine.rating(
+            waveHeight: marine.waveHeight,
+            wavePeriod: marine.wavePeriod,
+            windSpeedMps: windMps,
+            windDirection: windDirectionDegrees,
+            waveDirection: marine.swellWaveDirection ?? marine.waveDirection
+        )
+
+        let windString: String? = {
+            guard let windMps else { return nil }
+            let speed = String(format: "%.0f %@", windUnit.convert(windMps), windUnit.displayName)
+            if let dir = windDirectionDegrees {
+                return "\(widgetCardinal(from: dir)) \(speed)"
+            }
+            return speed
+        }()
+
+        let seaTemp: String? = marine.seaSurfaceTemperature.map { c in
+            isFahrenheit ? String(format: "%.0f°F", (c * 9.0 / 5.0) + 32.0)
+                         : String(format: "%.0f°C", c)
+        }
+
+        return WidgetWeatherData.WidgetSurfData(
+            ratingLabel: rating.label,
+            ratingDetail: rating.detail,
+            ratingColorHex: rating.hexColor,
+            waveHeight: marine.waveHeight.map { String(format: "%.1f m", $0) },
+            wavePeriod: marine.wavePeriod.map { String(format: "%.0f s", $0) },
+            swellHeight: (marine.swellWaveHeight ?? marine.windWaveHeight).map { String(format: "%.1f m", $0) },
+            seaTemp: seaTemp,
+            wind: windString
+        )
+    }
+
+    private func widgetCardinal(from degrees: Double) -> String {
+        let directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        let normalized = (degrees.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        let index = Int((normalized + 22.5) / 45.0) % 8
+        return directions[index]
+    }
 }
 
 private struct OpenMeteoWidgetHour {
@@ -327,6 +414,128 @@ private struct DailyBlock: Decodable {
         case precipitationSum = "precipitation_sum"
         case sunrise
         case sunset
+    }
+}
+
+// MARK: - Marine response
+
+private struct MarineResponse: Decodable {
+    let current: MarineCurrentBlock?
+}
+
+private struct MarineCurrentBlock: Decodable {
+    let waveHeight: Double?
+    let waveDirection: Double?
+    let wavePeriod: Double?
+    let windWaveHeight: Double?
+    let swellWaveHeight: Double?
+    let swellWaveDirection: Double?
+    let seaSurfaceTemperature: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case waveHeight = "wave_height"
+        case waveDirection = "wave_direction"
+        case wavePeriod = "wave_period"
+        case windWaveHeight = "wind_wave_height"
+        case swellWaveHeight = "swell_wave_height"
+        case swellWaveDirection = "swell_wave_direction"
+        case seaSurfaceTemperature = "sea_surface_temperature"
+    }
+}
+
+// MARK: - Widget surf rating engine
+// Compact port of the app's SurfRatingEngine. Kept in sync; pure logic.
+
+private enum WidgetSurfRatingEngine {
+    struct Result { let label: String; let detail: String; let hexColor: String }
+
+    static func rating(
+        waveHeight: Double?,
+        wavePeriod: Double?,
+        windSpeedMps: Double?,
+        windDirection: Double?,
+        waveDirection: Double?
+    ) -> Result {
+        guard let height = waveHeight, height > 0 else {
+            return Result(label: "Flat", detail: "No rideable waves right now.", hexColor: "#9AA4AE")
+        }
+
+        var points = heightPoints(height)
+        let pn = periodAdjust(&points, period: wavePeriod)
+        let wn = windAdjust(&points, windSpeed: windSpeedMps, windDirection: windDirection, waveDirection: waveDirection)
+
+        let r = ratingFromPoints(points)
+        var parts: [String] = [heightDescription(height)]
+        if let pn { parts.append(pn) }
+        if let wn { parts.append(wn) }
+        return Result(label: r.label, detail: parts.joined(separator: ", ") + ".", hexColor: r.hexColor)
+    }
+
+    private static func heightPoints(_ h: Double) -> Double {
+        switch h {
+        case ..<0.25:    return 0
+        case 0.25..<0.5: return 1
+        case 0.5..<0.9:  return 2.5
+        case 0.9..<1.5:  return 4
+        case 1.5..<2.5:  return 5
+        default:         return 6
+        }
+    }
+
+    private static func periodAdjust(_ p: inout Double, period: Double?) -> String? {
+        guard let period else { return nil }
+        switch period {
+        case 11...:   p += 2; return "long-period groundswell"
+        case 9..<11:  p += 1; return "decent swell period"
+        case 7..<9:   return nil
+        default:      p -= 1; return "short, windy swell"
+        }
+    }
+
+    private static func windAdjust(_ p: inout Double, windSpeed: Double?, windDirection: Double?, waveDirection: Double?) -> String? {
+        guard let windSpeed, let windDirection, let waveDirection else { return nil }
+        let rel = angularDifference(windDirection, waveDirection)
+        switch (rel, windSpeed) {
+        case (135...225, _):
+            p += 1.5; return "offshore winds, clean"
+        case (45..<135, _), (225..<315, _):
+            if windSpeed >= 8 { p -= 0.5; return "gusty cross-shore wind" }
+            return "light cross-shore wind"
+        default:
+            switch windSpeed {
+            case 8...:  p -= 2; return "strong onshore winds, choppy"
+            case 4..<8: p -= 1; return "onshore breeze"
+            default:    return "light onshore breeze"
+            }
+        }
+    }
+
+    private static func angularDifference(_ a: Double, _ b: Double) -> Double {
+        let d = (a - b).truncatingRemainder(dividingBy: 360)
+        let abs = Swift.abs(d)
+        return abs > 180 ? 360 - abs : abs
+    }
+
+    private static func ratingFromPoints(_ p: Double) -> (label: String, hexColor: String) {
+        switch p {
+        case ..<1:    return ("Flat", "#9AA4AE")
+        case ..<2.5:  return ("Poor", "#8D99AE")
+        case ..<4.5:  return ("Fair", "#E2C044")
+        case ..<6.5:  return ("Good", "#5BB381")
+        default:      return ("Epic", "#3DA9FC")
+        }
+    }
+
+    private static func heightDescription(_ m: Double) -> String {
+        switch m {
+        case ..<0.3:    return "Ankle-slapper waves"
+        case 0.3..<0.6: return "Knee-high waves"
+        case 0.6..<0.9: return "Thigh-to-waist high"
+        case 0.9..<1.3: return "Chest-high waves"
+        case 1.3..<1.8: return "Head-high waves"
+        case 1.8..<2.5: return "Overhead waves"
+        default:        return "Double-overhead+"
+        }
     }
 }
 

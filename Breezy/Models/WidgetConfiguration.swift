@@ -84,10 +84,10 @@ enum WidgetFontStyle: String, CaseIterable, Codable, Identifiable {
     case rounded
     case serif
     case monospaced
-    
+
     var id: String { rawValue }
     var displayName: String { rawValue.capitalized }
-    
+
     var design: Font.Design {
         switch self {
         case .system: return .default

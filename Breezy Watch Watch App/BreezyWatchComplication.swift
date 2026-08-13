@@ -25,7 +25,6 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
     func requestLocation() async throws -> CLLocation {
         if let lastLocation = manager.location,
            lastLocation.timestamp.timeIntervalSinceNow > -60 {
-            print("⌚️ Watch Widget: Using recent system location (Age: \(Int(-lastLocation.timestamp.timeIntervalSinceNow))s)")
             return lastLocation
         }
         
@@ -153,7 +152,6 @@ struct WatchComplicationProvider: TimelineProvider {
                let savedLocs = try? JSONDecoder().decode([LocalSavedLocation].self, from: savedData),
                let match = savedLocs.first(where: { $0.id.uuidString == idStr }) {
                 
-                print("⌚️ Watch Widget: Using selected location: \(match.name)")
                 targetLocation = Coord(lat: match.latitude, lon: match.longitude, name: match.name)
             }
             
@@ -167,7 +165,6 @@ struct WatchComplicationProvider: TimelineProvider {
                         defaults?.set(loc.coordinate.latitude, forKey: "WatchLastLatitude")
                         defaults?.set(loc.coordinate.longitude, forKey: "WatchLastLongitude")
                     } catch {
-                        print("⌚️ Watch GPS failed: \(error). Using cache.")
                     }
                 }
             }
@@ -257,7 +254,6 @@ struct WatchComplicationProvider: TimelineProvider {
                 completion(timeline)
                 
             } catch {
-                print("⌚️ Watch Complication: Fetch failed (\(error)). Using cache.")
                 if let data = cachedData {
                     let entries = createEntries(from: data)
                     let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60)))

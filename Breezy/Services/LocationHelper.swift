@@ -230,7 +230,8 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
                     sunset: nil,
                     moonPhase: nil,
                     moonIllumination: nil as Double?,
-                    windDirectionDegrees: weather.metrics?.windDirection
+                    windDirectionDegrees: weather.metrics?.windDirection,
+                    surf: nil
                 )
                 
                 // Save to widget store and refresh widget

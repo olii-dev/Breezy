@@ -48,9 +48,14 @@ Breezy/RadarSecrets.plist
 .idea/
 .vscode/
 .cursor/
+.zcode/
 *.swp
 *.swo
 *~
+
+# Xcode backup folders
+**/xcuserdata.bak/
+**/xcschemes.bak/
 
 # Swift Package Manager
 .build/

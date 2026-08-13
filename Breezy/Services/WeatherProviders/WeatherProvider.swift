@@ -102,6 +102,7 @@ struct ProviderMarineConditions {
     let waveDirectionDegrees: Double?
     let wavePeriodSeconds: Double?
     let swellHeightMeters: Double?
+    let swellDirectionDegrees: Double?
     let seaSurfaceTemperatureCelsius: Double?
     let currentSpeedMetersPerSecond: Double?
     let currentDirectionDegrees: Double?

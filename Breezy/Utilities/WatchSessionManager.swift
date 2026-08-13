@@ -81,14 +81,10 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         let bottomHex = currentTheme.bottomColor.toHex()
         let textHex = currentTheme.textColor.toHex()
         
-        print("🎨 PHONE: Syncing Theme. Hex Values -> Top: \(topHex ?? "NIL"), Bottom: \(bottomHex ?? "NIL"), Text: \(textHex ?? "NIL")")
-            
         if let top = topHex, let bottom = bottomHex, let text = textHex {
             context["theme.top"] = top
             context["theme.bottom"] = bottom
             context["theme.text"] = text
-        } else {
-            print("⚠️ PHONE: Failed to generate hex for current theme. Colors might be dynamic or P3.")
         }
         
         if let metricsData = try? JSONEncoder().encode(visibleMetrics) {
@@ -107,39 +103,24 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         context["Breezy.precipitationUnit"] = precipitationUnit.rawValue
         
         // Critical: Try to use sendMessage for INSTANT sync if reachable
-        print("📱 PHONE: Attempting sync. Session State: \(session.activationState.rawValue), Reachable: \(session.isReachable)")
-        
         if session.isReachable {
-            print("📱 PHONE: Watch is reachable. Sending EXTRA fast message.")
-            session.sendMessage(context, replyHandler: nil) { error in
-                print("📱 PHONE: SendMessage failed: \(error.localizedDescription). Falling back to Complication UserInfo.")
-                // Fallback 1: Complication User Info (Highest priority background transfer)
+            session.sendMessage(context, replyHandler: nil) { _ in
                 self.session?.transferCurrentComplicationUserInfo(context)
             }
         } else {
-            print("📱 PHONE: Watch NOT reachable. Queuing Complication User Info transfer.")
             session.transferCurrentComplicationUserInfo(context)
         }
         
-        do {
-            try session.updateApplicationContext(context)
-            print("📱 PHONE: Application Context updated successfully.")
-        } catch {
-            print("❌ PHONE: Error updating watch context: \(error.localizedDescription)")
-        }
+        try? session.updateApplicationContext(context)
     }
     
     // MARK: - WCSessionDelegate
     
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        print("📱 PHONE: Activation complete. State: \(activationState.rawValue), Paired: \(session.isPaired), WatchAppInstalled: \(session.isWatchAppInstalled)")
-        if let error = error {
-            print("WCSession activation failed: \(error.localizedDescription)")
-        } else if activationState == .activated {
-            // Trigger initial sync
-            DispatchQueue.main.async {
-                self.onSessionActivation?()
-            }
+        guard error == nil, activationState == .activated else { return }
+        // Trigger initial sync
+        DispatchQueue.main.async {
+            self.onSessionActivation?()
         }
     }
     
@@ -156,8 +137,6 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
     
     func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
         if message["request"] as? String == "weatherData" {
-            print("📱 PHONE: Received weather request from Watch.")
-            
             // We need to fetch weather.
             // If coords provided, use them. Else use current location (if available in a manager? or refuse?)
             // Ideally we'd have a shared LocationManager content. For now, let's assume the watch SENDS coordinates if it has them,
@@ -178,14 +157,11 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                     }
                 } else {
                     // Fallback: Use Phone's Location
-                    print("📱 PHONE: Watch sent no coords. Requesting local location...")
                     do {
                         let locationData = try await self.locationHelper.requestLocationAndGetData()
                         targetLocation = CLLocation(latitude: locationData.latitude, longitude: locationData.longitude)
                         targetCity = locationData.city
-                        print("📱 PHONE: Using Phone Location: \(locationData.city)")
                     } catch {
-                        print("❌ PHONE: Failed to get local location: \(error.localizedDescription)")
                         replyHandler(["error": "Phone location unavailable: \(error.localizedDescription)"])
                         return
                     }
@@ -260,11 +236,9 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                     }
                     reply["daily"] = dailyData
                     
-                    print("📱 PHONE: Sending weather reply to Watch.")
                     replyHandler(reply)
                     
                 } catch {
-                    print("📱 PHONE: Failed to fetch weather for Watch: \(error)")
                     replyHandler(["error": error.localizedDescription])
                 }
             }

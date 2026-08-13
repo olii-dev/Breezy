@@ -166,7 +166,6 @@ struct WatchCitySearchView: View {
                     dismiss() // Dismiss Search
                 }
             } catch {
-                print("Error getting coords: \(error)")
                 await MainActor.run {
                     viewModel.playHaptic(.failure)
                     isGettingLocation = false

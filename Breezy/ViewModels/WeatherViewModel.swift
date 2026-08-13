@@ -833,7 +833,7 @@ class WeatherViewModel: ObservableObject {
                     highTemp: cached.highTemp,
                     lowTemp: cached.lowTemp,
                     todayHourlyForecast: cached.hourlyForecast,
-                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                     rainChance: rainChance,
                     rainAmount: cached.metrics?.todayRainfall,
                     dailyForecast: cached.dailyForecast
@@ -926,7 +926,7 @@ class WeatherViewModel: ObservableObject {
                 highTemp: info.highTemp,
                 lowTemp: info.lowTemp,
                 todayHourlyForecast: info.hourlyForecast,
-                metrics: info.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                metrics: info.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                 rainChance: info.dailyForecast.first?.chanceOfRain,
                 rainAmount: info.metrics?.todayRainfall,
                 conditionCode: result.conditionCode ?? info.condition,
@@ -1012,7 +1012,6 @@ class WeatherViewModel: ObservableObject {
                 self.historicalWeather2 = info
             }
         } catch {
-            print("Historical Fetch Error: \(error)")
             let nsError = error as NSError
             if let description = nsError.userInfo[NSLocalizedDescriptionKey] as? String,
                !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1043,7 +1042,6 @@ class WeatherViewModel: ObservableObject {
             )
             
         } catch {
-            print("Historical Range Fetch Error: \(error)")
             self.historicalError = "Unable to load historical chart data."
         }
         
@@ -1332,10 +1330,6 @@ class WeatherViewModel: ObservableObject {
             let moonrise = day.moon.moonrise.map { DateFormatterHelper.formatTime($0, timeZone: timeZone) }
             let moonset = day.moon.moonset.map { DateFormatterHelper.formatTime($0, timeZone: timeZone) }
 
-#if DEBUG
-            print("📊 Day \(dayName): summary hours=\(fallbackHourlyData.count), detailed hours=\(allDayHourlyData.count)")
-#endif
-            
             dailyForecastArray.append(DailyForecast(
                 date: dateStr,
                 dayName: dayName,
@@ -1497,6 +1491,7 @@ class WeatherViewModel: ObservableObject {
                 uvIndexCategory: uvCategory,
                 airQuality: airQuality,
                 marine: nil,
+                surf: nil,
                 pressure: pressure,
                 visibility: visibility,
                 dewPoint: dewPoint,
@@ -1551,6 +1546,7 @@ class WeatherViewModel: ObservableObject {
             uvIndexCategory: uvCategory,
             airQuality: airQuality,
             marine: nil,
+            surf: nil,
             pressure: pressure,
             visibility: visibility,
             dewPoint: dewPoint,
@@ -1643,7 +1639,9 @@ class WeatherViewModel: ObservableObject {
         
         // Save all collected hours (Now + 12 future hours)
         let finalWidgetHourly = widgetHourly
-        
+
+        let widgetSurf = makeWidgetSurfData(from: metrics.surf)
+
         let widgetData = WidgetWeatherData(
             city: cityName,
             temperature: tempRaw,
@@ -1679,7 +1677,8 @@ class WeatherViewModel: ObservableObject {
             sunset: nil,
             moonPhase: nil,
             moonIllumination: nil,
-            windDirectionDegrees: nil
+            windDirectionDegrees: nil,
+            surf: widgetSurf
         )
         
         
@@ -1697,7 +1696,35 @@ class WeatherViewModel: ObservableObject {
             defaults.set(precipitationUnit.rawValue, forKey: "Breezy.precipitationUnit")
         }
     }
-    
+
+    /// Convert computed SurfConditions into the display-ready payload widgets read
+    /// from the App Group. Widgets can't run the rating engine (it lives in the
+    /// app target), so we pre-format everything here.
+    private func makeWidgetSurfData(from surf: SurfConditions?) -> WidgetWeatherData.WidgetSurfData? {
+        guard let surf else { return nil }
+        let isF = temperatureUnit == .fahrenheit
+        return WidgetWeatherData.WidgetSurfData(
+            ratingLabel: surf.ratingLabel,
+            ratingDetail: surf.ratingDetail,
+            ratingColorHex: surf.rating.hexColor,
+            waveHeight: surf.waveHeightMeters.map { String(format: "%.1f m", $0) },
+            wavePeriod: surf.wavePeriodSeconds.map { String(format: "%.0f s", $0) },
+            swellHeight: surf.swellHeightMeters.map { String(format: "%.1f m", $0) },
+            seaTemp: surf.seaTempCelsius.map { celsius in
+                isF ? String(format: "%.0f°F", (celsius * 9.0 / 5.0) + 32.0)
+                    : String(format: "%.0f°C", celsius)
+            },
+            wind: {
+                guard let mps = surf.windSpeedMetersPerSecond else { return nil }
+                let speed = String(format: "%.0f %@", windSpeedUnit.convert(mps), windSpeedUnit.displayName)
+                if let dir = surf.windDirectionDegrees {
+                    return "\(WindDirectionHelper.cardinalDirection(from: dir)) \(speed)"
+                }
+                return speed
+            }()
+        )
+    }
+
     // MARK: - Notifications
     
     private func shouldTriggerNotifications(oldWeather: WeatherInfo?, newWeather: WeatherInfo, locationChanged: Bool) -> Bool {

@@ -143,7 +143,7 @@ final class OpenMeteoProvider: WeatherProviding {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height,sea_surface_temperature,ocean_current_velocity,ocean_current_direction")
+            URLQueryItem(name: "current", value: "wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height,swell_wave_direction,sea_surface_temperature,ocean_current_velocity,ocean_current_direction")
         ]
 
         guard let url = components?.url else {
@@ -350,6 +350,7 @@ final class OpenMeteoProvider: WeatherProviding {
             waveDirectionDegrees: current.waveDirection,
             wavePeriodSeconds: current.wavePeriod,
             swellHeightMeters: current.swellWaveHeight ?? current.windWaveHeight,
+            swellDirectionDegrees: current.swellWaveDirection,
             seaSurfaceTemperatureCelsius: current.seaSurfaceTemperature,
             currentSpeedMetersPerSecond: current.oceanCurrentVelocity,
             currentDirectionDegrees: current.oceanCurrentDirection
@@ -430,6 +431,7 @@ private struct OpenMeteoMarineCurrentBlock: Decodable {
     let wavePeriod: Double?
     let windWaveHeight: Double?
     let swellWaveHeight: Double?
+    let swellWaveDirection: Double?
     let seaSurfaceTemperature: Double?
     let oceanCurrentVelocity: Double?
     let oceanCurrentDirection: Double?
@@ -440,6 +442,7 @@ private struct OpenMeteoMarineCurrentBlock: Decodable {
         case wavePeriod = "wave_period"
         case windWaveHeight = "wind_wave_height"
         case swellWaveHeight = "swell_wave_height"
+        case swellWaveDirection = "swell_wave_direction"
         case seaSurfaceTemperature = "sea_surface_temperature"
         case oceanCurrentVelocity = "ocean_current_velocity"
         case oceanCurrentDirection = "ocean_current_direction"
