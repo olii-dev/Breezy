@@ -752,8 +752,6 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         guard authorizationStatus == .authorized else { return }
         guard !isInQuietHours() else { return }
         
-        let yesterdayTemp = UserDefaults.standard.double(forKey: "Breezy.lastTemperature")
-        
         // Parse current temperature from the display string (e.g., "72°F" or "22°C"),
         // extracting the leading numeric value, then normalize to Celsius so unit
         // switches between fetches never produce a false alert.

@@ -269,12 +269,13 @@ struct UVIndexCurveView: View {
     }
     
     private func formatHour(_ hour: Int) -> String {
-        let displayHour = (hour == 0 || hour == 12 || hour == 24) ? 12 : hour % 12
-        let suffix = hour < 12 || hour == 24 ? "AM" : "PM"
-        return "\(displayHour)\(suffix)"
+        DateFormatterHelper.hourLabel(hour)
     }
 
     private func formatAxisHour(_ hour: Int) -> String {
+        guard !DateFormatterHelper.uses24HourClock else {
+            return "\(hour):00"
+        }
         let displayHour = (hour == 0 || hour == 12 || hour == 24) ? 12 : hour % 12
         let suffix = hour < 12 || hour == 24 ? "AM" : "PM"
         return "\(displayHour) \(suffix)"

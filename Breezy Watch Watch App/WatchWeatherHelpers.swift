@@ -104,10 +104,19 @@ struct WatchWeatherIconHelper {
 }
 
 struct WatchDateFormatterHelper {
+    static var uses24HourClock: Bool {
+        let template = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: Locale.current)
+        return template?.contains("a") != true
+    }
+
     static func formatHour(_ hour: Int) -> String {
-        hour == 0 ? "12AM" :
-        hour < 12 ? "\(hour)AM" :
-        hour == 12 ? "12PM" : "\(hour - 12)PM"
+        guard !uses24HourClock else { return "\(hour)" }
+        switch hour {
+        case 0: return "12AM"
+        case 12: return "12PM"
+        case 1..<12: return "\(hour)AM"
+        default: return "\(hour - 12)PM"
+        }
     }
     
     static func formatTime(_ date: Date) -> String {

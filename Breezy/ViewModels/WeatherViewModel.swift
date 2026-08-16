@@ -1361,6 +1361,7 @@ class WeatherViewModel: ObservableObject {
                 condition: condition,
                 emoji: WeatherIconHelper.emoji(for: condition),
                 chanceOfRain: "\(chanceOfRain)%",
+                precipitationAmountMillimeters: day.precipitationAmount.converted(to: .millimeters).value,
                 windSpeed: windSpeed,
                 windDirection: day.wind.direction.value,
                 windDirectionCardinal: WindDirectionHelper.cardinalDirection(from: day.wind.direction.value),

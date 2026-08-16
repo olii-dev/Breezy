@@ -193,6 +193,7 @@ enum ProviderWeatherMapper {
                 condition: day.condition,
                 emoji: WeatherIconHelper.emoji(for: day.condition),
                 chanceOfRain: day.precipitationChance.map { String(format: "%.0f%%", $0 * 100) },
+                precipitationAmountMillimeters: day.precipitationSumMillimeters,
                 windSpeed: formatting.formattedWindSpeed(metersPerSecond: day.windSpeedMaxMetersPerSecond),
                 windDirection: day.windDirectionDegrees,
                 windDirectionCardinal: day.windDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) },

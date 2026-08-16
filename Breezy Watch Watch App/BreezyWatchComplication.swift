@@ -357,8 +357,11 @@ struct WatchHourlyForecast: Identifiable {
     let condition: String
 }
 
-/// 12-hour "3PM"-style labels that match the format used across the watch app.
+/// 12/24-hour hour labels that match the format used across the watch app.
 private func complicationHourString(_ hour: Int) -> String {
+    let template = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: Locale.current)
+    let uses24Hour = template?.contains("a") != true
+    guard !uses24Hour else { return "\(hour)" }
     switch hour {
     case 0: return "12AM"
     case 12: return "12PM"

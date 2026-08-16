@@ -245,16 +245,28 @@ struct SunPathView: View {
     
     var timeUntilEvent: (title: String, time: String)? {
         guard let now = currentTime else { return nil }
-        
-        if now < sunrise {
-            let diff = sunrise.timeIntervalSince(now)
+
+        let morning = GoldenHourHelper.window(sunDate: sunrise, isMorning: true)
+        let evening = GoldenHourHelper.window(sunDate: sunset, isMorning: false)
+
+        if now < morning.start {
+            let diff = morning.start.timeIntervalSince(now)
             return ("Sunrise in", formatDuration(diff))
-        } else if now < sunset {
+        }
+        if GoldenHourHelper.isGoldenHour(now: now, window: morning) {
+            return ("Golden Hour", "Now")
+        }
+        if now < sunset {
             let diff = sunset.timeIntervalSince(now)
             return ("Sunset in", formatDuration(diff))
-        } else {
-            return ("Sun Set", "")
         }
+        if GoldenHourHelper.isGoldenHour(now: now, window: evening) {
+            return ("Dusk", "Now")
+        }
+        // Sun has fully set — count down to the next sunrise (approximate: today + 24h).
+        let nextSunrise = sunrise.addingTimeInterval(86_400)
+        let diff = nextSunrise.timeIntervalSince(now)
+        return ("Sunrise in", formatDuration(diff))
     }
     
     func formatDuration(_ interval: TimeInterval) -> String {

@@ -8,6 +8,24 @@
 import Foundation
 import CoreLocation
 
+/// Compact hour labels ("5PM" or "17") that respect the device's 24-hour clock.
+enum WidgetHourFormatter {
+    static var uses24HourClock: Bool {
+        let template = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: Locale.current)
+        return template?.contains("a") != true
+    }
+
+    static func hourLabel(_ hour: Int) -> String {
+        guard !uses24HourClock else { return "\(hour)" }
+        switch hour {
+        case 0: return "12AM"
+        case 12: return "12PM"
+        case 1..<12: return "\(hour)AM"
+        default: return "\(hour - 12)PM"
+        }
+    }
+}
+
 final class WidgetOpenMeteoClient {
     static let shared = WidgetOpenMeteoClient()
 
@@ -218,11 +236,7 @@ final class WidgetOpenMeteoClient {
     }
 
     private func hourString(for date: Date) -> String {
-        let hour = Calendar.current.component(.hour, from: date)
-        if hour == 0 { return "12AM" }
-        if hour < 12 { return "\(hour)AM" }
-        if hour == 12 { return "12PM" }
-        return "\(hour - 12)PM"
+        WidgetHourFormatter.hourLabel(Calendar.current.component(.hour, from: date))
     }
 
     private func dayName(for date: Date) -> String {

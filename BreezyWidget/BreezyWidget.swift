@@ -658,13 +658,9 @@ struct Provider: TimelineProvider {
                     var futureWeather = data
                     
                     // Try to finding matching hourly data
-                    // Note: This matches the "12PM", "1AM" format from our lightweight model
-                    // ideally we'd use the raw date from WeatherKit if we had it, but string matching works for now
-                    let expectedTimeStr: String
-                    if hourComponent == 0 { expectedTimeStr = "12AM" }
-                    else if hourComponent < 12 { expectedTimeStr = "\(hourComponent)AM" }
-                    else if hourComponent == 12 { expectedTimeStr = "12PM" }
-                    else { expectedTimeStr = "\(hourComponent - 12)PM" }
+                    // Note: This matches the format produced by the lightweight model
+                    // (e.g., "12PM"/"1AM" on 12-hour devices, "17" on 24-hour devices).
+                    let expectedTimeStr = WidgetHourFormatter.hourLabel(hourComponent)
                     
                     if let matchingForecast = data.hourlyForecast.first(where: { $0.time == expectedTimeStr }) {
                          futureWeather = WidgetWeatherData(
@@ -861,11 +857,7 @@ struct Provider: TimelineProvider {
                     let hDate = hour.date
                     let hComp = calendar.component(.hour, from: hDate)
                     
-                    let timeStr: String
-                    if hComp == 0 { timeStr = "12AM" }
-                    else if hComp < 12 { timeStr = "\(hComp)AM" }
-                    else if hComp == 12 { timeStr = "12PM" }
-                    else { timeStr = "\(hComp - 12)PM" }
+                    let timeStr = WidgetHourFormatter.hourLabel(hComp)
                     
                     let hTempStr: String
                     if isFahrenheit {

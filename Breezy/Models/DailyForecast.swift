@@ -16,6 +16,7 @@ struct DailyForecast: Identifiable, Codable, Equatable {
     let condition: String
     let emoji: String
     let chanceOfRain: String?
+    let precipitationAmountMillimeters: Double?
     let windSpeed: String?
     let windDirection: Double?
     let windDirectionCardinal: String?

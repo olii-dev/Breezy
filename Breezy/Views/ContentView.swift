@@ -2073,6 +2073,18 @@ struct SimpleDailyRow: View {
                 Color.clear
                     .frame(width: 30, height: 30)
             }
+
+            // Rain total for the day (only when meaningful).
+            if let mm = day.precipitationAmountMillimeters, mm >= 0.05 {
+                HStack(spacing: 3) {
+                    Image(systemName: "drop.fill")
+                        .font(.caption2)
+                        .foregroundColor(DesignSystem.skyBlue.opacity(0.9))
+                    Text(String(format: "%.1f %@", viewModel.precipitationUnit.convert(mm), viewModel.precipitationUnit.symbol))
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.75))
+                }
+            }
             
             Spacer()
             
