@@ -61,7 +61,9 @@ final class WidgetOpenMeteoClient {
             emoji: WidgetIconHelper.getIcon(for: condition, isMinimalist: false),
             highTemp: daily.first?.highTemp,
             lowTemp: daily.first?.lowTemp,
-            hourlyForecast: hourly.prefix(12).map {
+            hourlyForecast: hourly
+                .filter { $0.date >= Date().addingTimeInterval(-1800) }
+                .prefix(12).map {
                 WidgetWeatherData.WidgetHourlyForecast(
                     time: $0.time,
                     temperature: $0.temperature,

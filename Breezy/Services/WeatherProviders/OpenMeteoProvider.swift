@@ -63,7 +63,9 @@ final class OpenMeteoProvider: WeatherProviding {
             throw NSError(domain: "Breezy.OpenMeteo", code: 404, userInfo: [NSLocalizedDescriptionKey: "No historical data found"])
         }
 
-        let noonHour = hourly.first { Calendar.current.component(.hour, from: $0.date) == 12 } ?? hourly.first
+        var locationCalendar = Calendar.current
+        locationCalendar.timeZone = timezone
+        let noonHour = hourly.first { locationCalendar.component(.hour, from: $0.date) == 12 } ?? hourly.first
 
         return ProviderWeatherMapper.makeHistoricalWeatherInfo(
             location: location,

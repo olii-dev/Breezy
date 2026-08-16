@@ -470,8 +470,14 @@ class NotificationManager: NSObject, ObservableObject {
         guard authorizationStatus == .authorized else { return }
         guard !isInQuietHours() else { return }
         
-        // Check hourly forecast for rain in next few hours
-        let nextHours = weather.hourlyForecast.prefix(3)
+        // Check hourly forecast for rain in next few hours (skip hours that
+        // have already passed, since hourlyForecast starts at 00:00).
+        let nextHours = weather.hourlyForecast
+            .filter { hour in
+                guard let date = hour.sourceDate else { return true }
+                return date >= Date().addingTimeInterval(-600)
+            }
+            .prefix(3)
         for hour in nextHours {
             let condition = (hour.condition ?? "").lowercased()
             if condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower") {
@@ -609,10 +615,14 @@ class NotificationManager: NSObject, ObservableObject {
         // Check if we have minute forecast data
         // For now, we'll use hourly forecast as a proxy since WeatherKit minute forecast
         // requires separate API call. This checks next hour for rain.
-        guard let nextHour = weather.hourlyForecast.first(where: { hour in
-            let now = Calendar.current.component(.hour, from: Date())
-            return hour.hourValue > now
-        }) else { return }
+        let now = Date()
+        guard let nextHour = weather.hourlyForecast
+            .filter({ hour in
+                guard let date = hour.sourceDate else { return true }
+                return date >= now
+            })
+            .sorted(by: { ($0.sourceDate ?? now) < ($1.sourceDate ?? now) })
+            .first else { return }
         
         let condition = (nextHour.condition ?? "").lowercased()
         let willRain = condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower")
@@ -632,8 +642,7 @@ class NotificationManager: NSObject, ObservableObject {
             guard shouldSendRainAlert(location: weather.location.city) else { return }
             
             // Calculate approximate minutes until rain
-            let now = Calendar.current.component(.hour, from: Date())
-            let minutesUntil = (nextHour.hourValue - now) * 60
+            let minutesUntil = max(0, Int(ceil((nextHour.sourceDate?.timeIntervalSince(now) ?? 0) / 60)))
             
             sendMinuteRainAlert(minutesUntil: minutesUntil, weather: weather)
             lastRainAlertTime = Date()
@@ -745,24 +754,33 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         
         let yesterdayTemp = UserDefaults.standard.double(forKey: "Breezy.lastTemperature")
         
-        // Parse current temperature from string (e.g., "72" or "22.5")
-        guard let currentTemp = Double(weather.temperature.replacingOccurrences(of: "°", with: "").trimmingCharacters(in: .whitespaces)) else {
+        // Parse current temperature from the display string (e.g., "72°F" or "22°C"),
+        // extracting the leading numeric value, then normalize to Celsius so unit
+        // switches between fetches never produce a false alert.
+        let numericString = weather.temperature
+            .replacingOccurrences(of: "°", with: "")
+            .filter { $0.isNumber || $0 == "." || $0 == "-" }
+        guard let displayTemp = Double(numericString) else { return }
+        let currentCelsius = temperatureUnit == .celsius ? displayTemp : (displayTemp - 32) * 5.0 / 9.0
+
+        // Stored value is kept in Celsius.
+        let yesterdayCelsius = UserDefaults.standard.double(forKey: "Breezy.lastTemperature")
+
+        guard yesterdayCelsius != 0 else {
+            UserDefaults.standard.set(currentCelsius, forKey: "Breezy.lastTemperature")
             return
         }
-        
-        guard yesterdayTemp != 0 else {
-            UserDefaults.standard.set(currentTemp, forKey: "Breezy.lastTemperature")
-            return
-        }
-        
-        let change = abs(currentTemp - yesterdayTemp)
-        
+
+        let change = abs(currentCelsius - yesterdayCelsius)
+
         if change >= Double(settings.temperatureChangeThreshold) {
-            let isWarmer = currentTemp > yesterdayTemp
-            sendTemperatureChangeAlert(change: change, isWarmer: isWarmer, temperatureUnit: temperatureUnit, weather: weather)
+            let isWarmer = currentCelsius > yesterdayCelsius
+            // Report the magnitude in the user's chosen display unit.
+            let changeInDisplayUnit = temperatureUnit == .celsius ? change : change * 9.0 / 5.0
+            sendTemperatureChangeAlert(change: changeInDisplayUnit, isWarmer: isWarmer, temperatureUnit: temperatureUnit, weather: weather)
         }
-        
-        UserDefaults.standard.set(currentTemp, forKey: "Breezy.lastTemperature")
+
+        UserDefaults.standard.set(currentCelsius, forKey: "Breezy.lastTemperature")
     }
     
     private func sendTemperatureChangeAlert(change: Double, isWarmer: Bool, temperatureUnit: TemperatureUnit, weather: WeatherInfo) {

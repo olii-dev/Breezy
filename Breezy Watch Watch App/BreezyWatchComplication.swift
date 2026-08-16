@@ -110,8 +110,7 @@ struct WatchComplicationProvider: TimelineProvider {
                     var futureWeather = data
                     
                     if let matching = data.hourlyForecast.first(where: { h in
-                        h.time.starts(with: "\(hourComp)") ||
-                        h.time.starts(with: "\(hourComp > 12 ? hourComp - 12 : (hourComp == 0 ? 12 : hourComp))")
+                        h.time == complicationHourString(hourComp)
                     }) {
                         futureWeather = WatchWeatherData(
                             city: data.city,
@@ -210,7 +209,7 @@ struct WatchComplicationProvider: TimelineProvider {
                 for h in next12 {
                     let hVal = isFahrenheit ? h.temperature.converted(to: .fahrenheit).value : h.temperature.converted(to: .celsius).value
                     let hStr = String(format: "%.0f°", hVal)
-                    let timeStr = Calendar.current.component(.hour, from: h.date) > 12 ? "\(Calendar.current.component(.hour, from: h.date) - 12)PM" : "\(Calendar.current.component(.hour, from: h.date))AM"
+                    let timeStr = complicationHourString(Calendar.current.component(.hour, from: h.date))
                     
                     hourlyItems.append(WatchHourlyForecast(
                         time: timeStr,
@@ -356,6 +355,16 @@ struct WatchHourlyForecast: Identifiable {
     let temperature: String
     let emoji: String
     let condition: String
+}
+
+/// 12-hour "3PM"-style labels that match the format used across the watch app.
+private func complicationHourString(_ hour: Int) -> String {
+    switch hour {
+    case 0: return "12AM"
+    case 12: return "12PM"
+    case 1..<12: return "\(hour)AM"
+    default: return "\(hour - 12)PM"
+    }
 }
 
 // MARK: - Shared Data Model (from iOS app)

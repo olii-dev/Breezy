@@ -212,7 +212,12 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                         reply["sunset"] = sunset.timeIntervalSince1970
                     }
 
-                    let hourlyData = (weather.allHourlyData ?? weather.hourlyForecast).prefix(24).map { h -> [String: Any] in
+                    let hourlyData = (weather.allHourlyData ?? weather.hourlyForecast)
+                        .filter { hour in
+                            guard let date = hour.sourceDate else { return true }
+                            return date >= Date().addingTimeInterval(-1800)
+                        }
+                        .prefix(24).map { h -> [String: Any] in
                         return [
                             "time": (h.sourceDate ?? Date()).timeIntervalSince1970,
                             "temp_c": temperatureUnitToCelsius(h.temperatureRaw, from: weather.temperature),

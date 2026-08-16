@@ -97,7 +97,7 @@ extension WeatherSource {
                 maxForecastDays: 10,
                 historicalStartDate: Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1)),
                 supportedWidgets: Set(WidgetType.allCases.filter { widget in
-                    widget != .airQualityCard && widget != .aqiTrend && widget != .marineOutlook && widget != .surf
+                    widget != .airQualityCard && widget != .aqiTrend && widget != .marineOutlook && widget != .surf && widget != .windHistory
                 })
             )
         case .openMeteo:

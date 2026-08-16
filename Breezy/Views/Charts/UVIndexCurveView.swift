@@ -23,17 +23,29 @@ struct UVIndexCurveView: View {
     }
 
     private var chartHours: [HourlyForecast] {
-        let filtered = hourlyForecast
+        // Drop yesterday's hours (allHourlyData now includes past_days=1) so the
+        // curve reflects the upcoming day and each hourValue appears only once.
+        let now = Date()
+        let upcoming = hourlyForecast
             .filter { ($0.uvIndex ?? 0) >= 0 }
-            .filter { (0...23).contains($0.hourValue) }
+            .filter { hour in
+                guard let date = hour.sourceDate else { return true }
+                return date >= now.addingTimeInterval(-1800)
+            }
             .sorted { lhs, rhs in
-                if lhs.hourValue == rhs.hourValue {
-                    return lhs.time < rhs.time
+                switch (lhs.sourceDate, rhs.sourceDate) {
+                case let (left?, right?):
+                    return left < right
+                case (.some, nil):
+                    return true
+                case (nil, .some):
+                    return false
+                case (nil, nil):
+                    return lhs.hourValue < rhs.hourValue
                 }
-                return lhs.hourValue < rhs.hourValue
             }
         let limit = max(1, rangeHours)
-        return Array(filtered.prefix(limit))
+        return Array(upcoming.prefix(limit))
     }
 
     private var chartDomain: ClosedRange<Double> {

@@ -54,7 +54,8 @@ final class WeatherKitProvider: WeatherProviding {
     func fetchHistoricalWeather(for location: LocationData, date: Date, formatting: WeatherFormattingContext) async throws -> WeatherInfo {
         let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
         let timezone = await resolveTimeZone(for: clLocation)
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.timeZone = timezone
         let startOfDay = calendar.startOfDay(for: date)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay.addingTimeInterval(86_400)
 

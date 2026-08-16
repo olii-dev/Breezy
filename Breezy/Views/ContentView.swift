@@ -1375,6 +1375,9 @@ struct TodayHighlightsView: View {
     private var rainTimingSuffix: String {
         guard let summary = viewModel.rainTimingSummary else { return "" }
         let timeZone = TimeZone(identifier: weather.timezone) ?? .current
+        if summary.isActive, let stop = summary.stopDate {
+            return " · ends \(DateFormatterHelper.formatTime(stop, timeZone: timeZone))"
+        }
         if let start = summary.startDate {
             return " · starts \(DateFormatterHelper.formatTime(start, timeZone: timeZone))"
         }
@@ -1632,51 +1635,29 @@ struct NewHourlyCardView: View {
         return upcomingHourlySlice(from: source, limit: rangeHours)
     }
     
-    // Find the index of the current hour (or closest hour)
+    // Find the index of the current hour (or closest hour). Uses each hour's
+    // actual source date so the location's timezone is respected instead of
+    // comparing label strings against the device's clock.
     private var currentHourIndex: Int {
-        let currentHour = Calendar.current.component(.hour, from: Date())
         let dataToUse = displayedHours
-        
-        // Find the first hour that matches or is after the current hour
+        let now = Date()
+
+        // Prefer an explicit "Now" tile when present.
+        if let index = dataToUse.firstIndex(where: { $0.time.lowercased() == "now" }) {
+            return index
+        }
+
+        // Otherwise the first hour whose source date is at/after now.
         if let index = dataToUse.firstIndex(where: { hour in
-            // Try to extract hour from time string (e.g., "Now", "2 PM", "14:00")
-            if hour.time.lowercased() == "now" {
-                return true
-            }
-            
-            // Parse hour from time string
-            if let hourValue = extractHour(from: hour.time) {
-                return hourValue >= currentHour
-            }
-            return false
+            guard let date = hour.sourceDate else { return false }
+            return date >= now.addingTimeInterval(-1800)
         }) {
             return index
         }
-        
+
         return 0
     }
     
-    private func extractHour(from timeString: String) -> Int? {
-        // Handle formats like "2 PM", "14:00", "2pm"
-        let cleaned = timeString.replacingOccurrences(of: " ", with: "").lowercased()
-        
-        if cleaned.contains("pm") {
-            let hourStr = cleaned.replacingOccurrences(of: "pm", with: "")
-            if let hour = Int(hourStr) {
-                return hour == 12 ? 12 : hour + 12
-            }
-        } else if cleaned.contains("am") {
-            let hourStr = cleaned.replacingOccurrences(of: "am", with: "")
-            if let hour = Int(hourStr) {
-                return hour == 12 ? 0 : hour
-            }
-        } else if let hour = Int(cleaned.prefix(2)) {
-            return hour
-        }
-        
-        return nil
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label(titleText, systemImage: "chart.xyaxis.line")
@@ -2265,9 +2246,9 @@ struct HourlyTemperaturesWidget: View {
     private var hours: [HourlyForecast] {
         let all = weather.allHourlyData ?? weather.hourlyForecast
         if rangeHours > 0 {
-            return Array(all.prefix(rangeHours))
+            return upcomingHourlySlice(from: all, limit: rangeHours)
         }
-        return all
+        return upcomingHourlySlice(from: all, limit: all.count)
     }
 
     var body: some View {
@@ -2444,6 +2425,9 @@ struct RainSummaryWidget: View {
     private var timingLabel: String? {
         guard let summary = viewModel.rainTimingSummary else { return nil }
         let timeZone = TimeZone(identifier: weather.timezone) ?? .current
+        if summary.isActive, let stop = summary.stopDate {
+            return "Rain ends at \(DateFormatterHelper.formatTime(stop, timeZone: timeZone))"
+        }
         if let start = summary.startDate {
             return "Rain starts at \(DateFormatterHelper.formatTime(start, timeZone: timeZone))"
         }
