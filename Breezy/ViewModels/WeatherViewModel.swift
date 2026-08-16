@@ -498,28 +498,39 @@ class WeatherViewModel: ObservableObject {
     private func hourlyRainTimingSummary(from hours: [HourlyForecast], now: Date) -> RainTimingSummary? {
         guard !hours.isEmpty else { return nil }
 
-        let currentHour = Calendar.current.component(.hour, from: now)
+        // Scan the next 8 hours starting from now, using each entry's actual
+        // source date so past-day data (from providers that send history) is
+        // never mistaken for an upcoming rain window.
+        let upcomingHours = hours
+            .compactMap { hour -> (HourlyForecast, Date)? in
+                guard let sourceDate = hour.sourceDate else { return nil }
+                return (hour, sourceDate)
+            }
+            .filter { $0.1 >= now.addingTimeInterval(-1800) }
+            .sorted { $0.1 < $1.1 }
+            .prefix(8)
+            .map(\.0)
 
-        for hour in hours.prefix(8) {
+        for hour in upcomingHours {
             let chance = hour.precipitationChance ?? 0
             let condition = (hour.condition ?? "").lowercased()
             let hasRainSignal = chance >= 0.35 || condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower")
 
             guard hasRainSignal else { continue }
 
-            var delta = hour.hourValue - currentHour
-            if delta < 0 { delta += 24 }
+            guard let startDate = hour.sourceDate else { continue }
+            let delta = max(0, Int(ceil(startDate.timeIntervalSince(now) / 3600)))
 
             if delta == 0 {
-                return RainTimingSummary(headline: "Rain likely this hour", detail: "Keep an eye out over the next hour.", isActive: false, startDate: hour.sourceDate ?? now)
+                return RainTimingSummary(headline: "Rain likely this hour", detail: "Keep an eye out over the next hour.", isActive: false, startDate: startDate)
             }
 
             if delta == 1 {
-                return RainTimingSummary(headline: "Rain within ~1 hour", detail: "Showers look more likely by \(hour.time).", isActive: false, startDate: hour.sourceDate)
+                return RainTimingSummary(headline: "Rain within ~1 hour", detail: "Showers look more likely by \(hour.time).", isActive: false, startDate: startDate)
             }
 
             if delta <= 6 {
-                return RainTimingSummary(headline: "Rain later today", detail: "Best chance is around \(hour.time).", isActive: false, startDate: hour.sourceDate)
+                return RainTimingSummary(headline: "Rain later today", detail: "Best chance is around \(hour.time).", isActive: false, startDate: startDate)
             }
         }
 

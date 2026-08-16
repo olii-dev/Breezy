@@ -2022,7 +2022,7 @@ struct NewDailyForecastView: View {
     }
 
     private var rangeDays: Int {
-        max(1, Int(config?["rangeDays"] ?? "10") ?? 10)
+        max(0, Int(config?["rangeDays"] ?? "0") ?? 0)
     }
 
     private var showIcons: Bool {
@@ -2030,12 +2030,17 @@ struct NewDailyForecastView: View {
     }
 
     private var displayedForecast: [DailyForecast] {
-        Array(forecast.prefix(rangeDays))
+        rangeDays > 0 ? Array(forecast.prefix(rangeDays)) : forecast
+    }
+
+    private var displayTitle: String {
+        let count = displayedForecast.count
+        return count > 0 ? "\(count)-Day Forecast" : "Daily Forecast"
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("\(rangeDays)-Day Forecast", systemImage: "calendar")
+            Label(displayTitle, systemImage: "calendar")
                 .font(.caption.weight(.bold))
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
             
@@ -3798,7 +3803,7 @@ struct HourlyPrecipitationWidget: View {
                         )
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [DesignSystem.skyBlue.opacity(0.9), DesignSystem.skyBlue.opacity(0.45)],
+                                colors: [DesignSystem.skyBlue, DesignSystem.skyBlue.opacity(0.65)],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -3921,7 +3926,15 @@ struct AQITrendWidget: View {
 
     private var trendColor: Color {
         guard let currentAQI else { return DesignSystem.skyBlue }
-        return Color(hex: AirQualityHelper.color(for: currentAQI))
+        switch AirQualityHelper.category(for: currentAQI) {
+        case "Good": return .green.opacity(0.85)
+        case "Moderate": return .yellow.opacity(0.9)
+        case "Unhealthy for Sensitive Groups": return .orange.opacity(0.9)
+        case "Unhealthy": return .red.opacity(0.85)
+        case "Very Unhealthy": return .purple.opacity(0.85)
+        case "Hazardous": return Color(red: 0.45, green: 0.08, blue: 0.12)
+        default: return DesignSystem.skyBlue
+        }
     }
 
     private var peakAQI: Int { points.map(\.aqi).max() ?? 100 }
@@ -6082,12 +6095,13 @@ struct WidgetConfigView: View {
                                         .foregroundColor(theme.textColor.opacity(0.7))
                                         .padding(.horizontal)
                                     Picker("Days", selection: Binding(
-                                        get: { widget.config?["rangeDays"] ?? "10" },
+                                        get: { widget.config?["rangeDays"] ?? "0" },
                                         set: { newValue in
                                             if widget.config == nil { widget.config = [:] }
                                             widget.config?["rangeDays"] = newValue
                                         }
                                     )) {
+                                        Text("All").tag("0")
                                         Text("5 days").tag("5")
                                         Text("7 days").tag("7")
                                         Text("10 days").tag("10")

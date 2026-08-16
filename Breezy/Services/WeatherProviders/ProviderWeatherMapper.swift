@@ -167,7 +167,7 @@ enum ProviderWeatherMapper {
         var calendar = Calendar.current
         calendar.timeZone = timezone
 
-        return daily.prefix(10).enumerated().map { index, day in
+        return daily.prefix(14).enumerated().map { index, day in
             let dayStart = calendar.startOfDay(for: day.date)
             let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(86_400)
 
