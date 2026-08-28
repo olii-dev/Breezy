@@ -54,8 +54,14 @@ struct BreezyApp: App {
                     }
                 }
                 .fontDesign(WeatherFont(rawValue: UserDefaults.standard.string(forKey: "Breezy.typography") ?? "")?.design ?? .default)
+                #if targetEnvironment(macCatalyst)
+                .frame(minWidth: 380, minHeight: 640)
+                #endif
         }
         .modelContainer(for: [Item.self])
+        #if targetEnvironment(macCatalyst)
+        .windowResizability(.contentMinSize)
+        #endif
     }
 }
 

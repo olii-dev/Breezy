@@ -367,50 +367,55 @@ class WeatherTileOverlay: MKTileOverlay {
     }
 
     override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, (any Error)?) -> Void) {
-        guard let tileURL = RadarService.shared.tileURL(
+        fetchTile(z: path.z, x: path.x, y: path.y) { data in
+            // Even the ancestors were unavailable — show nothing for this tile.
+            result(data ?? Self.transparentTileData, nil)
+        }
+    }
+
+    /// Tile servers cap how deep they serve data (RainViewer stops somewhere
+    /// around zoom 10), so zooming far in used to 404 every tile and blank the
+    /// whole layer. On failure, walk up the tile pyramid and serve the closest
+    /// available ancestor — MapKit upscales it to fill this tile's area.
+    private func fetchTile(z: Int, x: Int, y: Int, depth: Int = 0, completion: @escaping (Data?) -> Void) {
+        let finish: (Data?) -> Void = { data in
+            if let data {
+                completion(data)
+            } else if z > 0, depth < 6 {
+                self.fetchTile(z: z - 1, x: x >> 1, y: y >> 1, depth: depth + 1, completion: completion)
+            } else {
+                completion(nil)
+            }
+        }
+
+        guard let url = RadarService.shared.tileURL(
             layer: layer,
             precipitationSource: precipitationSource,
-            x: path.x,
-            y: path.y,
-            zoom: path.z,
+            x: x,
+            y: y,
+            zoom: z,
             framePath: framePath
         ) else {
-            if layer == .precipitation, precipitationSource == .rainViewer {
+            // No RainViewer frame path cached yet — refresh once, then retry.
+            if layer == .precipitation, precipitationSource == .rainViewer, depth == 0 {
                 RadarService.shared.refreshRainViewerMetadataIfNeeded(force: true) {
-                    guard let refreshedURL = RadarService.shared.tileURL(
-                        layer: self.layer,
-                        precipitationSource: self.precipitationSource,
-                        x: path.x,
-                        y: path.y,
-                        zoom: path.z,
-                        framePath: self.framePath
-                    ) else {
-                        result(Self.transparentTileData, nil)
-                        return
-                    }
-
-                    self.loadData(from: refreshedURL, result: result)
+                    self.fetchTile(z: z, x: x, y: y, depth: depth + 1, completion: completion)
                 }
             } else {
-                result(Self.transparentTileData, nil)
+                finish(nil)
             }
             return
         }
 
-        loadData(from: tileURL, result: result)
-    }
-
-    private func loadData(from tileURL: URL, result: @escaping (Data?, (any Error)?) -> Void) {
-        URLSession.shared.dataTask(with: tileURL) { data, response, _ in
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200..<300).contains(httpResponse.statusCode),
-                  let data,
-                  !data.isEmpty else {
-                result(Self.transparentTileData, nil)
-                return
+        URLSession.shared.dataTask(with: url) { data, response, _ in
+            if let httpResponse = response as? HTTPURLResponse,
+               (200..<300).contains(httpResponse.statusCode),
+               let data,
+               !data.isEmpty {
+                completion(data)
+            } else {
+                finish(nil)
             }
-
-            result(data, nil)
         }.resume()
     }
 }

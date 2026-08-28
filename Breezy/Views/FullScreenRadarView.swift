@@ -220,7 +220,7 @@ struct FullScreenRadarView: View {
                     }
 
                     HStack(alignment: .bottom) {
-                        RadarLegendView(layer: selectedLayer, precipitationSource: precipitationSource, lightningActive: showLightning)
+                        RadarLegendView(layer: selectedLayer, precipitationSource: precipitationSource)
 
                         Spacer()
 

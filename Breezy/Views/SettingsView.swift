@@ -1431,6 +1431,7 @@ struct DesignStudioView: View {
                             )
                             
                             // App Icons Gallery Navigation
+                            #if !targetEnvironment(macCatalyst)
                             NavigationLink {
                                 IconGalleryView(viewModel: viewModel)
                             } label: {
@@ -1443,12 +1444,12 @@ struct DesignStudioView: View {
                                             .foregroundColor(.white)
                                             .font(.system(size: 16))
                                     }
-                                    
+
                                     Text("App Icons")
                                         .foregroundColor(theme.textColor)
-                                    
+
                                     Spacer()
-                                    
+
                                     Image(systemName: "chevron.right")
                                         .font(.caption.weight(.semibold))
                                         .foregroundColor(theme.textColor.opacity(0.5))
@@ -1456,6 +1457,7 @@ struct DesignStudioView: View {
                                 .padding()
                                 .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             }
+                            #endif
                         }
                     }
                     
@@ -1564,7 +1566,7 @@ struct DesignStudioView: View {
                     
                 }
                 .padding(DesignSystem.spacingM)
-                .frame(width: UIScreen.main.bounds.width)
+                .frame(maxWidth: .infinity)
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }

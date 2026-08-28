@@ -261,15 +261,15 @@ struct ContentView: View {
     private var mainContent: some View {
         ZStack {
             let theme = viewModel.currentTheme(colorScheme: colorScheme)
-            
+
             // Soft pastel gradient background
             PastelGradientBackground(
                 colors: gradientColors.isEmpty ? [theme.topColor, theme.bottomColor] : gradientColors
             )
-            
+
             // Floating ambient particles
             FloatingParticles()
-            
+
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: DesignSystem.spacingXL) {
                     Spacer()
@@ -366,6 +366,7 @@ struct ContentView: View {
                     Spacer()
                 }
             }
+            .macColumnWidth()
             .overlay(alignment: .topTrailing) {
                 if showEditModeButton && !isEditMode {
                     Button {

@@ -264,3 +264,19 @@ extension View {
         modifier(JiggleModifier(isJiggling: enabled))
     }
 }
+
+extension View {
+    /// Keeps the single-column dashboard a readable width on Mac's wide
+    /// windows: the column centers at phone width instead of stretching
+    /// edge to edge. No-op on iPhone.
+    @ViewBuilder
+    func macColumnWidth() -> some View {
+        #if targetEnvironment(macCatalyst)
+        self
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
+        #else
+        self
+        #endif
+    }
+}

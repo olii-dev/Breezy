@@ -12,8 +12,8 @@
 		8613FBE62EED447E007683C4 /* BreezyWatchWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		866F108A2EB64FD5006223C3 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F10892EB64FD5006223C3 /* WidgetKit.framework */; };
 		866F108C2EB64FD5006223C3 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F108B2EB64FD5006223C3 /* SwiftUI.framework */; };
-		866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -608,10 +608,11 @@
 				);
 				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -651,10 +652,11 @@
 				);
 				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

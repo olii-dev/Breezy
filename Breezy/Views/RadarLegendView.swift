@@ -10,7 +10,6 @@ import SwiftUI
 struct RadarLegendView: View {
     let layer: RadarLayer
     let precipitationSource: RadarPrecipitationSource
-    var lightningActive: Bool = false
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -46,18 +45,6 @@ struct RadarLegendView: View {
                     .foregroundColor(.white.opacity(0.9))
             }
             .frame(width: 92)
-
-            if lightningActive {
-                HStack(spacing: 3) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundColor(.yellow)
-                    Text("blitzortung.org")
-                        .font(.system(size: 8))
-                        .foregroundColor(.white.opacity(0.85))
-                }
-                .frame(width: 92, alignment: .leading)
-            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
