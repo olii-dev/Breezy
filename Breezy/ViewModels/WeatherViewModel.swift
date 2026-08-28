@@ -856,7 +856,7 @@ class WeatherViewModel: ObservableObject {
                     highTemp: cached.highTemp,
                     lowTemp: cached.lowTemp,
                     todayHourlyForecast: cached.hourlyForecast,
-                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, airQualityTrend: nil, windHistory: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                    metrics: cached.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, airQualityTrend: nil, windHistory: nil, marine: nil, surf: nil, pollen: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                     rainChance: rainChance,
                     rainAmount: cached.metrics?.todayRainfall,
                     dailyForecast: cached.dailyForecast
@@ -949,7 +949,7 @@ class WeatherViewModel: ObservableObject {
                 highTemp: info.highTemp,
                 lowTemp: info.lowTemp,
                 todayHourlyForecast: info.hourlyForecast,
-                metrics: info.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, airQualityTrend: nil, windHistory: nil, marine: nil, surf: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
+                metrics: info.metrics ?? WeatherMetrics(uvIndex: nil, uvIndexCategory: nil, airQuality: nil, airQualityTrend: nil, windHistory: nil, marine: nil, surf: nil, pollen: nil, pressure: nil, visibility: nil, dewPoint: nil, humidity: nil, windDirection: nil, windDirectionCardinal: nil, windSpeed: nil, windGust: nil, rainChance: nil, todayRainfall: nil, todayMaxRainIntensity: nil, cloudCover: nil, sunrise: nil, sunset: nil, minuteForecast: nil),
                 rainChance: info.dailyForecast.first?.chanceOfRain,
                 rainAmount: info.metrics?.todayRainfall,
                 conditionCode: result.conditionCode ?? info.condition,
@@ -1518,6 +1518,7 @@ class WeatherViewModel: ObservableObject {
                 windHistory: nil,
                 marine: nil,
                 surf: nil,
+                pollen: nil,
                 pressure: pressure,
                 visibility: visibility,
                 dewPoint: dewPoint,
@@ -1575,6 +1576,7 @@ class WeatherViewModel: ObservableObject {
             windHistory: nil,
             marine: nil,
             surf: nil,
+            pollen: nil,
             pressure: pressure,
             visibility: visibility,
             dewPoint: dewPoint,
@@ -1669,6 +1671,7 @@ class WeatherViewModel: ObservableObject {
         let finalWidgetHourly = widgetHourly
 
         let widgetSurf = makeWidgetSurfData(from: metrics.surf)
+        let widgetPollen = makeWidgetPollenData(from: metrics.pollen)
 
         let widgetData = WidgetWeatherData(
             city: cityName,
@@ -1706,7 +1709,8 @@ class WeatherViewModel: ObservableObject {
             moonPhase: nil,
             moonIllumination: nil,
             windDirectionDegrees: nil,
-            surf: widgetSurf
+            surf: widgetSurf,
+            pollen: widgetPollen
         )
         
         
@@ -1750,6 +1754,37 @@ class WeatherViewModel: ObservableObject {
                 }
                 return speed
             }()
+        )
+    }
+
+    /// Convert computed PollenConditions into the display-ready payload widgets
+    /// read from the App Group. The rating engine runs here so the widget
+    /// extension doesn't need to replicate it.
+    private func makeWidgetPollenData(from pollen: PollenConditions?) -> WidgetWeatherData.WidgetPollenData? {
+        guard let pollen else { return nil }
+        let species = PollenRatingEngine.species(
+            alderPollen: pollen.alderPollen,
+            birchPollen: pollen.birchPollen,
+            grassPollen: pollen.grassPollen,
+            mugwortPollen: pollen.mugwortPollen,
+            olivePollen: pollen.olivePollen,
+            ragweedPollen: pollen.ragweedPollen
+        )
+        let measured = species.compactMap { entry -> WidgetWeatherData.WidgetPollenData.WidgetPollenSpecies? in
+            guard let value = entry.value else { return nil }
+            return WidgetWeatherData.WidgetPollenData.WidgetPollenSpecies(
+                name: entry.name,
+                value: String(format: "%.0f /m³", value),
+                levelLabel: entry.level.label,
+                levelColorHex: entry.level.hexColor
+            )
+        }
+        return WidgetWeatherData.WidgetPollenData(
+            levelLabel: pollen.levelLabel,
+            levelDetail: pollen.levelDetail,
+            levelColorHex: pollen.level.hexColor,
+            dominantSpecies: pollen.dominantSpeciesName,
+            speciesValues: measured
         )
     }
 

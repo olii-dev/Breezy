@@ -72,6 +72,10 @@ final class WidgetOpenMeteoClient {
             windUnit: windUnit
         )
 
+        // Pollen (non-fatal — only reported inside the CAMS European domain).
+        let pollenResponse = try? await fetchPollen(latitude: latitude, longitude: longitude)
+        let pollen = makePollenData(from: pollenResponse?.current)
+
         return WidgetWeatherData(
             city: city,
             temperature: formatTemperature(response.current.temperature2M, isFahrenheit: isFahrenheit),
@@ -117,7 +121,8 @@ final class WidgetOpenMeteoClient {
                     condition: $0.condition
                 )
             },
-            surf: surf
+            surf: surf,
+            pollen: pollen
         )
     }
 
@@ -268,6 +273,26 @@ final class WidgetOpenMeteoClient {
         return try JSONDecoder().decode(MarineResponse.self, from: data)
     }
 
+    private func fetchPollen(latitude: Double, longitude: Double) async throws -> PollenResponse {
+        var components = URLComponents(string: "https://air-quality-api.open-meteo.com/v1/air-quality")
+        components?.queryItems = [
+            URLQueryItem(name: "latitude", value: String(latitude)),
+            URLQueryItem(name: "longitude", value: String(longitude)),
+            URLQueryItem(name: "timezone", value: "auto"),
+            URLQueryItem(name: "current", value: "alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen")
+        ]
+
+        guard let url = components?.url else {
+            throw NSError(domain: "WidgetOpenMeteo.Pollen", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid pollen URL"])
+        }
+
+        let (data, response) = try await session.data(from: url)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw NSError(domain: "WidgetOpenMeteo.Pollen", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "Air quality API error"])
+        }
+        return try JSONDecoder().decode(PollenResponse.self, from: data)
+    }
+
     /// Build the pre-formatted surf payload from raw marine + wind values.
     /// Mirrors the app's SurfRatingEngine (kept in sync; pure logic).
     private func makeSurfData(
@@ -319,6 +344,34 @@ final class WidgetOpenMeteoClient {
         let normalized = (degrees.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
         let index = Int((normalized + 22.5) / 45.0) % 8
         return directions[index]
+    }
+
+    /// Build the pre-formatted pollen payload from raw concentrations.
+    /// Mirrors the app's PollenRatingEngine (kept in sync; pure logic).
+    private func makePollenData(from current: PollenCurrentBlock?) -> WidgetWeatherData.WidgetPollenData? {
+        guard let current else { return nil }
+        let result = WidgetPollenRatingEngine.rating(
+            alder: current.alderPollen,
+            birch: current.birchPollen,
+            grass: current.grassPollen,
+            mugwort: current.mugwortPollen,
+            olive: current.olivePollen,
+            ragweed: current.ragweedPollen
+        )
+        return WidgetWeatherData.WidgetPollenData(
+            levelLabel: result.label,
+            levelDetail: result.detail,
+            levelColorHex: result.hexColor,
+            dominantSpecies: result.dominant,
+            speciesValues: result.species.map {
+                WidgetWeatherData.WidgetPollenData.WidgetPollenSpecies(
+                    name: $0.name,
+                    value: $0.value,
+                    levelLabel: $0.levelLabel,
+                    levelColorHex: $0.levelColorHex
+                )
+            }
+        )
     }
 }
 
@@ -459,6 +512,30 @@ private struct MarineCurrentBlock: Decodable {
     }
 }
 
+// MARK: - Pollen response (CAMS European domain only; nil values elsewhere)
+
+private struct PollenResponse: Decodable {
+    let current: PollenCurrentBlock?
+}
+
+private struct PollenCurrentBlock: Decodable {
+    let alderPollen: Double?
+    let birchPollen: Double?
+    let grassPollen: Double?
+    let mugwortPollen: Double?
+    let olivePollen: Double?
+    let ragweedPollen: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case alderPollen = "alder_pollen"
+        case birchPollen = "birch_pollen"
+        case grassPollen = "grass_pollen"
+        case mugwortPollen = "mugwort_pollen"
+        case olivePollen = "olive_pollen"
+        case ragweedPollen = "ragweed_pollen"
+    }
+}
+
 // MARK: - Widget surf rating engine
 // Compact port of the app's SurfRatingEngine. Kept in sync; pure logic.
 
@@ -552,6 +629,100 @@ private enum WidgetSurfRatingEngine {
         case 1.8..<2.5: return "Overhead waves"
         default:        return "Double-overhead+"
         }
+    }
+}
+
+// MARK: - Widget pollen rating engine
+// Compact port of the app's PollenRatingEngine. Kept in sync; pure logic.
+
+private enum WidgetPollenRatingEngine {
+    struct Species {
+        let name: String
+        let value: String
+        let levelLabel: String
+        let levelColorHex: String
+    }
+
+    struct Result {
+        let label: String
+        let detail: String
+        let hexColor: String
+        let dominant: String?
+        let species: [Species]
+    }
+
+    static func rating(
+        alder: Double?,
+        birch: Double?,
+        grass: Double?,
+        mugwort: Double?,
+        olive: Double?,
+        ragweed: Double?
+    ) -> Result {
+        // Thresholds (grains/m³: moderate, high, veryHigh) mirror the app.
+        let defs: [(name: String, value: Double?, thresholds: (Double, Double, Double))] = [
+            ("Birch", birch, (10, 30, 60)),
+            ("Grass", grass, (10, 30, 50)),
+            ("Alder", alder, (10, 30, 60)),
+            ("Mugwort", mugwort, (5, 15, 30)),
+            ("Olive", olive, (5, 20, 40)),
+            ("Ragweed", ragweed, (5, 15, 30))
+        ]
+
+        func grade(_ value: Double?, _ t: (Double, Double, Double)) -> (label: String, hex: String, rank: Int) {
+            guard let value, value > 0 else { return ("Low", "#5BB381", 0) }
+            if value < t.0 { return ("Low", "#5BB381", 0) }
+            if value < t.1 { return ("Moderate", "#E2C044", 1) }
+            if value < t.2 { return ("High", "#E8833A", 2) }
+            return ("Very High", "#D64545", 3)
+        }
+
+        let species: [Species] = defs.map { name, value, t in
+            let g = grade(value, t)
+            return Species(
+                name: name,
+                value: value.map { String(format: "%.0f /m³", $0) } ?? "—",
+                levelLabel: g.label,
+                levelColorHex: g.hex
+            )
+        }
+
+        let measured = defs.compactMap { name, value, t -> (name: String, value: Double, rank: Int, relative: Double)? in
+            guard let value, value > 0 else { return nil }
+            let g = grade(value, t)
+            return (name, value, g.rank, value / t.2)
+        }
+
+        guard !measured.isEmpty else {
+            return Result(
+                label: "Low",
+                detail: "No measurable pollen right now.",
+                hexColor: "#5BB381",
+                dominant: nil,
+                species: species
+            )
+        }
+
+        let topRank = measured.max(by: { $0.rank < $1.rank })?.rank ?? 0
+        let overallLabels = ["Low", "Moderate", "High", "Very High"]
+        let overallHexes = ["#5BB381", "#E2C044", "#E8833A", "#D64545"]
+        let dominant = measured.max(by: { $0.relative < $1.relative })
+
+        let detail: String
+        if topRank == 0 {
+            detail = dominant.map { "Low levels; \(String($0.name).lowercased()) is the most present." }
+                ?? "Pollen levels are low across the board."
+        } else {
+            detail = "\(dominant?.name ?? "Pollen") is the main trigger right now."
+        }
+
+        return Result(
+            label: overallLabels[topRank],
+            detail: detail,
+            hexColor: overallHexes[topRank],
+            dominant: dominant.map { $0.name },
+            species: species
+        )
     }
 }
 

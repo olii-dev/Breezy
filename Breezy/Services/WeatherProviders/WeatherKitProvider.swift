@@ -144,7 +144,8 @@ final class WeatherKitProvider: WeatherProviding {
             cloudCoverFraction: weather.currentWeather.cloudCover,
             airQuality: nil,
             airQualityTrend: nil,
-            marine: nil
+            marine: nil,
+            pollen: nil
         )
 
         let hourly = weather.hourlyForecast.map(mapHourly)

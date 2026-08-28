@@ -151,6 +151,9 @@ struct WidgetWeatherData: Codable {
     /// Open-Meteo only. Pre-computed surf conditions for the Surf widget.
     let surf: WidgetSurfData?
 
+    /// Open-Meteo only. Pre-computed pollen levels for the Pollen widget (Europe).
+    let pollen: WidgetPollenData?
+
 
 
     struct WidgetHourlyForecast: Codable {
@@ -177,6 +180,22 @@ struct WidgetWeatherData: Codable {
         let swellHeight: String?
         let seaTemp: String?
         let wind: String?
+    }
+
+    /// Pre-formatted pollen snapshot. Values are display-ready strings.
+    struct WidgetPollenData: Codable, Equatable {
+        let levelLabel: String
+        let levelDetail: String
+        let levelColorHex: String
+        let dominantSpecies: String?
+        let speciesValues: [WidgetPollenSpecies]
+
+        struct WidgetPollenSpecies: Codable, Equatable {
+            let name: String
+            let value: String
+            let levelLabel: String
+            let levelColorHex: String
+        }
     }
 }
 
@@ -692,7 +711,8 @@ struct Provider: TimelineProvider {
                             moonIllumination: data.moonIllumination,
                             windDirectionDegrees: data.windDirectionDegrees,
                             dailyForecast: data.dailyForecast,
-                            surf: data.surf
+                            surf: data.surf,
+                            pollen: data.pollen
                         )
                     }
                     
@@ -951,7 +971,8 @@ struct Provider: TimelineProvider {
                     moonIllumination: getMoonIllumination(daily?.moon.phase),
                     windDirectionDegrees: windDirectionDegrees,
                     dailyForecast: dailyForecasts,
-                    surf: nil
+                    surf: nil,
+                    pollen: nil
                 )
                 
                 if let encoded = try? JSONEncoder().encode(newData) {
@@ -1870,6 +1891,7 @@ struct BreezyWidgetBundle: WidgetBundle {
         BreezySunWidget() // New Astronomy
         BreezyMoonWidget() // New Astronomy
         BreezySurfWidget() // Surf (Open-Meteo only)
+        BreezyPollenWidget() // Pollen (Open-Meteo only, Europe)
         #endif
         BreezyWeatherWidget() // Custom Widget moved to end
     }
@@ -2131,9 +2153,204 @@ struct BreezySurfWidgetEntryView: View {
 }
 #endif
 
+// MARK: - Pollen Widget (System Small + Medium) — Open-Meteo only, Europe
+
+#if os(iOS)
+struct BreezyPollenWidget: Widget {
+    let kind: String = "BreezyPollenWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            BreezyPollenWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Pollen")
+        .description("Pollen levels with an allergy-risk rating. Open-Meteo only, Europe.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+struct BreezyPollenWidgetEntryView: View {
+    var entry: WeatherEntry
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.widgetFamily) var family
+
+    var body: some View {
+        let pollen = entry.weather.pollen
+
+        if let pollen {
+            if family == .systemMedium {
+                pollenMedium(pollen: pollen)
+            } else {
+                pollenSmall(pollen: pollen)
+            }
+        } else {
+            // Graceful fallback — outside Europe or WeatherKit source.
+            pollenUnavailable
+        }
+    }
+
+    private func pollenSmall(pollen: WidgetWeatherData.WidgetPollenData) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "allergens")
+                    .font(.system(size: 10))
+                Text("POLLEN")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundColor(.white.opacity(0.8))
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Color(hex: pollen.levelColorHex))
+                    .frame(width: 10, height: 10)
+                Text(pollen.levelLabel)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
+
+            if let dominant = pollen.dominantSpecies {
+                Text("Main: \(dominant)")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .containerBackground(for: .widget) {
+            LinearGradient(
+                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private func pollenMedium(pollen: WidgetWeatherData.WidgetPollenData) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "allergens")
+                    .font(.system(size: 10))
+                Text("POLLEN")
+                    .font(.system(size: 10, weight: .bold))
+                Spacer()
+                if let dominant = pollen.dominantSpecies {
+                    Text("Main: \(dominant)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+            }
+            .foregroundColor(.white.opacity(0.8))
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color(hex: pollen.levelColorHex))
+                    .frame(width: 12, height: 12)
+                Text(pollen.levelLabel)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+
+            Text(pollen.levelDetail)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2)
+
+            Spacer()
+
+            // Show measured species first, then a couple of nil-reporting ones for context.
+            let display = orderedSpecies(pollen)
+            HStack(spacing: 12) {
+                ForEach(display, id: \.name) { species in
+                    pollenStat(species: species)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .containerBackground(for: .widget) {
+            LinearGradient(
+                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    /// Measured species keep their order; trailing zero-reporting species fill
+    /// remaining space so the row looks intentional.
+    private func orderedSpecies(_ pollen: WidgetWeatherData.WidgetPollenData) -> [WidgetWeatherData.WidgetPollenData.WidgetPollenSpecies] {
+        let measured = pollen.speciesValues
+        let maxShown = 4
+        if measured.count >= maxShown {
+            return Array(measured.prefix(maxShown))
+        }
+        let allNames = ["Birch", "Grass", "Alder", "Mugwort", "Olive", "Ragweed"]
+        let measuredNames = Set(measured.map(\.name))
+        let fillers = allNames
+            .filter { !measuredNames.contains($0) }
+            .prefix(maxShown - measured.count)
+            .map { name in
+                WidgetWeatherData.WidgetPollenData.WidgetPollenSpecies(
+                    name: name, value: "—", levelLabel: "Low", levelColorHex: "#5BB381"
+                )
+            }
+        return measured + fillers
+    }
+
+    private func pollenStat(species: WidgetWeatherData.WidgetPollenData.WidgetPollenSpecies) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 3) {
+                Circle()
+                    .fill(Color(hex: species.levelColorHex))
+                    .frame(width: 5, height: 5)
+                Text(species.name)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            Text(species.value)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white)
+        }
+    }
+
+    private var pollenUnavailable: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "allergens")
+                .font(.system(size: 28))
+                .foregroundColor(.white.opacity(0.8))
+            Text("Pollen")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
+            Text("Pollen levels need Open-Meteo and are available across Europe.")
+                .font(.system(size: 10))
+                .foregroundColor(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(for: .widget) {
+            LinearGradient(
+                gradient: Gradient(colors: WeatherThemeHelper.gradientColors(for: entry.weather.condition, isDark: colorScheme == .dark)),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
+#endif
+
 struct UVGraphView: View {
     let currentUV: Int
-    
+
     var body: some View {
         GeometryReader { proxy in
             let width = proxy.size.width
@@ -4029,6 +4246,17 @@ extension WidgetWeatherData {
                 swellHeight: "0.9 m",
                 seaTemp: "14°C",
                 wind: "W 8 mph"
+            ),
+            pollen: WidgetWeatherData.WidgetPollenData(
+                levelLabel: "Moderate",
+                levelDetail: "Grass is the main trigger right now.",
+                levelColorHex: "#E2C044",
+                dominantSpecies: "Grass",
+                speciesValues: [
+                    .init(name: "Birch", value: "4 /m³", levelLabel: "Low", levelColorHex: "#5BB381"),
+                    .init(name: "Grass", value: "12 /m³", levelLabel: "Moderate", levelColorHex: "#E2C044"),
+                    .init(name: "Alder", value: "2 /m³", levelLabel: "Low", levelColorHex: "#5BB381")
+                ]
             )
         )
     }
@@ -4090,6 +4318,18 @@ extension WidgetWeatherData {
     WeatherEntry.mock
 }
 #endif
+
+#Preview("Pollen Small", as: .systemSmall) {
+    BreezyPollenWidget()
+} timeline: {
+    WeatherEntry.mock
+}
+
+#Preview("Pollen Medium", as: .systemMedium) {
+    BreezyPollenWidget()
+} timeline: {
+    WeatherEntry.mock
+}
 
 #Preview("Inline", as: .accessoryInline) {
     BreezyInlineWidget()

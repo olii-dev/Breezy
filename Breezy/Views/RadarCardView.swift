@@ -17,9 +17,20 @@ struct RadarCardView: View {
     @State private var showFullScreen = false
     @State private var showLayerMenu = false
     @State private var isLoading = true
+    @AppStorage("Breezy.radarShowLightning") private var showLightning = true
+    @ObservedObject private var lightning = LightningService.shared
 
     private var precipitationSource: RadarPrecipitationSource {
         viewModel.radarPrecipitationSource
+    }
+
+    /// Distance to the closest strike on record, for the corner readout.
+    private var nearestStrikeDistance: CLLocationDistance? {
+        guard showLightning, !lightning.strikes.isEmpty else { return nil }
+        return LightningService.shared.nearestDistanceMeters(from: CLLocationCoordinate2D(
+            latitude: viewModel.currentLocation?.latitude ?? 0,
+            longitude: viewModel.currentLocation?.longitude ?? 0
+        ))
     }
     
     init(viewModel: WeatherViewModel, locationHelper: LocationHelper? = nil) {
@@ -82,12 +93,33 @@ struct RadarCardView: View {
                         longitude: viewModel.currentLocation?.longitude ?? 0
                     ),
                     isDark: viewModel.currentTheme(colorScheme: colorScheme).isDark,
-                    mapStyle: viewModel.mapStyle
+                    mapStyle: viewModel.mapStyle,
+                    strikes: showLightning ? lightning.strikes : []
                 )
                 .frame(height: 200)
                 .cornerRadius(DesignSystem.radiusM)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
+
+                if showLightning, let distance = nearestStrikeDistance {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.yellow)
+                        Text(formatStrikeDistance(distance))
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                    .clipShape(Capsule())
+                    .padding(.leading, 20)
+                    .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                }
                 
                 // Map Style Mini-Button
                 Button {
@@ -125,7 +157,15 @@ struct RadarCardView: View {
             FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
         }
         .sheet(isPresented: $showLayerMenu) {
-            RadarLayerMenuView(selectedLayer: $selectedLayer, precipitationSource: precipitationSource)
+            RadarLayerMenuView(
+                selectedLayer: $selectedLayer,
+                precipitationSource: precipitationSource,
+                showLightning: $showLightning,
+                strikeOrigin: CLLocationCoordinate2D(
+                    latitude: viewModel.currentLocation?.latitude ?? 0,
+                    longitude: viewModel.currentLocation?.longitude ?? 0
+                )
+            )
         }
         .onChange(of: selectedLayer) { oldValue, newValue in
             HapticsManager.shared.impact(style: .light)
@@ -144,6 +184,20 @@ struct RadarCardView: View {
                 }
             }
         }
+        .onAppear {
+            if showLightning {
+                LightningService.shared.start()
+            }
+        }
+        .onDisappear {
+            // The websocket only lives while a radar surface is on screen.
+            LightningService.shared.stop()
+        }
+    }
+
+    private func formatStrikeDistance(_ meters: CLLocationDistance) -> String {
+        let converted = viewModel.visibilityUnit.convert(Double(meters))
+        return String(format: "%.0f %@", converted, viewModel.visibilityUnit.symbol)
     }
 }
 
@@ -161,7 +215,13 @@ struct RadarMapView: UIViewRepresentable {
     var mapStyle: WeatherViewModel.RadarMapStyle
     /// Optional RainViewer frame path for animation. Pass nil for latest frame.
     var framePath: String?
-    
+    /// Live lightning strikes to pin on the map (Blitzortung feed).
+    var strikes: [LightningStrike] = []
+
+    /// Never render more than this many bolts — keeps MapKit snappy in a
+    /// continent-wide storm.
+    private static let maxRenderedStrikes = 150
+
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
@@ -172,28 +232,28 @@ struct RadarMapView: UIViewRepresentable {
         mapView.isPitchEnabled = false
         mapView.showsCompass = true
         mapView.showsScale = false
-        
+
         // Configure Map Style
         configureMapStyle(mapView)
-        
+
         mapView.overrideUserInterfaceStyle = isDark ? .dark : .light
 
         if layer == .precipitation, precipitationSource == .rainViewer {
             RadarService.shared.refreshRainViewerMetadataIfNeeded()
         }
-        
+
         // Add radar overlay
         let overlay = WeatherTileOverlay(layer: layer, precipitationSource: precipitationSource)
         overlay.canReplaceMapContent = false
         mapView.addOverlay(overlay, level: .aboveLabels)
         context.coordinator.beginLoading()
-        
+
         // Add location marker (searched city)
         let annotation = MKPointAnnotation()
         annotation.coordinate = coordinate
         annotation.title = "CityLocation"
         mapView.addAnnotation(annotation)
-        
+
         // Add GPS dot if viewing a different city
         if showGPSDot, let gps = userGPSLocation {
             let gpsAnnotation = MKPointAnnotation()
@@ -201,11 +261,13 @@ struct RadarMapView: UIViewRepresentable {
             gpsAnnotation.title = "GPSLocation"
             mapView.addAnnotation(gpsAnnotation)
         }
-        
+
+        syncLightningAnnotations(on: mapView)
+
         // Loading will be controlled by delegate methods
         return mapView
     }
-    
+
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.parent = self
 
@@ -213,15 +275,15 @@ struct RadarMapView: UIViewRepresentable {
         if mapView.overrideUserInterfaceStyle != (isDark ? .dark : .light) {
             mapView.overrideUserInterfaceStyle = isDark ? .dark : .light
         }
-        
+
         configureMapStyle(mapView)
-        
+
         // Update region if changed
         if mapView.region.center.latitude != region.center.latitude ||
            mapView.region.center.longitude != region.center.longitude {
             mapView.setRegion(region, animated: true)
         }
-        
+
         // Update overlay if layer, source, or animation frame changed
         let currentTileOverlay = mapView.overlays.first(where: { $0 is WeatherTileOverlay }) as? WeatherTileOverlay
 
@@ -253,15 +315,43 @@ struct RadarMapView: UIViewRepresentable {
                 context.coordinator.beginLoading()
             }
         }
-        
+
         // Update annotation position
-        if let annotation = mapView.annotations.first as? MKPointAnnotation,
+        if let annotation = mapView.annotations.first(where: { ($0 as? MKPointAnnotation)?.title == "CityLocation" }) as? MKPointAnnotation,
            annotation.coordinate.latitude != coordinate.latitude ||
            annotation.coordinate.longitude != coordinate.longitude {
             annotation.coordinate = coordinate
         }
+
+        syncLightningAnnotations(on: mapView)
     }
-    
+
+    // MARK: - Lightning annotations
+
+    /// Add/remove/re-age bolt pins so the map always mirrors the strike buffer.
+    private func syncLightningAnnotations(on mapView: MKMapView) {
+        let desired = Array(strikes.suffix(Self.maxRenderedStrikes))
+        let desiredIDs = Set(desired.map(\.id))
+
+        let existing = mapView.annotations.compactMap { $0 as? LightningStrikeAnnotation }
+        let stale = existing.filter { !desiredIDs.contains($0.strikeID) }
+        if !stale.isEmpty {
+            mapView.removeAnnotations(stale)
+        }
+
+        let existingIDs = Set(existing.map(\.strikeID))
+        let fresh = desired.filter { !existingIDs.contains($0.id) }
+        if !fresh.isEmpty {
+            mapView.addAnnotations(fresh.map { LightningStrikeAnnotation(strike: $0) })
+        }
+
+        // Age-based fade — runs on every sync so bolts dim without a rebuild.
+        let now = Date()
+        for case let annotation as LightningStrikeAnnotation in mapView.annotations {
+            (mapView.view(for: annotation) as? LightningAnnotationView)?.updateFade(for: annotation.date, now: now)
+        }
+    }
+
     private func configureMapStyle(_ mapView: MKMapView) {
         switch mapStyle {
         case .standard:
@@ -272,7 +362,7 @@ struct RadarMapView: UIViewRepresentable {
             mapView.mapType = .satellite
         }
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -281,11 +371,11 @@ struct RadarMapView: UIViewRepresentable {
         coordinator.stopLoading(reason: false)
         mapView.delegate = nil
     }
-    
+
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: RadarMapView
         private var loadingTimer: Timer?
-        
+
         init(_ parent: RadarMapView) {
             self.parent = parent
         }
@@ -296,7 +386,7 @@ struct RadarMapView: UIViewRepresentable {
                 self.startLoadingTimerIfNeeded()
             }
         }
-        
+
         private func startLoadingTimerIfNeeded() {
             guard loadingTimer == nil else { return }
             loadingTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
@@ -306,7 +396,7 @@ struct RadarMapView: UIViewRepresentable {
                 }
             }
         }
-        
+
         func stopLoading(reason fullyRendered: Bool) {
             loadingTimer?.invalidate()
             loadingTimer = nil
@@ -315,7 +405,7 @@ struct RadarMapView: UIViewRepresentable {
                 self.parent.isLoading = false
             }
         }
-        
+
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let tileOverlay = overlay as? MKTileOverlay {
                 let renderer = MKTileOverlayRenderer(tileOverlay: tileOverlay)
@@ -324,17 +414,17 @@ struct RadarMapView: UIViewRepresentable {
             }
             return MKOverlayRenderer(overlay: overlay)
         }
-        
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             DispatchQueue.main.async {
                 self.parent.region = mapView.region
             }
         }
-        
+
         func mapViewWillStartRenderingMap(_ mapView: MKMapView) {
             startLoadingTimerIfNeeded()
         }
-        
+
         func mapViewDidFinishRenderingMap(_ mapView: MKMapView, fullyRendered: Bool) {
             if fullyRendered {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -350,15 +440,27 @@ struct RadarMapView: UIViewRepresentable {
         func mapViewDidFailLoadingMap(_ mapView: MKMapView, withError error: Error) {
             stopLoading(reason: false)
         }
-        
+
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let strikeAnnotation = annotation as? LightningStrikeAnnotation {
+                let identifier = "LightningBolt"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? LightningAnnotationView
+                if view == nil {
+                    view = LightningAnnotationView(annotation: strikeAnnotation, reuseIdentifier: identifier)
+                } else {
+                    view?.annotation = strikeAnnotation
+                }
+                view?.updateFade(for: strikeAnnotation.date, now: Date())
+                return view
+            }
+
             let identifier = "LocationPulse"
             var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-            
+
             if annotationView == nil {
                 annotationView = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 annotationView?.canShowCallout = false
-                
+
                 // Create pulsing view
                 let pulsingView = PulsingLocationView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
                 annotationView?.frame = pulsingView.frame
@@ -366,9 +468,68 @@ struct RadarMapView: UIViewRepresentable {
             } else {
                 annotationView?.annotation = annotation
             }
-            
+
             return annotationView
         }
+    }
+}
+
+// MARK: - Lightning annotations
+
+/// MKPointAnnotation carrying the strike identity for diffing.
+final class LightningStrikeAnnotation: MKPointAnnotation {
+    let strikeID: String
+    let date: Date
+
+    init(strike: LightningStrike) {
+        self.strikeID = strike.id
+        self.date = strike.date
+        super.init()
+        self.coordinate = strike.coordinate
+    }
+}
+
+/// Yellow bolt badge that fades out over the strike retention window.
+final class LightningAnnotationView: MKAnnotationView {
+    private static let retentionInterval: TimeInterval = 30 * 60
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        canShowCallout = false
+
+        let bolt = UIImageView(image: UIImage(
+            systemName: "bolt.fill",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .bold)
+        ))
+        bolt.tintColor = .white
+        bolt.contentMode = .center
+
+        let badge = UIView(frame: CGRect(x: 0, y: 0, width: 22, height: 22))
+        badge.backgroundColor = .systemYellow
+        badge.layer.cornerRadius = 11
+        badge.layer.borderColor = UIColor.black.withAlphaComponent(0.35).cgColor
+        badge.layer.borderWidth = 1
+        badge.layer.shadowColor = UIColor.black.cgColor
+        badge.layer.shadowOpacity = 0.35
+        badge.layer.shadowRadius = 2
+        badge.layer.shadowOffset = CGSize(width: 0, height: 1)
+        badge.addSubview(bolt)
+        bolt.frame = badge.bounds
+
+        frame = badge.frame
+        addSubview(badge)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// Linear fade across the retention window, floored so old strikes stay
+    /// faintly visible until pruned.
+    func updateFade(for date: Date, now: Date) {
+        let age = now.timeIntervalSince(date)
+        let fraction = CGFloat(max(0, 1 - age / Self.retentionInterval))
+        alpha = 0.35 + 0.65 * fraction
     }
 }
 

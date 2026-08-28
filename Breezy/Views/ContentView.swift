@@ -799,6 +799,10 @@ struct ContentView: View {
                 SurfDashboardCard(weather: weather, viewModel: viewModel, config: widget.config)
                     .padding(.horizontal, DesignSystem.spacingM)
 
+            case .pollen:
+                PollenDashboardCard(weather: weather, viewModel: viewModel, config: widget.config)
+                    .padding(.horizontal, DesignSystem.spacingM)
+
             case .goldenHour:
                 GoldenHourWidget(weather: weather, viewModel: viewModel)
                     .padding(.horizontal, DesignSystem.spacingM)
@@ -5206,6 +5210,7 @@ struct WidgetGalleryView: View {
         case .aqiTrend: return "Open-Meteo only: 24-hour AQI trend"
         case .marineOutlook: return "Open-Meteo only: waves, currents, and water temp"
         case .surf: return "Open-Meteo only: wave height, period, swell and a surf-quality rating"
+        case .pollen: return "Open-Meteo only: tree, grass and weed pollen with an allergy-risk rating (Europe)"
         case .goldenHour: return "Sunrise and sunset golden hour windows"
         case .smartStack: return "Adaptive widget stack"
         }
@@ -5213,7 +5218,7 @@ struct WidgetGalleryView: View {
 
     private func providerBadge(for type: WidgetType) -> String? {
         switch type {
-        case .airQualityCard, .aqiTrend, .marineOutlook, .surf:
+        case .airQualityCard, .aqiTrend, .marineOutlook, .surf, .pollen:
             return "OPEN-METEO ONLY"
         default:
             return nil
@@ -5282,6 +5287,8 @@ struct WidgetConfigView: View {
             return "Choose whether this marine card stays compact or shows the full set of sea conditions."
         case .surf:
             return "Choose whether this surf card stays compact or shows full wave, swell and wind detail."
+        case .pollen:
+            return "Choose whether this pollen card stays compact or shows every measured species."
         case .radar:
             return "Set the default radar map layer and zoom level."
         case .smartStack:
@@ -6021,6 +6028,27 @@ struct WidgetConfigView: View {
                         }
 
                         if widget.type == .surf {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Detail Level")
+                                    .font(.subheadline)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                                    .padding(.horizontal)
+                                Picker("Style", selection: Binding(
+                                    get: { widget.config?["style"] ?? "detailed" },
+                                    set: { newValue in
+                                        if widget.config == nil { widget.config = [:] }
+                                        widget.config?["style"] = newValue
+                                    }
+                                )) {
+                                    Text("Compact").tag("compact")
+                                    Text("Detailed").tag("detailed")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        if widget.type == .pollen {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Detail Level")
                                     .font(.subheadline)

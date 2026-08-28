@@ -15,6 +15,7 @@ struct WeatherMetrics: Codable, Equatable {
     let windHistory: [WindHistoryPoint]? // hourly wind for the past 24h
     let marine: MarineConditions?
     let surf: SurfConditions? // Open-Meteo only: surf data + quality rating
+    let pollen: PollenConditions? // Open-Meteo only: pollen levels + allergy risk (Europe)
     let pressure: String? // in hPa or inHg
     let visibility: String? // in km or miles
     let dewPoint: String? // temperature

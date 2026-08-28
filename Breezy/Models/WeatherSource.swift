@@ -68,7 +68,7 @@ struct WeatherProviderCapabilities: Equatable {
             return "\(source.displayName) does not provide Breezy's minute-by-minute precipitation feed."
         case .moonPhase:
             return "\(source.displayName) does not provide the moon phase data Breezy needs for this card."
-        case .airQualityCard, .aqiTrend, .marineOutlook, .surf:
+        case .airQualityCard, .aqiTrend, .marineOutlook, .surf, .pollen:
             return "\(source.displayName) does not provide this Open-Meteo-only widget."
         default:
             return "This widget is not available with \(source.displayName)."
@@ -97,7 +97,7 @@ extension WeatherSource {
                 maxForecastDays: 10,
                 historicalStartDate: Calendar.current.date(from: DateComponents(year: 2021, month: 8, day: 1)),
                 supportedWidgets: Set(WidgetType.allCases.filter { widget in
-                    widget != .airQualityCard && widget != .aqiTrend && widget != .marineOutlook && widget != .surf && widget != .windHistory
+                    widget != .airQualityCard && widget != .aqiTrend && widget != .marineOutlook && widget != .surf && widget != .pollen && widget != .windHistory
                 })
             )
         case .openMeteo:

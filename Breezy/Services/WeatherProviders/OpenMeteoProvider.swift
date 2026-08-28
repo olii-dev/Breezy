@@ -128,7 +128,7 @@ final class OpenMeteoProvider: WeatherProviding {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone"),
+            URLQueryItem(name: "current", value: "us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen"),
             URLQueryItem(name: "hourly", value: "us_aqi,pm10,pm2_5,ozone"),
             URLQueryItem(name: "past_days", value: "2"),
             URLQueryItem(name: "forecast_days", value: "1")
@@ -242,7 +242,8 @@ final class OpenMeteoProvider: WeatherProviding {
             cloudCoverFraction: response.current.cloudCover.map { $0 / 100.0 },
             airQuality: makeAirQuality(from: airQualityResponse?.current),
             airQualityTrend: makeAirQualityTrend(from: airQualityResponse?.hourly, timezone: timezone),
-            marine: makeMarine(from: marineResponse?.current)
+            marine: makeMarine(from: marineResponse?.current),
+            pollen: makePollen(from: airQualityResponse?.current)
         )
 
         return ProviderWeatherPayload(
@@ -388,6 +389,24 @@ final class OpenMeteoProvider: WeatherProviding {
             currentDirectionDegrees: current.oceanCurrentDirection
         )
     }
+
+    /// Pollen rides the air-quality response. Outside the CAMS European domain
+    /// every species comes back null, in which case there is nothing to show.
+    private func makePollen(from current: OpenMeteoAirQualityCurrentBlock?) -> ProviderPollenConditions? {
+        guard let current else { return nil }
+        let conditions = ProviderPollenConditions(
+            alderPollen: current.alderPollen,
+            birchPollen: current.birchPollen,
+            grassPollen: current.grassPollen,
+            mugwortPollen: current.mugwortPollen,
+            olivePollen: current.olivePollen,
+            ragweedPollen: current.ragweedPollen
+        )
+        let hasAnyValue = [conditions.alderPollen, conditions.birchPollen, conditions.grassPollen,
+                           conditions.mugwortPollen, conditions.olivePollen, conditions.ragweedPollen]
+            .contains { $0 != nil }
+        return hasAnyValue ? conditions : nil
+    }
 }
 
 private enum OpenMeteoWeatherCodeConverter {
@@ -452,6 +471,13 @@ private struct OpenMeteoAirQualityCurrentBlock: Decodable {
     let nitrogenDioxide: Double?
     let sulphurDioxide: Double?
     let ozone: Double?
+    // Pollen (CAMS European domain only; nil elsewhere).
+    let alderPollen: Double?
+    let birchPollen: Double?
+    let grassPollen: Double?
+    let mugwortPollen: Double?
+    let olivePollen: Double?
+    let ragweedPollen: Double?
 
     enum CodingKeys: String, CodingKey {
         case usAQI = "us_aqi"
@@ -461,6 +487,12 @@ private struct OpenMeteoAirQualityCurrentBlock: Decodable {
         case nitrogenDioxide = "nitrogen_dioxide"
         case sulphurDioxide = "sulphur_dioxide"
         case ozone
+        case alderPollen = "alder_pollen"
+        case birchPollen = "birch_pollen"
+        case grassPollen = "grass_pollen"
+        case mugwortPollen = "mugwort_pollen"
+        case olivePollen = "olive_pollen"
+        case ragweedPollen = "ragweed_pollen"
     }
 }
 

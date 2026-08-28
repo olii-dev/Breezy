@@ -65,6 +65,7 @@ enum ProviderWeatherMapper {
             windHistory: nil,
             marine: nil,
             surf: nil,
+            pollen: nil,
             pressure: formatting.formattedPressure(hectopascals: pressureHectopascals),
             visibility: formatting.formattedVisibility(meters: visibilityMeters),
             dewPoint: nil,
@@ -241,6 +242,7 @@ enum ProviderWeatherMapper {
                 )
             },
             surf: makeSurf(from: current.marine, windSpeedMetersPerSecond: current.windSpeedMetersPerSecond, windDirectionDegrees: current.windDirectionDegrees),
+            pollen: makePollen(from: current.pollen),
             pressure: formatting.formattedPressure(hectopascals: current.pressureHectopascals),
             visibility: formatting.formattedVisibility(meters: current.visibilityMeters),
             dewPoint: current.dewPointCelsius.map { formatting.formattedTemperature($0, includeUnit: false) },
@@ -309,6 +311,21 @@ enum ProviderWeatherMapper {
             seaTempCelsius: marine.seaSurfaceTemperatureCelsius,
             windSpeedMetersPerSecond: windSpeedMetersPerSecond,
             windDirectionDegrees: windDirectionDegrees
+        )
+    }
+
+    /// Build pollen conditions from Open-Meteo's air-quality payload.
+    /// nil unless at least one species reported a value (i.e. we're inside
+    /// the CAMS European domain).
+    private static func makePollen(from pollen: ProviderPollenConditions?) -> PollenConditions? {
+        guard let pollen else { return nil }
+        return PollenRatingEngine.conditions(
+            alderPollen: pollen.alderPollen,
+            birchPollen: pollen.birchPollen,
+            grassPollen: pollen.grassPollen,
+            mugwortPollen: pollen.mugwortPollen,
+            olivePollen: pollen.olivePollen,
+            ragweedPollen: pollen.ragweedPollen
         )
     }
 

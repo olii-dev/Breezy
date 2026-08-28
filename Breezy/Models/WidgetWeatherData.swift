@@ -44,6 +44,9 @@ struct WidgetWeatherData: Codable {
     /// Open-Meteo only. Surf conditions + pre-computed rating for the widget.
     let surf: WidgetSurfData?
 
+    /// Open-Meteo only. Pollen levels + pre-computed allergy risk (Europe).
+    let pollen: WidgetPollenData?
+
     struct WidgetHourlyForecast: Codable {
         let time: String
         let temperature: String
@@ -69,6 +72,23 @@ struct WidgetWeatherData: Codable {
         let swellHeight: String?       // e.g. "0.9 m"
         let seaTemp: String?           // e.g. "16°C"
         let wind: String?              // e.g. "SW 6 mph"
+    }
+
+    /// Pre-formatted pollen snapshot for widgets. Same idea as WidgetSurfData:
+    /// display-ready strings, engine pre-run in the app.
+    struct WidgetPollenData: Codable, Equatable {
+        let levelLabel: String        // e.g. "Moderate"
+        let levelDetail: String       // e.g. "Grass is the main trigger right now."
+        let levelColorHex: String     // e.g. "#E2C044"
+        let dominantSpecies: String?  // e.g. "Grass"
+        let speciesValues: [WidgetPollenSpecies] // display order, measured only
+
+        struct WidgetPollenSpecies: Codable, Equatable {
+            let name: String          // e.g. "Grass"
+            let value: String         // e.g. "12 /m³"
+            let levelLabel: String    // e.g. "High"
+            let levelColorHex: String // e.g. "#E8833A"
+        }
     }
 }
 

@@ -34,6 +34,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
     case aqiTrend = "AQI Trend"
     case marineOutlook = "Marine Outlook"
     case surf = "Surf"
+    case pollen = "Pollen"
     
     // Astronomy
     case sunPath = "Sun Path"
@@ -58,6 +59,8 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
             return "Marine Outlook"
         case .surf:
             return "Surf"
+        case .pollen:
+            return "Pollen"
         default:
             return rawValue
         }
@@ -88,6 +91,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
         case .aqiTrend: return "chart.line.uptrend.xyaxis"
         case .marineOutlook: return "water.waves"
         case .surf: return "figure.surfing"
+        case .pollen: return "allergens"
         case .sunPath: return "sun.and.horizon.fill"
         case .moonPhase: return "moon.stars.fill"
         case .goldenHour: return "sunset.fill"
@@ -181,7 +185,7 @@ extension WidgetType {
         switch self {
         case .hourlyForecast, .dailyForecast, .forecastNarrative, .hourlyTemperatures, .precipitationTimeline, .precipitationAmount:
             return .forecasts
-        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .aqiTrend, .marineOutlook, .surf:
+        case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .aqiTrend, .marineOutlook, .surf, .pollen:
             return .details
         case .sunPath, .moonPhase, .goldenHour:
             return .astronomy
@@ -216,7 +220,8 @@ extension WidgetType {
              .smartStack,
              .airQualityCard,
              .marineOutlook,
-             .surf:
+             .surf,
+             .pollen:
             return true
         default:
             return false

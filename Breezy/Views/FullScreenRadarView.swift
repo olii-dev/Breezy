@@ -25,9 +25,16 @@ struct FullScreenRadarView: View {
     @State private var animationTimer: Timer?
     @State private var metadataLoaded: Bool = false
     @State private var isScrubbing: Bool = false
+    @AppStorage("Breezy.radarShowLightning") private var showLightning = true
+    @ObservedObject private var lightning = LightningService.shared
 
     private var precipitationSource: RadarPrecipitationSource {
         viewModel.radarPrecipitationSource
+    }
+
+    private var nearestStrikeDistance: CLLocationDistance? {
+        guard showLightning, !lightning.strikes.isEmpty else { return nil }
+        return lightning.nearestDistanceMeters(from: currentCoordinate)
     }
 
     private var canAnimate: Bool {
@@ -90,7 +97,8 @@ struct FullScreenRadarView: View {
                 coordinate: currentCoordinate,
                 isDark: theme.isDark,
                 mapStyle: viewModel.mapStyle,
-                framePath: activeFramePath
+                framePath: activeFramePath,
+                strikes: showLightning ? lightning.strikes : []
             )
             .ignoresSafeArea()
 
@@ -117,6 +125,25 @@ struct FullScreenRadarView: View {
             if !isLoading {
                 VStack {
                     Spacer()
+
+                    // Nearest-strike readout (live lightning layer).
+                    if showLightning, let distance = nearestStrikeDistance {
+                        HStack(spacing: 5) {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.yellow)
+                            Text("Nearest strike \(formattedStrikeDistance(distance))")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                        .transition(.opacity)
+                    }
 
                     // Playback controls (only for RainViewer precipitation)
                     if canAnimate {
@@ -193,7 +220,7 @@ struct FullScreenRadarView: View {
                     }
 
                     HStack(alignment: .bottom) {
-                        RadarLegendView(layer: selectedLayer, precipitationSource: precipitationSource)
+                        RadarLegendView(layer: selectedLayer, precipitationSource: precipitationSource, lightningActive: showLightning)
 
                         Spacer()
 
@@ -300,7 +327,12 @@ struct FullScreenRadarView: View {
             .padding(.bottom, 6)
         }
         .sheet(isPresented: $showLayerMenu) {
-            RadarLayerMenuView(selectedLayer: $selectedLayer, precipitationSource: precipitationSource)
+            RadarLayerMenuView(
+                selectedLayer: $selectedLayer,
+                precipitationSource: precipitationSource,
+                showLightning: $showLightning,
+                strikeOrigin: currentCoordinate
+            )
         }
         .onChange(of: precipitationSource) { _, _ in
             isLoading = true
@@ -322,9 +354,14 @@ struct FullScreenRadarView: View {
         }
         .onAppear {
             loadFramesIfNeeded()
+            if showLightning {
+                LightningService.shared.start()
+            }
         }
         .onDisappear {
             pauseAnimation()
+            // The websocket only lives while a radar surface is on screen.
+            LightningService.shared.stop()
         }
         .onChange(of: selectedLayer) { _, newLayer in
             // Start playback automatically when entering precipitation RainViewer
@@ -386,5 +423,10 @@ struct FullScreenRadarView: View {
         animationTimer?.invalidate()
         animationTimer = nil
         isPlaying = false
+    }
+
+    private func formattedStrikeDistance(_ meters: CLLocationDistance) -> String {
+        let converted = viewModel.visibilityUnit.convert(Double(meters))
+        return String(format: "%.0f %@ away", converted, viewModel.visibilityUnit.symbol)
     }
 }

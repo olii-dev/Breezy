@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct RadarLayerMenuView: View {
     @Binding var selectedLayer: RadarLayer
     let precipitationSource: RadarPrecipitationSource
+    @Binding var showLightning: Bool
+    var strikeOrigin: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 0, longitude: 0)
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
     
@@ -110,6 +113,55 @@ struct RadarLayerMenuView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
+
+                    // Live lightning overlay (independent of the base layer).
+                    Toggle(isOn: $showLightning) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(showLightning ? Color.yellow : Color.gray.opacity(0.2))
+                                    .frame(width: 50, height: 50)
+
+                                Image(systemName: "bolt.fill")
+                                    .font(.title3)
+                                    .foregroundColor(showLightning ? .white : .primary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Lightning Strikes")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                Text("Live strikes from the Blitzortung community network")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(showLightning ? Color.yellow.opacity(0.1) : Color.gray.opacity(0.05))
+                        )
+                    }
+                    .tint(.yellow)
+
+                    #if DEBUG
+                    Button {
+                        LightningService.shared.injectSampleStrikes(around: strikeOrigin)
+                    } label: {
+                        Label("Add test strikes (debug)", systemImage: "ladybug")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.gray.opacity(0.05))
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    #endif
                 }
                 .padding()
             }

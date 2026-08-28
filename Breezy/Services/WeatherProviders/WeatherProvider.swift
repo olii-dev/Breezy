@@ -96,6 +96,7 @@ struct ProviderCurrentWeather {
     let airQuality: AirQuality?
     let airQualityTrend: [AirQualityPoint]?
     let marine: ProviderMarineConditions?
+    let pollen: ProviderPollenConditions?
 }
 
 struct ProviderMarineConditions {
@@ -107,6 +108,16 @@ struct ProviderMarineConditions {
     let seaSurfaceTemperatureCelsius: Double?
     let currentSpeedMetersPerSecond: Double?
     let currentDirectionDegrees: Double?
+}
+
+/// Pollen concentrations in grains/m³ (Open-Meteo / CAMS Europe only).
+struct ProviderPollenConditions {
+    let alderPollen: Double?
+    let birchPollen: Double?
+    let grassPollen: Double?
+    let mugwortPollen: Double?
+    let olivePollen: Double?
+    let ragweedPollen: Double?
 }
 
 struct ProviderHourlyWeather {
