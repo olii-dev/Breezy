@@ -57,11 +57,8 @@ struct LocationPickerView: View {
                 }
             }
             .navigationTitle("Location")
-            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
-                #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         dismiss()
@@ -72,18 +69,6 @@ struct LocationPickerView: View {
                             .font(.title3)
                     }
                 }
-                #else
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                            .font(.title3)
-                    }
-                }
-                #endif
             }
         }
         .preferredColorScheme(viewModel.appearanceMode == .light ? .light : viewModel.appearanceMode == .dark ? .dark : nil)

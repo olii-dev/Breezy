@@ -2,35 +2,26 @@
 //  IconManager.swift
 //  Breezy
 //
-//  App Icon Switching Manager. Alternate icons are an iOS-only feature; on
-//  macOS the enum stays for gallery previews and setIcon simply fails.
+//  App Icon Switching Manager
 //
 
-import Combine
-import SwiftUI
-
-#if canImport(UIKit)
 import UIKit
-#endif
+import Combine
 
 class IconManager: ObservableObject {
     static let shared = IconManager()
-
+    
     @Published var currentIcon: AppIcon
-
+    
     private init() {
-        #if canImport(UIKit)
         // Initialize currentIcon based on system state
         if let iconName = UIApplication.shared.alternateIconName {
             self.currentIcon = AppIcon(rawValue: iconName) ?? .primary
         } else {
             self.currentIcon = .primary
         }
-        #else
-        self.currentIcon = .primary
-        #endif
     }
-
+    
     enum AppIcon: String, CaseIterable {
         case primary = "Default"
         case glassCloud = "GlassCloudIcon"
@@ -38,7 +29,13 @@ class IconManager: ObservableObject {
         case dark = "DarkIcon"
         case sunset = "SunsetIcon"
         case minimalist = "MinimalistIcon"
-
+        
+    /*  
+        case neon = "NeonIcon"
+        case retro = "RetroIcon"
+        case gold = "GoldIcon"
+    */
+        
         var displayName: String {
             switch self {
             case .primary: return "Default"
@@ -47,9 +44,14 @@ class IconManager: ObservableObject {
             case .dark: return "Bubble"
             case .minimalist: return "Minimalist"
             case .sunset: return "Translucent"
+            /*
+            case .neon: return "Neon"
+            case .retro: return "Retro"
+            case .gold: return "Gold"
+            */
             }
         }
-
+        
         var previewImage: String {
             switch self {
             case .primary: return "sun.max.fill"
@@ -58,9 +60,14 @@ class IconManager: ObservableObject {
             case .dark: return "moon.fill"
             case .minimalist: return "cloud.fill"
             case .sunset: return "sun.haze.fill"
+            /*
+            case .neon: return "bolt.fill"
+            case .retro: return "gamecontroller.fill"
+            case .gold: return "crown.fill"
+            */
             }
         }
-
+        
         var previewImageName: String {
             switch self {
             case .primary: return "DefaultIconPreview"
@@ -69,35 +76,36 @@ class IconManager: ObservableObject {
             case .dark: return "DarkIconPreview"
             case .minimalist: return "MinimalistIconPreview"
             case .sunset: return "SunsetIconPreview"
+            /*
+            case .neon: return "NeonIcon"
+            case .retro: return "RetroIcon"
+            case .gold: return "GoldIcon"
+            */
             }
         }
     }
-
+    
     // Async/Await version
     @MainActor
     func setIcon(_ icon: AppIcon) async -> Bool {
-        #if canImport(UIKit)
         guard UIApplication.shared.supportsAlternateIcons else { return false }
-
+        
         let iconName: String? = icon == .primary ? nil : icon.rawValue
-
+        
         // Prevent redundant calls
         if iconName == UIApplication.shared.alternateIconName {
              return true
         }
-
+        
         do {
             try await UIApplication.shared.setAlternateIconName(iconName)
             self.currentIcon = icon
-
+            
             // Artificial delay to allow system propagation
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
             return true
         } catch {
             return false
         }
-        #else
-        return false
-        #endif
     }
 }

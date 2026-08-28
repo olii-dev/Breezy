@@ -143,12 +143,10 @@ struct AstronomyDetailView: View {
             }
         }
         .navigationTitle("Astronomy")
-        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(theme.topColor.opacity(0.82), for: .navigationBar)
         .toolbarColorScheme(theme.isDark ? .dark : .light, for: .navigationBar)
-        #endif
         .onChange(of: weather.dailyForecast.count) { _, _ in clampSelectedDayIndex() }
     }
 

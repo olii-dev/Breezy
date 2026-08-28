@@ -167,10 +167,8 @@ struct ThemeGalleryView: View {
                 }
             }
         }
-        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
-        #endif
         .alert("Delete \(themeToDelete?.name ?? "Theme")?", isPresented: Binding(
             get: { themeToDelete != nil },
             set: { if !$0 { themeToDelete = nil } }

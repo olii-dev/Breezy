@@ -153,15 +153,9 @@ struct RadarCardView: View {
             HapticsManager.shared.impact(style: .light)
             showFullScreen = true
         }
-        #if os(iOS)
         .fullScreenCover(isPresented: $showFullScreen) {
             FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
         }
-        #elseif os(macOS)
-        .sheet(isPresented: $showFullScreen) {
-            FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
-        }
-        #endif
         .sheet(isPresented: $showLayerMenu) {
             RadarLayerMenuView(
                 selectedLayer: $selectedLayer,
@@ -208,10 +202,6 @@ struct RadarCardView: View {
 }
 
 // MARK: - MapKit Wrapper
-// The UIKit-backed map lives here for iOS. macOS gets an AppKit-backed
-// RadarMapView with the same memberwise surface from BreezyMac/.
-
-#if canImport(UIKit)
 
 struct RadarMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
@@ -603,5 +593,3 @@ class PulsingLocationView: UIView {
         pulseLayer.add(opacityAnimation, forKey: "opacity")
     }
 }
-
-#endif

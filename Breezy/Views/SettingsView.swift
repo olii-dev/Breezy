@@ -166,9 +166,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -180,9 +178,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            #if os(iOS)
             .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
-            #endif
             .alert("Reset All Settings?", isPresented: $showResetConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Reset Everything", role: .destructive) {
@@ -307,9 +303,7 @@ struct PrivacySupportView: View {
             .padding()
         }
         .navigationTitle("Privacy & Security")
-        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 
     private func infoCard(title: String, systemImage: String, body: String) -> some View {
@@ -1437,7 +1431,7 @@ struct DesignStudioView: View {
                             )
                             
                             // App Icons Gallery Navigation
-                            #if os(iOS)
+                            #if !targetEnvironment(macCatalyst)
                             NavigationLink {
                                 IconGalleryView(viewModel: viewModel)
                             } label: {
@@ -1578,9 +1572,7 @@ struct DesignStudioView: View {
         }
         .id(navigationRefreshID)
         .navigationTitle("Design Studio")
-        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        #endif
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("Design Studio")
@@ -1588,9 +1580,7 @@ struct DesignStudioView: View {
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
             }
         }
-        #if os(iOS)
         .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
-        #endif
     }
 }
 
@@ -1726,25 +1716,12 @@ struct AddForecastTimeView: View {
                 }
             }
             .navigationTitle("Add Forecast Time")
-            #if os(iOS)
             .navigationBarItems(
                 leading: Button("Cancel") { onAdd(ForecastTime(hour: -1, minute: 0)) },
                 trailing: Button("Add") {
                     onAdd(ForecastTime(hour: selectedHour, minute: selectedMinute))
                 }
             )
-            #else
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onAdd(ForecastTime(hour: -1, minute: 0)) }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        onAdd(ForecastTime(hour: selectedHour, minute: selectedMinute))
-                    }
-                }
-            }
-            #endif
         }
     }
 }
