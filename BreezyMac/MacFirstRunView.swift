@@ -69,6 +69,7 @@ struct MacFirstRunView: View {
             }
         }
 
+        UserDefaults.standard.set(true, forKey: "BreezyMac.HasCompletedFirstRun")
         UserDefaults.standard.set(true, forKey: "Breezy.HasCompletedOnboarding")
         isPresented = false
     }

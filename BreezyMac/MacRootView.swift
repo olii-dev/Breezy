@@ -20,7 +20,7 @@ struct MacRootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
 
-    @AppStorage("Breezy.HasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("BreezyMac.HasCompletedFirstRun") private var hasCompletedFirstRun = false
 
     @State private var favourites: [LocationData] = []
     @State private var recents: [LocationData] = []
@@ -56,15 +56,23 @@ struct MacRootView: View {
         }
         .onAppear {
             reloadLocationLists()
-            if hasCompletedOnboarding {
-                viewModel.performStartupIfNeeded(locationHelper: locationHelper)
-            } else {
+            viewModel.performStartupIfNeeded(locationHelper: locationHelper)
+            if !hasCompletedFirstRun {
                 showFirstRun = true
             }
         }
-        .onChange(of: hasCompletedOnboarding) { _, done in
+        .onChange(of: hasCompletedFirstRun) { _, done in
             if done {
                 viewModel.performStartupIfNeeded(locationHelper: locationHelper)
+            }
+        }
+        .onChange(of: viewModel.currentLocation) { _, newLocation in
+            reloadLocationLists()
+            // Persist manual picks so relaunches restore the same city
+            // (the shared picker fetches but doesn't persist by itself).
+            if let location = newLocation, !viewModel.shouldFollowGPS,
+               let data = try? JSONEncoder().encode(location) {
+                UserDefaults.standard.set(data, forKey: "Breezy.selectedLocation")
             }
         }
         .onChange(of: viewModel.currentLocation) { _, _ in
@@ -177,8 +185,27 @@ struct MacRootView: View {
                     Text(error)
                         .font(.headline)
                         .foregroundColor(theme.textColor)
-                    Button("Try Again") {
-                        refresh()
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 420)
+                    HStack {
+                        Button("Choose a City") {
+                            showFirstRun = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Try Again") {
+                            refresh()
+                        }
+                    }
+                }
+                .padding(40)
+            } else {
+                // No weather, no error yet — offer the picker instead of a dead end.
+                VStack(spacing: 12) {
+                    Image(systemName: "location.magnifyingglass")
+                        .font(.system(size: 40))
+                        .foregroundColor(theme.textColor.opacity(0.6))
+                    Button("Choose a City") {
+                        showFirstRun = true
                     }
                     .buttonStyle(.borderedProminent)
                 }
