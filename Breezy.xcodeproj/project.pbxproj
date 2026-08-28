@@ -12,8 +12,8 @@
 		8613FBE62EED447E007683C4 /* BreezyWatchWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		866F108A2EB64FD5006223C3 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F10892EB64FD5006223C3 /* WidgetKit.framework */; };
 		866F108C2EB64FD5006223C3 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F108B2EB64FD5006223C3 /* SwiftUI.framework */; };
-		866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,7 +78,6 @@
 
 /* Begin PBXFileReference section */
 		86030DB92EB4259C0022BB5C /* Breezy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Breezy.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		8A2C0B0012E00000000000AA /* BreezyMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BreezyMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BreezyWatchWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8613FBEF2EED4545007683C4 /* BreezyWatchWidgetExtensionExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BreezyWatchWidgetExtensionExtension.entitlements; sourceTree = "<group>"; };
 		866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BreezyWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,18 +95,6 @@
 				Info.plist,
 			);
 			target = 86030DB82EB4259C0022BB5C /* Breezy */;
-		};
-		8A2C0B0012E00000000000A2 /* Exceptions for "Breezy" folder in "BreezyMac" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-				Breezy.entitlements,
-				BreezyApp.swift,
-				Utilities/WatchSessionManager.swift,
-				Views/OnboardingView.swift,
-				Views/OnboardingComponents.swift,
-			);
-			target = 8A2C0B0012E00000000000A3 /* BreezyMac */;
 		};
 		8613FBEB2EED447E007683C4 /* Exceptions for "BreezyWatchWidgetExtension" folder in "BreezyWatchWidgetExtensionExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -144,14 +131,8 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				86030DCA2EB429C90022BB5C /* Exceptions for "Breezy" folder in "Breezy" target */,
-				8A2C0B0012E00000000000A2 /* Exceptions for "Breezy" folder in "BreezyMac" target */,
 			);
 			path = Breezy;
-			sourceTree = "<group>";
-		};
-		8A2C0B0012E00000000000A1 /* BreezyMac */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BreezyMac;
 			sourceTree = "<group>";
 		};
 		8613FBDA2EED447D007683C4 /* BreezyWatchWidgetExtension */ = {
@@ -182,13 +163,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		8A2C0B0012E00000000000A6 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		86030DB62EB4259C0022BB5C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -230,7 +204,6 @@
 				8613FBEF2EED4545007683C4 /* BreezyWatchWidgetExtensionExtension.entitlements */,
 				866F10A42EB65A62006223C3 /* BreezyWidgetExtension.entitlements */,
 				86030DBB2EB4259C0022BB5C /* Breezy */,
-				8A2C0B0012E00000000000A1 /* BreezyMac */,
 				866F108D2EB64FD5006223C3 /* BreezyWidget */,
 				86A805782EEAED9B0019EAD7 /* Breezy Watch Watch App */,
 				8613FBDA2EED447D007683C4 /* BreezyWatchWidgetExtension */,
@@ -243,7 +216,6 @@
 			isa = PBXGroup;
 			children = (
 				86030DB92EB4259C0022BB5C /* Breezy.app */,
-				8A2C0B0012E00000000000AA /* BreezyMac.app */,
 				866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */,
 				86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */,
 				8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */,
@@ -264,29 +236,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8A2C0B0012E00000000000A3 /* BreezyMac */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 8A2C0B0012E00000000000A4 /* Build configuration list for PBXNativeTarget "BreezyMac" */;
-			buildPhases = (
-				8A2C0B0012E00000000000A5 /* Sources */,
-				8A2C0B0012E00000000000A6 /* Frameworks */,
-				8A2C0B0012E00000000000A7 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				8A2C0B0012E00000000000A1 /* BreezyMac */,
-				86030DBB2EB4259C0022BB5C /* Breezy */,
-			);
-			name = BreezyMac;
-			packageProductDependencies = (
-			);
-			productName = BreezyMac;
-			productReference = 8A2C0B0012E00000000000AA /* BreezyMac.app */;
-			productType = "com.apple.product-type.application";
-		};
 		86030DB82EB4259C0022BB5C /* Breezy */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 86030DC62EB4259D0022BB5C /* Build configuration list for PBXNativeTarget "Breezy" */;
@@ -394,9 +343,6 @@
 					86030DB82EB4259C0022BB5C = {
 						CreatedOnToolsVersion = 26.0;
 					};
-					8A2C0B0012E00000000000A3 = {
-						CreatedOnToolsVersion = 26.0;
-					};
 					8613FBD62EED447D007683C4 = {
 						CreatedOnToolsVersion = 26.0;
 					};
@@ -423,7 +369,6 @@
 			projectRoot = "";
 			targets = (
 				86030DB82EB4259C0022BB5C /* Breezy */,
-				8A2C0B0012E00000000000A3 /* BreezyMac */,
 				866F10862EB64FD5006223C3 /* BreezyWidgetExtension */,
 				86A805762EEAED9B0019EAD7 /* Breezy Watch Watch App */,
 				8613FBD62EED447D007683C4 /* BreezyWatchWidgetExtensionExtension */,
@@ -432,13 +377,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		8A2C0B0012E00000000000A7 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		86030DB72EB4259C0022BB5C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -470,13 +408,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		8A2C0B0012E00000000000A5 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		86030DB52EB4259C0022BB5C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -526,74 +457,6 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		8A2C0B0012E00000000000A8 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BreezyMac/BreezyMac.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZVYZ759YYL;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Breezy;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.weather";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Breezy needs your location to fetch your weather.";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SUPPORTED_PLATFORMS = macosx;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		8A2C0B0012E00000000000A9 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BreezyMac/BreezyMac.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZVYZ759YYL;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Breezy;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.weather";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Breezy needs your location to fetch your weather.";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SUPPORTED_PLATFORMS = macosx;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 		86030DC42EB4259D0022BB5C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -745,6 +608,7 @@
 				);
 				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -787,6 +651,7 @@
 				);
 				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1052,15 +917,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8A2C0B0012E00000000000A4 /* Build configuration list for PBXNativeTarget "BreezyMac" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				8A2C0B0012E00000000000A8 /* Debug */,
-				8A2C0B0012E00000000000A9 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		86030DB42EB4259C0022BB5C /* Build configuration list for PBXProject "Breezy" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
