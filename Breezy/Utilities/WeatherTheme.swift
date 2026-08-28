@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct WeatherTheme: Codable, Identifiable {
     var id: String
@@ -40,17 +42,11 @@ struct WeatherTheme: Codable, Identifiable {
     }
     
     var isDark: Bool {
-        // Simple heuristic: if text is light, background is likely dark
-        // We convert textColor to UIColor to get brightness
-        // Note: This requires UIKit import context, which is available in SwiftUI apps on iOS
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-        
-        UIColor(textColor).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        let brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000
-        
+        // Simple heuristic: if text is light, background is likely dark.
+        // Brightness of the text color decides which surface it was designed for.
+        guard let c = PlatformColor.rgbaComponents(of: textColor) else { return false }
+        let brightness = ((c.r * 299) + (c.g * 587) + (c.b * 114)) / 1000
+
         // If text is bright/white (> 0.5), it's meant for a dark background -> return true (isDark theme)
         // If text is dark (< 0.5), it's meant for a light background -> return false
         return brightness > 0.5

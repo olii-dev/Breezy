@@ -55,6 +55,7 @@ struct TimeMachineView: View {
         NavigationStack {
             timeMachineScreen
                 .toolbar {
+                    #if os(iOS)
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             dismiss()
@@ -64,6 +65,17 @@ struct TimeMachineView: View {
                                 .font(.title3)
                         }
                     }
+                    #else
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(theme.textColor.opacity(0.7))
+                                .font(.title3)
+                        }
+                    }
+                    #endif
                 }
         }
         .onAppear(perform: restoreStoredDates)

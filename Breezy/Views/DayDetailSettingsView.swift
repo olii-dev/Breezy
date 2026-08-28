@@ -118,6 +118,8 @@ struct DayDetailSettingsView: View {
             }
         }
         .navigationTitle("Daily View")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }

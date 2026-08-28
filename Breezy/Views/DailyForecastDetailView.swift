@@ -351,10 +351,12 @@ struct DailyForecastDetailView: View {
             }
         }
         .navigationTitle(day.dayName)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(viewModel.currentTheme(colorScheme: colorScheme).topColor.opacity(0.8), for: .navigationBar)
         .toolbarColorScheme(viewModel.appearanceMode == .light ? .light : .dark, for: .navigationBar)
+        #endif
         .id(day.id)
         .onChange(of: day.id) { _, _ in
             resetInteractiveState()

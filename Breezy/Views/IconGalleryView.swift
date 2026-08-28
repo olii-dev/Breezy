@@ -52,9 +52,12 @@ struct IconGalleryView: View {
                 .padding(.bottom, 40)
             }
         }
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
+        #endif
         .toolbar {
+            #if os(iOS)
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     dismiss()
@@ -64,6 +67,17 @@ struct IconGalleryView: View {
                         .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                 }
             }
+            #else
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
+                }
+            }
+            #endif
         }
     }
 }
@@ -99,6 +113,7 @@ struct IconCard: View {
                         .frame(height: 160)
                     
                     // Actual icon image
+                    #if canImport(UIKit)
                     if let uiImage = UIImage(named: icon.previewImageName) {
                         Image(uiImage: uiImage)
                             .resizable()
@@ -111,6 +126,20 @@ struct IconCard: View {
                             .font(.system(size: 50))
                             .foregroundColor(textColor)
                     }
+                    #elseif canImport(AppKit)
+                    if let nsImage = NSImage(named: icon.previewImageName) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 100, height: 100)
+                            .cornerRadius(22)
+                            .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                    } else {
+                        Image(systemName: icon.previewImage)
+                            .font(.system(size: 50))
+                            .foregroundColor(textColor)
+                    }
+                    #endif
                     
                     // Selected checkmark
                     if isSelected {

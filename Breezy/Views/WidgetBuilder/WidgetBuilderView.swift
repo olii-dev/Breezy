@@ -43,7 +43,9 @@ struct WidgetBuilderView: View {
                 }
             }
             .navigationTitle("Widget Studio")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {

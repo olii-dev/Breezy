@@ -8,7 +8,9 @@
 import Foundation
 import CoreLocation
 import MapKit
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum RadarPrecipitationSource: String, CaseIterable, Identifiable {
     case rainViewer = "RainViewer"
@@ -339,13 +341,11 @@ class WeatherTileOverlay: MKTileOverlay {
     let precipitationSource: RadarPrecipitationSource
     /// Optional RainViewer frame path for animation. When nil, uses the latest cached frame.
     var framePath: String?
-    private static let transparentTileData: Data = {
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 256, height: 256))
-        return renderer.pngData { context in
-            UIColor.clear.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 256, height: 256))
-        }
-    }()
+    /// A minimal transparent PNG served whenever a tile can't be fetched —
+    /// MapKit stretches it over the tile rect, i.e. "nothing here".
+    private static let transparentTileData: Data = Data(base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    ) ?? Data()
     
     init(layer: RadarLayer, precipitationSource: RadarPrecipitationSource, framePath: String? = nil) {
         self.layer = layer

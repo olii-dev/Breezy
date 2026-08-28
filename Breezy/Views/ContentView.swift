@@ -49,9 +49,15 @@ struct ContentView: View {
                     // Set initial colors without animation
                     gradientColors = [theme.topColor, theme.bottomColor]
                 }
+                #if os(iOS)
                 .fullScreenCover(isPresented: $showingOnboarding) {
                     OnboardingView(isPresented: $showingOnboarding, viewModel: viewModel, locationHelper: locationHelper)
                 }
+                #elseif os(macOS)
+                .sheet(isPresented: $showingOnboarding) {
+                    MacFirstRunView(isPresented: $showingOnboarding, viewModel: viewModel, locationHelper: locationHelper)
+                }
+                #endif
                 .onChange(of: showingOnboarding) { oldValue, isShowing in
                     if !isShowing && UserDefaults.standard.bool(forKey: "Breezy.HasCompletedOnboarding") {
                         // User just finished onboarding, start the app
@@ -125,79 +131,21 @@ struct ContentView: View {
                     }
                 }
                 .toolbar {
+                    #if os(iOS)
                     ToolbarItem(placement: .navigationBarLeading) {
-                        if isEditMode {
-                            Button {
-                                HapticsManager.shared.impact(style: .light)
-                                showingWidgetGallery = true
-                            } label: {
-                                Image(systemName: "plus")
-                                    .fontWeight(.bold)
-                                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                                    .padding(8)
-                                    .background(Circle().fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                            }
-                        } else {
-                            Button(action: {
-                                HapticsManager.shared.impact(style: .light)
-                                showingLocationPicker = true
-                            }) {
-                                HStack(spacing: 5) {
-                                    Image(systemName: "location.fill")
-                                        .font(.subheadline)
-                                    Text(viewModel.weather?.location.city ?? "Location")
-                                        .font(.subheadline.weight(.medium))
-                                }
-                                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                            }
-                        }
+                        toolbarLeadingContent
                     }
-                    
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        if isEditMode {
-                            Button("Done") {
-                                endDashboardEditing()
-                            }
-                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                            .fontWeight(.bold)
-                        } else {
-                            let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                            HStack(spacing: 12) {
-                                Button {
-                                    HapticsManager.shared.impact(style: .light)
-                                    showShareCard = true
-                                } label: {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
-                                }
-                                .accessibilityLabel("Share Weather")
-                                
-                                Button {
-                                    HapticsManager.shared.impact(style: .light)
-                                    showingTimeMachine = true
-                                } label: {
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
-                                }
-                                .accessibilityLabel("Time Machine")
-                                
-                                Button {
-                                    HapticsManager.shared.impact(style: .light)
-                                    showingSettings = true
-                                } label: {
-                                    Image(systemName: "gearshape.fill")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
-                                }
-                                .accessibilityLabel("Settings")
-                            }
-                        }
+                        toolbarTrailingContent
                     }
+                    #else
+                    ToolbarItem(placement: .automatic) {
+                        toolbarLeadingContent
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        toolbarTrailingContent
+                    }
+                    #endif
                 }
                 // Listen for dashboard changes
                 .onReceive(NotificationCenter.default.publisher(for: WeatherSection.sectionOrderChanged)) { _ in
@@ -254,10 +202,88 @@ struct ContentView: View {
                         ShareWeatherCardView(weather: weather, viewModel: viewModel, colorScheme: colorScheme)
                     }
                 }
+                #if os(iOS)
                 .toolbarColorScheme(viewModel.currentTheme(colorScheme: colorScheme).isDark ? .dark : .light, for: .navigationBar)
+                #endif
         }
     }
     
+    @ViewBuilder
+    private var toolbarLeadingContent: some View {
+        if isEditMode {
+            Button {
+                HapticsManager.shared.impact(style: .light)
+                showingWidgetGallery = true
+            } label: {
+                Image(systemName: "plus")
+                    .fontWeight(.bold)
+                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                    .padding(8)
+                    .background(Circle().fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+            }
+        } else {
+            Button(action: {
+                HapticsManager.shared.impact(style: .light)
+                showingLocationPicker = true
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: "location.fill")
+                        .font(.subheadline)
+                    Text(viewModel.weather?.location.city ?? "Location")
+                        .font(.subheadline.weight(.medium))
+                }
+                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var toolbarTrailingContent: some View {
+        if isEditMode {
+            Button("Done") {
+                endDashboardEditing()
+            }
+            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+            .fontWeight(.bold)
+        } else {
+            let theme = viewModel.currentTheme(colorScheme: colorScheme)
+            HStack(spacing: 12) {
+                Button {
+                    HapticsManager.shared.impact(style: .light)
+                    showShareCard = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(theme.textColor)
+                        .frame(width: 36, height: 36)
+                }
+                .accessibilityLabel("Share Weather")
+
+                Button {
+                    HapticsManager.shared.impact(style: .light)
+                    showingTimeMachine = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(theme.textColor)
+                        .frame(width: 36, height: 36)
+                }
+                .accessibilityLabel("Time Machine")
+
+                Button {
+                    HapticsManager.shared.impact(style: .light)
+                    showingSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(theme.textColor)
+                        .frame(width: 36, height: 36)
+                }
+                .accessibilityLabel("Settings")
+            }
+        }
+    }
+
     private var mainContent: some View {
         ZStack {
             let theme = viewModel.currentTheme(colorScheme: colorScheme)
@@ -1271,14 +1297,25 @@ struct HourDetailSheet: View {
                 }
             }
             .navigationTitle("Hour Details")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                 }
+                #else
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                }
+                #endif
             }
         }
     }
@@ -5498,7 +5535,9 @@ struct WidgetConfigView: View {
                                             widget.visibleMetrics?.move(fromOffsets: from, toOffset: to)
                                         }
                                     }
+                                    #if os(iOS)
                                     .environment(\.editMode, .constant(.active))
+                                    #endif
                                     .listStyle(.plain)
                                     .scrollContentBackground(.hidden)
                                     .frame(height: max(84, CGFloat(selectedMetrics.count) * 60))
@@ -6238,11 +6277,19 @@ struct ShareWeatherCardView: View {
                 }
             }
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                         .foregroundColor(theme.textColor)
                         .fontWeight(.bold)
                 }
+                #else
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(theme.textColor)
+                        .fontWeight(.bold)
+                }
+                #endif
             }
             .task { renderCard() }
         }
@@ -6383,9 +6430,15 @@ struct ShareWeatherCardView: View {
     private func renderCard() {
         let renderer = ImageRenderer(content: shareCardRenderable)
         renderer.scale = 3.0
+        #if os(iOS)
         if let uiImage = renderer.uiImage {
             renderedImage = Image(uiImage: uiImage)
         }
+        #elseif os(macOS)
+        if let nsImage = renderer.nsImage {
+            renderedImage = Image(nsImage: nsImage)
+        }
+        #endif
     }
 }
 

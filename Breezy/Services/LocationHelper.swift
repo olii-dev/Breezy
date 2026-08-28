@@ -125,11 +125,18 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        if status == .authorizedWhenInUse || status == .authorizedAlways {
+        #if os(macOS)
+        let authorized = status == .authorized
+        #else
+        let authorized = status == .authorizedWhenInUse || status == .authorizedAlways
+        #endif
+        if authorized {
             manager.requestLocation()
+            #if os(iOS)
             if status == .authorizedAlways {
                 startMonitoringSignificantLocationChanges()
             }
+            #endif
         } else if status == .denied || status == .restricted {
             stopMonitoringSignificantLocationChanges()
             continuationHandler?(.failure(NSError(domain: "Location", code: 4, userInfo: [NSLocalizedDescriptionKey: "Authorization denied"])))

@@ -206,25 +206,11 @@ struct CustomColor: Codable, Identifiable, Equatable {
     }
     
     init(color: Color) {
-        if let components = UIColor(color).cgColor.components {
-            if components.count >= 3 {
-                self.red = Double(components[0])
-                self.green = Double(components[1])
-                self.blue = Double(components[2])
-                self.opacity = components.count >= 4 ? Double(components[3]) : 1.0
-            } else if components.count == 2 {
-                // Grayscale
-                self.red = Double(components[0])
-                self.green = Double(components[0])
-                self.blue = Double(components[0])
-                self.opacity = Double(components[1])
-            } else {
-                 // Fallback
-                self.red = 1
-                self.green = 1
-                self.blue = 1
-                self.opacity = 1
-            }
+        if let c = PlatformColor.rgbaComponents(of: color) {
+            self.red = c.r
+            self.green = c.g
+            self.blue = c.b
+            self.opacity = c.a
         } else {
             // Fallback
              self.red = 1

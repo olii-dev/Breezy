@@ -58,7 +58,9 @@ struct CustomThemeBuilderView: View {
                     VStack(spacing: 24) {
                         TextField("Theme Name", text: $themeName)
                             .font(.subheadline.weight(.medium))
+                            #if os(iOS)
                             .textInputAutocapitalization(.words)
+                            #endif
                             .autocorrectionDisabled(true)
                             .foregroundColor(textColor)
                             .padding(.horizontal, 12)
@@ -123,9 +125,13 @@ struct CustomThemeBuilderView: View {
                 .padding(.bottom, 40)
             }
         }
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .navigationTitle(isEditing ? "Edit Theme" : "Build Theme")
+        #if os(iOS)
         .toolbarColorScheme(WeatherTheme(topColor: topColor, bottomColor: bottomColor, textColor: textColor).isDark ? .dark : .light, for: .navigationBar)
+        #endif
     }
 
     private var previewScreen: some View {
