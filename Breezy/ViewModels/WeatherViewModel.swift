@@ -68,7 +68,11 @@ class WeatherViewModel: ObservableObject {
     }
     
     private func reloadSettingsFromPersistence() {
-        shouldFollowGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
+        if UserDefaults.standard.object(forKey: "Breezy.shouldFollowGPS") == nil {
+            shouldFollowGPS = true
+        } else {
+            shouldFollowGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
+        }
         useMinimalistIcons = UserDefaults.standard.object(forKey: "Breezy.useMinimalistIcons") as? Bool ?? true
         showWindChartInDayDetail = UserDefaults.standard.object(forKey: "Breezy.showWindChartInDayDetail") as? Bool ?? true
         showUVChartInDayDetail = UserDefaults.standard.object(forKey: "Breezy.showUVChartInDayDetail") as? Bool ?? true
@@ -81,10 +85,15 @@ class WeatherViewModel: ObservableObject {
         selectedPresetThemeName = UserDefaults.standard.string(forKey: "Breezy.presetTheme") ?? "Cotton Candy"
         weatherSourceRaw = WeatherSourceStore.selectedSource.rawValue
         
-        if let data = UserDefaults.standard.data(forKey: "Breezy.customTheme"),
-           let theme = try? JSONDecoder().decode(WeatherTheme.self, from: data) {
-            customThemes = [theme]
-            selectedCustomThemeID = theme.id
+        if let data = UserDefaults.standard.data(forKey: "Breezy.customThemes"),
+           let themes = try? JSONDecoder().decode([WeatherTheme].self, from: data) {
+            customThemes = themes
+            if let selectedID = UserDefaults.standard.string(forKey: "Breezy.selectedCustomThemeID"),
+               themes.contains(where: { $0.id == selectedID }) {
+                selectedCustomThemeID = selectedID
+            } else {
+                selectedCustomThemeID = themes.first?.id
+            }
         }
 
         syncSelectedCustomThemeToSharedDefaults()
@@ -118,6 +127,11 @@ class WeatherViewModel: ObservableObject {
     
     @Published var shouldFollowGPS: Bool = {
         if UserDefaults.standard.object(forKey: "Breezy.shouldFollowGPS") == nil {
+            UserDefaults.standard.set(true, forKey: "Breezy.shouldFollowGPS")
+            CloudStorage.shared.set(true, forKey: "Breezy.shouldFollowGPS")
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(true, forKey: "Breezy.shouldFollowGPS")
+            }
             return true
         }
         return UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
@@ -295,6 +309,8 @@ class WeatherViewModel: ObservableObject {
     private let notificationManager = NotificationManager.shared
     private var previousWeather: WeatherInfo?
     private var latestWeatherFetchID = UUID()
+    private var latestHistoricalFetchID = UUID()
+    private var latestHistoricalRangeFetchID = UUID()
 
     var lastUpdatedDate: Date? {
         guard let timestamp = weather?.timestamp else { return nil }
@@ -895,21 +911,17 @@ class WeatherViewModel: ObservableObject {
             return
         }
         
-        // Using GPS location - check cache first
+        // Using GPS location - show cache immediately, then always refresh from live GPS
         loadCacheIfValid()
         
-        // If we have valid cached data, stop here
-        if weather != nil {
-            return
-        }
-        
-        // Otherwise fetch GPS location
         Task {
             do {
                 let location = try await locationHelper.requestLocationAndGetData()
                 await fetchWeather(for: location, isManualRefresh: false)
             } catch {
-                self.error = "We couldn't determine your location yet. Choose a city manually or try again."
+                if weather == nil {
+                    self.error = "We couldn't determine your location yet. Choose a city manually or try again."
+                }
             }
         }
     }
@@ -960,7 +972,7 @@ class WeatherViewModel: ObservableObject {
             // Check for minute precipitation alerts (with cooldown built-in)
             notificationManager.checkMinutePrecipitation(weather: info)
             
-            // Handle notifications - never on manual refresh or app startup
+            // Handle notifications - never on manual refresh or first app fetch
             let locationChanged = previousWeather?.location.city != location.city
             
             if !isManualRefresh && shouldTriggerNotifications(oldWeather: previousWeather, newWeather: info, locationChanged: locationChanged) {
@@ -1019,6 +1031,8 @@ class WeatherViewModel: ObservableObject {
     func fetchHistoricalWeather(for date: Date, slot: Int = 1) async {
         guard let location = currentLocation else { return }
         
+        let requestID = UUID()
+        latestHistoricalFetchID = requestID
         self.historicalLoading = true
         self.historicalError = nil
         if slot == 1 {
@@ -1029,12 +1043,14 @@ class WeatherViewModel: ObservableObject {
         
         do {
             let info = try await weatherProviderManager.fetchHistoricalWeather(for: location, date: date, formatting: formattingContext)
+            guard latestHistoricalFetchID == requestID else { return }
             if slot == 1 {
                 self.historicalWeather = info
             } else {
                 self.historicalWeather2 = info
             }
         } catch {
+            guard latestHistoricalFetchID == requestID else { return }
             let nsError = error as NSError
             if let description = nsError.userInfo[NSLocalizedDescriptionKey] as? String,
                !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1044,7 +1060,9 @@ class WeatherViewModel: ObservableObject {
             }
         }
         
-        self.historicalLoading = false
+        if latestHistoricalFetchID == requestID {
+            self.historicalLoading = false
+        }
     }
     
     // MARK: - Historical Range (for Charts)
@@ -1052,23 +1070,30 @@ class WeatherViewModel: ObservableObject {
     func fetchHistoricalRange(startDate: Date, endDate: Date) async {
         guard let location = currentLocation else { return }
         
+        let requestID = UUID()
+        latestHistoricalRangeFetchID = requestID
         self.historicalLoading = true
         self.historicalError = nil
         self.historicalRange = []
         
         do {
-            self.historicalRange = try await weatherProviderManager.fetchHistoricalRange(
+            let range = try await weatherProviderManager.fetchHistoricalRange(
                 for: location,
                 startDate: startDate,
                 endDate: endDate,
                 formatting: formattingContext
             )
+            guard latestHistoricalRangeFetchID == requestID else { return }
+            self.historicalRange = range
             
         } catch {
+            guard latestHistoricalRangeFetchID == requestID else { return }
             self.historicalError = "Unable to load historical chart data."
         }
         
-        self.historicalLoading = false
+        if latestHistoricalRangeFetchID == requestID {
+            self.historicalLoading = false
+        }
     }
     
     // MARK: - Compare Mode
@@ -1336,7 +1361,7 @@ class WeatherViewModel: ObservableObject {
             let averageHumidity = humidityValues.isEmpty ? nil : Int(round(Double(humidityValues.reduce(0, +)) / Double(humidityValues.count)))
             
             let dayName = index == 0 ? "Today" : DateFormatterHelper.formatDayName(day.date, timeZone: timeZone)
-            let dateStr = DateFormatterHelper.dateFormatter.string(from: day.date)
+            let dateStr = DateFormatterHelper.formatDate(day.date, timeZone: timeZone)
             
             let (high, low) = getDayHighLow(from: day)
             let condition = WeatherConditionConverter.description(from: day.condition)
@@ -1349,7 +1374,23 @@ class WeatherViewModel: ObservableObject {
             let sunset = DateFormatterHelper.formatTime(sunsetDate, timeZone: timeZone)
             
             // Extract moon phase and moon times
-            let moonPhase = extractMoonPhase(from: day)
+            let moonPhase: MoonPhase = {
+                let name: String
+                let fraction: Double
+                switch day.moon.phase {
+                case .new: name = "New Moon"; fraction = 0.0
+                case .waxingCrescent: name = "Waxing Crescent"; fraction = 0.125
+                case .firstQuarter: name = "First Quarter"; fraction = 0.25
+                case .waxingGibbous: name = "Waxing Gibbous"; fraction = 0.375
+                case .full: name = "Full Moon"; fraction = 0.5
+                case .waningGibbous: name = "Waning Gibbous"; fraction = 0.625
+                case .lastQuarter: name = "Last Quarter"; fraction = 0.75
+                case .waningCrescent: name = "Waning Crescent"; fraction = 0.875
+                @unknown default:
+                    return MoonPhaseHelper.moonPhase(for: day.date)
+                }
+                return MoonPhaseHelper.moonPhase(named: name, approximateFraction: fraction, date: day.date)
+            }()
             let moonrise = day.moon.moonrise.map { DateFormatterHelper.formatTime($0, timeZone: timeZone) }
             let moonset = day.moon.moonset.map { DateFormatterHelper.formatTime($0, timeZone: timeZone) }
 
@@ -1595,24 +1636,6 @@ class WeatherViewModel: ObservableObject {
         )
     }
     
-    private func extractMoonPhase(from day: DayWeather) -> MoonPhase? {
-        // WeatherKit provides moon phase information through moon events
-        // Moon illumination is typically 0.0 to 1.0, but we need to calculate it from moon phase
-        // For now, we'll use a simple calculation based on the date
-        let calendar = Calendar.current
-        let daysSinceNewMoon = calendar.dateComponents([.day], from: calendar.startOfDay(for: day.date), to: Date()).day ?? 0
-        let illumination = abs(sin(Double(daysSinceNewMoon % 29) / 29.0 * 2 * .pi))
-        
-        let phaseName = MoonPhaseHelper.phaseName(from: illumination)
-        let icon = MoonPhaseHelper.icon(for: phaseName)
-        
-        return MoonPhase(
-            phase: phaseName,
-            illumination: illumination,
-            icon: icon
-        )
-    }
-    
     private func saveWidgetData(
         cityName: String,
         tempRaw: String,
@@ -1628,17 +1651,21 @@ class WeatherViewModel: ObservableObject {
         isDaylight: Bool = true,
         dailyForecast: [DailyForecast]
     ) {
-        // Get current hour
-        let calendar = Calendar.current
-        let currentHour = calendar.component(.hour, from: Date())
+        // Prefer location timezone for "current hour" so remote cities don't skip wrong slots
+        var calendar = Calendar.current
+        if let tzID = currentLocation?.timezoneIdentifier,
+           let tz = TimeZone(identifier: tzID) {
+            calendar.timeZone = tz
+        }
+        let now = Date()
+        let currentHour = calendar.component(.hour, from: now)
         
-        // Filter to next 24 hours
-        // Since todayHourlyForecast now contains "next 24 hours", we can just use it directly
-        // But we still want to filter out any that might be in the past (just in case)
         let futureHours = todayHourlyForecast.filter { hour in
-            // Filter out past hours, but keep current hour
-            // Note: Since todayHourlyForecast is already filtered to >= now, this is just a safety check
-            return true
+            if let sourceDate = hour.sourceDate {
+                return sourceDate >= calendar.date(bySettingHour: currentHour, minute: 0, second: 0, of: now) ?? now
+            }
+            // Fallback when sourceDate is missing: keep current and later clock hours today
+            return hour.hourValue >= currentHour || hour.time == "Now"
         }
         
         // Build widget hourly forecast: start with "Now", then next 2 hours for small/medium,
@@ -1794,16 +1821,11 @@ class WeatherViewModel: ObservableObject {
         // Don't trigger on first fetch (app startup)
         guard oldWeather != nil else { return false }
         
-        // Only trigger on background location changes (significant location change)
-        // This indicates the user moved to a new location, not a manual refresh
-        if locationChanged {
-            return true
-        }
-        
-        // Don't trigger on regular weather updates - only on actual events
-        // Severe weather, rain, and UV alerts will be checked but only fire if conditions are met
-        // The daily forecast is scheduled separately and doesn't need this check
-        return false
+        // Run alert checks on subsequent automatic refreshes (cooldowns live in NotificationManager).
+        // Location changes also qualify.
+        _ = locationChanged
+        _ = newWeather
+        return true
     }
     
     private func parseTemperature(_ tempString: String) -> Double {

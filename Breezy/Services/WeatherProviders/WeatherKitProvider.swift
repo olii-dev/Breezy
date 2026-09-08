@@ -208,12 +208,29 @@ final class WeatherKitProvider: WeatherProviding {
     }
 
     private func extractMoonPhase(from day: DayWeather) -> MoonPhase? {
-        let calendar = Calendar.current
-        let daysSinceReference = calendar.dateComponents([.day], from: calendar.startOfDay(for: day.date), to: Date()).day ?? 0
-        let illumination = abs(sin(Double(daysSinceReference % 29) / 29.0 * 2.0 * .pi))
-        let phaseName = MoonPhaseHelper.phaseName(from: illumination)
-        let icon = MoonPhaseHelper.icon(for: phaseName)
-        return MoonPhase(phase: phaseName, illumination: illumination, icon: icon)
+        let name: String
+        let fraction: Double
+        switch day.moon.phase {
+        case .new:
+            name = "New Moon"; fraction = 0.0
+        case .waxingCrescent:
+            name = "Waxing Crescent"; fraction = 0.125
+        case .firstQuarter:
+            name = "First Quarter"; fraction = 0.25
+        case .waxingGibbous:
+            name = "Waxing Gibbous"; fraction = 0.375
+        case .full:
+            name = "Full Moon"; fraction = 0.5
+        case .waningGibbous:
+            name = "Waning Gibbous"; fraction = 0.625
+        case .lastQuarter:
+            name = "Last Quarter"; fraction = 0.75
+        case .waningCrescent:
+            name = "Waning Crescent"; fraction = 0.875
+        @unknown default:
+            return MoonPhaseHelper.moonPhase(for: day.date)
+        }
+        return MoonPhaseHelper.moonPhase(named: name, approximateFraction: fraction, date: day.date)
     }
 
     private func resolveTimeZone(for location: CLLocation) async -> TimeZone {

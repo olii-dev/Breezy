@@ -105,6 +105,8 @@ struct MoonPhaseView2: View {
     let phase: MoonPhase // Our model
     let size: CGFloat
     let color: Color
+    /// When false, only the moon glyph is shown (card supplies captions).
+    var showsCaptions: Bool = false
     
     var body: some View {
         VStack(spacing: 8) {
@@ -116,22 +118,23 @@ struct MoonPhaseView2: View {
                     .blur(radius: 10)
                 
                 // Moon
-                // Use symbol rendering modes for "Palette" to get gray/white contrast
                 Image(systemName: MoonPhaseHelper.icon(for: phase.phase))
                     .resizable()
                     .symbolRenderingMode(.palette)
-                    .foregroundStyle(color.opacity(0.9), color.opacity(0.3)) // Light part, Dark part
+                    .foregroundStyle(color.opacity(0.9), color.opacity(0.3))
                     .aspectRatio(contentMode: .fit)
                     .frame(width: size, height: size)
             }
             
-            Text("\(Int(phase.illumination * 100))%")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(color)
-            
-            Text(phase.phase)
-                .font(.caption)
-                .foregroundColor(color.opacity(0.7))
+            if showsCaptions {
+                Text("\(Int(phase.illumination * 100))%")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(color)
+                
+                Text(phase.phase)
+                    .font(.caption)
+                    .foregroundColor(color.opacity(0.7))
+            }
         }
     }
 }

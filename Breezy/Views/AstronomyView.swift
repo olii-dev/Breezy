@@ -61,8 +61,16 @@ struct AstronomyDetailView: View {
             daylightDuration = nil
         }
 
-        let goldenHourMorning = formattedGoldenHourWindow(around: sunrise, leadingMinutes: 30, trailingMinutes: 60)
-        let goldenHourEvening = formattedGoldenHourWindow(around: sunset, leadingMinutes: 60, trailingMinutes: 30)
+        let goldenHourMorning: String? = {
+            guard let sunrise else { return nil }
+            let window = GoldenHourHelper.window(sunDate: sunrise, isMorning: true)
+            return "\(DateFormatterHelper.formatTime(window.start)) to \(DateFormatterHelper.formatTime(window.end))"
+        }()
+        let goldenHourEvening: String? = {
+            guard let sunset else { return nil }
+            let window = GoldenHourHelper.window(sunDate: sunset, isMorning: false)
+            return "\(DateFormatterHelper.formatTime(window.start)) to \(DateFormatterHelper.formatTime(window.end))"
+        }()
 
         return SolarSummary(
             sunrise: sunrise,

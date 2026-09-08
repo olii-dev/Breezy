@@ -131,7 +131,7 @@ class RadarService {
 
     /// Public RainViewer frame model (path + time)
     struct RainViewerFrameData: Identifiable, Equatable {
-        let id = UUID()
+        var id: String { path }
         let path: String
         let time: Date
         let isNowcast: Bool
@@ -265,14 +265,30 @@ class RadarService {
                 return
             }
 
+            let pastFrames = (payload.radar?.past ?? []).map { frame in
+                RainViewerFrameData(
+                    path: frame.path,
+                    time: Date(timeIntervalSince1970: TimeInterval(frame.time ?? 0)),
+                    isNowcast: false
+                )
+            }
+            let nowcastFrames = (payload.radar?.nowcast ?? []).map { frame in
+                RainViewerFrameData(
+                    path: frame.path,
+                    time: Date(timeIntervalSince1970: TimeInterval(frame.time ?? 0)),
+                    isNowcast: true
+                )
+            }
+            let allFrames = pastFrames + nowcastFrames
             let selectedFramePath =
-                payload.radar?.past?.last?.path ??
-                payload.radar?.nowcast?.first?.path ??
-                payload.radar?.past?.first?.path
+                pastFrames.last?.path ??
+                nowcastFrames.first?.path ??
+                pastFrames.first?.path
 
             self.stateQueue.sync {
                 self.cachedRainViewerHost = payload.host ?? self.rainViewerDefaultHost
                 self.cachedRainViewerFramePath = selectedFramePath
+                self.cachedRainViewerFrames = allFrames
                 self.lastRainViewerRefresh = Date()
             }
         }.resume()

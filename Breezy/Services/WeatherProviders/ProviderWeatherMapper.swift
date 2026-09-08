@@ -187,7 +187,7 @@ enum ProviderWeatherMapper {
             let averageHumidity = humidityValues.isEmpty ? nil : Int(round(Double(humidityValues.reduce(0, +)) / Double(humidityValues.count)))
 
             return DailyForecast(
-                date: DateFormatterHelper.dateFormatter.string(from: day.date),
+                date: DateFormatterHelper.formatDate(day.date, timeZone: timezone),
                 dayName: index == 0 ? "Today" : DateFormatterHelper.formatDayName(day.date, timeZone: timezone),
                 highTemp: formatting.formattedTemperature(day.highTemperatureCelsius, includeUnit: false),
                 lowTemp: formatting.formattedTemperature(day.lowTemperatureCelsius, includeUnit: false),

@@ -188,6 +188,7 @@ class NotificationManager: NSObject, ObservableObject {
             
             // 1 = Sunday, 7 = Saturday
             if weekday == 1 || weekday == 7 {
+                cancelDailyForecast()
                 return
             }
         }
@@ -422,22 +423,36 @@ class NotificationManager: NSObject, ObservableObject {
         Self.parseWindSpeedValue(windString)
     }
 
+    /// Parse display wind string and return speed in **mph** for severe-weather heuristics.
     private static func parseWindSpeedValue(_ windString: String) -> Double? {
-        // Parse wind speed from strings like "25 mph" or "40 km/h"
+        guard let metersPerSecond = parseWindSpeedMetersPerSecond(windString) else { return nil }
+        return metersPerSecond * 2.23694
+    }
+
+    /// Parse display wind string ("12 m/s", "40 km/h", "25 mph", "20 Knots") to m/s.
+    private static func parseWindSpeedMetersPerSecond(_ windString: String) -> Double? {
         let lowercased = windString.lowercased()
-        let isKmh = lowercased.contains("km/h")
         let cleaned = lowercased
-            .replacingOccurrences(of: "mph", with: "")
             .replacingOccurrences(of: "km/h", with: "")
+            .replacingOccurrences(of: "m/s", with: "")
+            .replacingOccurrences(of: "mph", with: "")
+            .replacingOccurrences(of: "knots", with: "")
+            .replacingOccurrences(of: "knot", with: "")
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "[^0-9.-]", with: "", options: .regularExpression)
-        
+
         guard let value = Double(cleaned) else { return nil }
-        
-        // Convert km/h to mph for comparison (threshold is in mph)
-        if isKmh {
-            return value * 0.621371 // Convert km/h to mph
+
+        if lowercased.contains("km/h") {
+            return value / 3.6
         }
+        if lowercased.contains("mph") {
+            return value / 2.23694
+        }
+        if lowercased.contains("knot") {
+            return value / 1.94384
+        }
+        // Default: m/s (app default wind unit)
         return value
     }
     
@@ -761,24 +776,33 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         guard let displayTemp = Double(numericString) else { return }
         let currentCelsius = temperatureUnit == .celsius ? displayTemp : (displayTemp - 32) * 5.0 / 9.0
 
-        // Stored value is kept in Celsius.
-        let yesterdayCelsius = UserDefaults.standard.double(forKey: "Breezy.lastTemperature")
+        let defaults = UserDefaults.standard
+        let lastCelsius = defaults.double(forKey: "Breezy.lastTemperature")
+        let lastDate = defaults.object(forKey: "Breezy.lastTemperatureDate") as? Date
+        let lastCity = defaults.string(forKey: "Breezy.lastTemperatureCity")
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
 
-        guard yesterdayCelsius != 0 else {
-            UserDefaults.standard.set(currentCelsius, forKey: "Breezy.lastTemperature")
-            return
+        defer {
+            defaults.set(currentCelsius, forKey: "Breezy.lastTemperature")
+            defaults.set(Date(), forKey: "Breezy.lastTemperatureDate")
+            defaults.set(weather.location.city, forKey: "Breezy.lastTemperatureCity")
         }
 
-        let change = abs(currentCelsius - yesterdayCelsius)
+        guard lastCelsius != 0, let lastDate else { return }
+
+        // Only compare against a sample from a previous calendar day in the same city.
+        let lastDay = calendar.startOfDay(for: lastDate)
+        guard lastDay < today else { return }
+        if let lastCity, lastCity != weather.location.city { return }
+
+        let change = abs(currentCelsius - lastCelsius)
 
         if change >= Double(settings.temperatureChangeThreshold) {
-            let isWarmer = currentCelsius > yesterdayCelsius
-            // Report the magnitude in the user's chosen display unit.
+            let isWarmer = currentCelsius > lastCelsius
             let changeInDisplayUnit = temperatureUnit == .celsius ? change : change * 9.0 / 5.0
             sendTemperatureChangeAlert(change: changeInDisplayUnit, isWarmer: isWarmer, temperatureUnit: temperatureUnit, weather: weather)
         }
-
-        UserDefaults.standard.set(currentCelsius, forKey: "Breezy.lastTemperature")
     }
     
     private func sendTemperatureChangeAlert(change: Double, isWarmer: Bool, temperatureUnit: TemperatureUnit, weather: WeatherInfo) {
@@ -810,11 +834,20 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         guard !isInQuietHours() else { return }
         
         guard let windSpeed = weather.metrics?.windSpeed else { return }
+        guard let speedMetersPerSecond = Self.parseWindSpeedMetersPerSecond(windSpeed) else { return }
+
+        let windUnit = WindSpeedUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.windSpeedUnit") ?? WindSpeedUnit.metersPerSecond.rawValue) ?? .metersPerSecond
+        let thresholdMetersPerSecond: Double = {
+            let threshold = Double(settings.windSpeedThreshold)
+            switch windUnit {
+            case .metersPerSecond: return threshold
+            case .kilometersPerHour: return threshold / 3.6
+            case .milesPerHour: return threshold / 2.23694
+            case .knots: return threshold / 1.94384
+            }
+        }()
         
-        let components = windSpeed.split(separator: " ")
-        guard let speedString = components.first, let speedValue = Double(speedString) else { return }
-        
-        if speedValue >= Double(settings.windSpeedThreshold) {
+        if speedMetersPerSecond >= thresholdMetersPerSecond {
             sendWindAlert(speed: windSpeed, weather: weather)
         }
     }

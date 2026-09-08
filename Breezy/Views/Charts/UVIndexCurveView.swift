@@ -22,9 +22,13 @@ struct UVIndexCurveView: View {
         WeatherFont(rawValue: typographyRaw)?.design ?? .default
     }
 
+    private var annotationColor: Color {
+        colorScheme == .dark ? .white : .black
+    }
+
     private var chartHours: [HourlyForecast] {
         // Drop yesterday's hours (allHourlyData now includes past_days=1) so the
-        // curve reflects the upcoming day and each hourValue appears only once.
+        // curve reflects the upcoming day.
         let now = Date()
         let upcoming = hourlyForecast
             .filter { ($0.uvIndex ?? 0) >= 0 }
@@ -48,42 +52,33 @@ struct UVIndexCurveView: View {
         return Array(upcoming.prefix(limit))
     }
 
-    private var chartDomain: ClosedRange<Double> {
-        guard let first = chartHours.first?.hourValue, let last = chartHours.last?.hourValue else {
-            return 0...24
+    private var peakIndex: Int? {
+        guard let peak = chartHours.enumerated().max(by: { ($0.element.uvIndex ?? 0) < ($1.element.uvIndex ?? 0) }) else {
+            return nil
         }
-        if first == last {
-            let start = max(0, first - 1)
-            let end = min(24, last + 1)
-            return Double(start)...Double(end)
-        }
-        return Double(first)...Double(last)
+        guard (peak.element.uvIndex ?? 0) > 0 else { return nil }
+        return peak.offset
     }
 
-    private var peakHour: HourlyForecast? {
-        chartHours.max { ($0.uvIndex ?? 0) < ($1.uvIndex ?? 0) }
+    private var nowIndex: Int? {
+        let currentHour = Calendar.current.component(.hour, from: Date())
+        if let byDate = chartHours.firstIndex(where: {
+            guard let date = $0.sourceDate else { return false }
+            return abs(date.timeIntervalSinceNow) < 1800
+        }) {
+            return byDate
+        }
+        return chartHours.firstIndex(where: { $0.hourValue == currentHour })
     }
 
     private var xAxisValues: [Int] {
-        let hours = chartHours.map(\.hourValue)
-        guard let first = hours.first, let last = hours.last else { return [0, 6, 12, 18, 23] }
-
-        if hours.count <= 4 {
-            return hours
+        guard !chartHours.isEmpty else { return [0] }
+        let strideStep = rangeHours <= 12 ? 3 : 6
+        return chartHours.indices.filter { index in
+            index == 0 || index == chartHours.count - 1 || index % strideStep == 0
         }
-
-        let desiredStep = rangeHours <= 12 ? 3 : 6
-        var marks = Array(stride(from: first, through: last, by: desiredStep))
-        if marks.first != first {
-            marks.insert(first, at: 0)
-        }
-        if marks.last != last {
-            marks.append(last)
-        }
-        return Array(Set(marks)).sorted()
     }
     
-    // UV Categories for color coding
     func color(for uv: Int) -> Color {
         switch uv {
         case 0...2: return .green
@@ -94,32 +89,32 @@ struct UVIndexCurveView: View {
         }
     }
     
+    @State private var selectedIndex: Int?
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             chartView
         }
     }
     
-    @State private var selectedHour: Int?
-    
     var chartView: some View {
-        VStack(spacing: 8) {
+        let xDomainMax = max(chartHours.count - 1, 1)
+        return VStack(spacing: 8) {
             Chart {
-                ForEach(chartHours) { hour in
-                    // Area under curve with vertical gradient
+                ForEach(Array(chartHours.enumerated()), id: \.element.id) { index, hour in
                     AreaMark(
-                        x: .value("Time", hour.hourValue),
+                        x: .value("Index", index),
                         y: .value("UV", hour.uvIndex ?? 0)
                     )
                     .interpolationMethod(.catmullRom)
                     .foregroundStyle(
                         LinearGradient(
                             stops: [
-                                .init(color: .green, location: 0.0),    // UV 0
-                                .init(color: .yellow, location: 0.25),  // UV 3
-                                .init(color: .orange, location: 0.5),   // UV 6
-                                .init(color: .red, location: 0.75),     // UV 9
-                                .init(color: .purple, location: 1.0)    // UV 12+
+                                .init(color: .green, location: 0.0),
+                                .init(color: .yellow, location: 0.25),
+                                .init(color: .orange, location: 0.5),
+                                .init(color: .red, location: 0.75),
+                                .init(color: .purple, location: 1.0)
                             ],
                             startPoint: .bottom,
                             endPoint: .top
@@ -127,9 +122,8 @@ struct UVIndexCurveView: View {
                         .opacity(0.6)
                     )
                     
-                    // Line on top
                     LineMark(
-                        x: .value("Time", hour.hourValue),
+                        x: .value("Index", index),
                         y: .value("UV", hour.uvIndex ?? 0)
                     )
                     .interpolationMethod(.catmullRom)
@@ -148,13 +142,12 @@ struct UVIndexCurveView: View {
                     )
                     .lineStyle(StrokeStyle(lineWidth: 3))
                     .symbol {
-                        // Show symbol for selected hour or current time (if nothing selected)
-                        if let selected = selectedHour, selected == hour.hourValue {
+                        if let selected = selectedIndex, selected == index {
                             Circle()
-                                .fill(colorScheme == .dark ? .white : .black)
+                                .fill(annotationColor)
                                 .frame(width: 8, height: 8)
                                 .shadow(radius: 2)
-                        } else if selectedHour == nil, hour.hourValue == Calendar.current.component(.hour, from: Date()) {
+                        } else if selectedIndex == nil, nowIndex == index {
                             Circle()
                                 .fill(.white)
                                 .frame(width: 10, height: 10)
@@ -162,16 +155,15 @@ struct UVIndexCurveView: View {
                         }
                     }
                     
-                    // RuleMark for scrubbing interaction
-                    if let selected = selectedHour, selected == hour.hourValue {
-                        RuleMark(x: .value("Time", selected))
+                    if let selected = selectedIndex, selected == index {
+                        RuleMark(x: .value("Index", selected))
                             .lineStyle(StrokeStyle(lineWidth: 1))
-                            .foregroundStyle(colorScheme == .dark ? .white.opacity(0.5) : .black.opacity(0.5))
+                            .foregroundStyle(annotationColor.opacity(0.5))
                             .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
                                 VStack(spacing: 4) {
                                     Text("\(hour.uvIndex ?? 0)")
                                         .font(.system(.title3, design: typographyDesign).bold())
-                                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                                        .foregroundColor(annotationColor)
                                 
                                     Text(formatHour(hour.hourValue))
                                         .font(.caption2.weight(.medium))
@@ -183,28 +175,23 @@ struct UVIndexCurveView: View {
                                 .cornerRadius(12)
                                 .shadow(radius: 6)
                             }
-                    } else if selectedHour == nil, hour.hourValue == Calendar.current.component(.hour, from: Date()) {
-                         // Default "Now" indicator when not scrubbing
-                        PointMark(
-                            x: .value("Time", hour.hourValue),
-                            y: .value("UV", hour.uvIndex ?? 0)
-                        )
-                        .symbolSize(0)
                     }
                 }
                 
-                if showPeak, selectedHour == nil, let peakHour, let peakValue = peakHour.uvIndex, peakValue > 0 {
-                    RuleMark(x: .value("Peak Hour", peakHour.hourValue))
+                if showPeak, selectedIndex == nil, let peakIndex, chartHours.indices.contains(peakIndex) {
+                    let peakHour = chartHours[peakIndex]
+                    let peakValue = peakHour.uvIndex ?? 0
+                    RuleMark(x: .value("Peak", peakIndex))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                         .foregroundStyle(color(for: peakValue).opacity(0.8))
                         .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
                             VStack(spacing: 4) {
                                 Text("Peak UV")
                                     .font(.caption2.weight(.semibold))
-                                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.78) : .black.opacity(0.72))
+                                    .foregroundColor(annotationColor.opacity(0.78))
                                 Text("\(peakValue)")
                                     .font(.system(.headline, design: typographyDesign).weight(.bold))
-                                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                                    .foregroundColor(annotationColor)
                                 Text(formatHour(peakHour.hourValue))
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
@@ -231,15 +218,16 @@ struct UVIndexCurveView: View {
                                         y: value.location.y - frame.origin.y
                                     )
                                     guard location.x >= 0, location.x <= frame.width else { return }
-                                    if let hour: Int = proxy.value(atX: location.x) {
-                                        if hour != self.selectedHour {
+                                    if let index: Int = proxy.value(atX: location.x) {
+                                        let clamped = min(max(index, 0), chartHours.count - 1)
+                                        if clamped != self.selectedIndex {
                                             HapticsManager.shared.impact(style: .light)
                                         }
-                                        self.selectedHour = hour
+                                        self.selectedIndex = clamped
                                     }
                                 }
                                 .onEnded { _ in
-                                    self.selectedHour = nil
+                                    self.selectedIndex = nil
                                 }
                         )
                 }
@@ -247,8 +235,8 @@ struct UVIndexCurveView: View {
             .chartXAxis {
                 AxisMarks(values: xAxisValues) { value in
                     AxisValueLabel {
-                        if let hour = value.as(Int.self), hour >= 0 && hour < 24 {
-                            Text(formatAxisHour(hour))
+                        if let index = value.as(Int.self), chartHours.indices.contains(index) {
+                            Text(formatAxisHour(chartHours[index].hourValue))
                                 .font(.system(size: 11, weight: .medium))
                         }
                     }
@@ -261,7 +249,7 @@ struct UVIndexCurveView: View {
                 }
             }
             .chartYScale(domain: 0...12)
-            .chartXScale(domain: chartDomain)
+            .chartXScale(domain: 0...xDomainMax)
             .frame(height: 180)
         }
         .padding(.horizontal)
@@ -277,7 +265,6 @@ struct UVIndexCurveView: View {
             return "\(hour):00"
         }
         let displayHour = (hour == 0 || hour == 12 || hour == 24) ? 12 : hour % 12
-        let suffix = hour < 12 || hour == 24 ? "AM" : "PM"
-        return "\(displayHour) \(suffix)"
+        return "\(displayHour)\(hour < 12 || hour == 24 ? "AM" : "PM")"
     }
 }

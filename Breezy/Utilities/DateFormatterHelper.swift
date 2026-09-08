@@ -52,10 +52,22 @@ struct DateFormatterHelper {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+
+    static func formatDate(_ date: Date, timeZone: TimeZone? = nil) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        if let timeZone {
+            formatter.timeZone = timeZone
+        }
+        return formatter.string(from: date)
+    }
     
-    static func formatShortDate(_ date: Date) -> String {
+    static func formatShortDate(_ date: Date, timeZone: TimeZone? = nil) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "M/d"
+        if let timeZone {
+            formatter.timeZone = timeZone
+        }
         return formatter.string(from: date)
     }
     

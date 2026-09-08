@@ -731,7 +731,10 @@ struct Provider: TimelineProvider {
         // B. If that fails OR if "Follow GPS" is OFF -> Use cached coordinates
         
         let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
-        let shouldFollowGPS = defaults?.bool(forKey: "Breezy.shouldFollowGPS") ?? false
+        let shouldFollowGPS: Bool = {
+            if defaults?.object(forKey: "Breezy.shouldFollowGPS") == nil { return true }
+            return defaults?.bool(forKey: "Breezy.shouldFollowGPS") ?? true
+        }()
         
         // We'll define a quick aligned struct for location
         struct Coord { let lat: Double; let lon: Double }
@@ -739,6 +742,7 @@ struct Provider: TimelineProvider {
         // Define flow in a Task
         Task {
             var targetLocation: Coord? = nil
+            var resolvedFromGPS = false
             
             // Try GPS if enabled
             if shouldFollowGPS {
@@ -748,6 +752,7 @@ struct Provider: TimelineProvider {
                 do {
                     let loc = try await WidgetLocationManager.shared.requestLocation()
                     targetLocation = Coord(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude)
+                    resolvedFromGPS = true
                     // Update cache for next time
                     defaults?.set(loc.coordinate.latitude, forKey: "LastLatitude")
                     defaults?.set(loc.coordinate.longitude, forKey: "LastLongitude")
@@ -767,9 +772,19 @@ struct Provider: TimelineProvider {
                  return 
             }
             
+            // Skip freshness short-circuit when GPS moved ~1.5km+ from cached city
+            let locationMovedSignificantly: Bool = {
+                guard resolvedFromGPS,
+                      let cachedLat = cachedData.latitude,
+                      let cachedLon = cachedData.longitude else { return false }
+                let cached = CLLocation(latitude: cachedLat, longitude: cachedLon)
+                let current = CLLocation(latitude: coords.lat, longitude: coords.lon)
+                return current.distance(from: cached) > 1500
+            }()
+            
             // OPTIMIZATION: Check if data is already fresh (within 30 mins)
             // If app refreshed recently, skip API call and use cached data
-            if WeatherDataStore.isDataFresh(for: selectedSource) {
+            if !locationMovedSignificantly, WeatherDataStore.isDataFresh(for: selectedSource) {
                 createTimeline(from: cachedData)
                 return
             }
@@ -803,11 +818,11 @@ struct Provider: TimelineProvider {
                 let tempUnitRaw = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
                 let windUnitRaw = defaults?.string(forKey: "Breezy.windSpeedUnit") ?? "m/s"
                 let precipUnitRaw = defaults?.string(forKey: "Breezy.precipitationUnit") ?? "Millimeters"
-                // let pressUnitRaw = defaults?.string(forKey: "Breezy.pressureUnit") ?? "hPa"
-                // let visUnitRaw = defaults?.string(forKey: "Breezy.visibilityUnit") ?? "Kilometers"
+                let visUnitRaw = defaults?.string(forKey: "Breezy.visibilityUnit") ?? "Kilometers"
                 
                 let isFahrenheit = tempUnitRaw == "Fahrenheit"
                 let precipitationUnit = PrecipitationUnit(rawValue: precipUnitRaw) ?? .millimeters
+                let visibilityUnit = VisibilityUnit(rawValue: visUnitRaw) ?? .kilometers
                 
                 // Current Temp
                 let currentTemp = weather.currentWeather.temperature
@@ -866,8 +881,8 @@ struct Provider: TimelineProvider {
                 let humidityStr = String(format: "%.0f%%", humidityVal * 100)
                 
                 // Visibility
-                let visVal = weather.currentWeather.visibility
-                let visStr = String(format: "%.1f km", visVal.converted(to: .kilometers).value)
+                let visVal = weather.currentWeather.visibility.converted(to: .meters).value
+                let visStr = String(format: "%.1f %@", visibilityUnit.convert(visVal), visibilityUnit.symbol)
                 
                 // Hourly (Next 12h)
                 var hourlyForecasts: [WidgetWeatherData.WidgetHourlyForecast] = []
@@ -1688,7 +1703,13 @@ struct CustomWidgetView: View {
             metricStack(icon: "humidity.fill", value: entry.weather.humidity ?? "--", label: "", alignment: align)
             
         case .visibility:
-             metricStack(icon: "eye.fill", value: entry.weather.visibility?.components(separatedBy: " ").first ?? "--", label: "km", alignment: align)
+            let visComponents = (entry.weather.visibility ?? "--").split(separator: " ", maxSplits: 1).map(String.init)
+            metricStack(
+                icon: "eye.fill",
+                value: visComponents.first ?? "--",
+                label: visComponents.count > 1 ? visComponents[1] : "",
+                alignment: align
+            )
             
         case .feelsLike:
              // Need to add feels like to data model in future, using temp for now as placeholder or skipping

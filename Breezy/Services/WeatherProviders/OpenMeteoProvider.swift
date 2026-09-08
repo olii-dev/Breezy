@@ -229,7 +229,7 @@ final class OpenMeteoProvider: WeatherProviding {
             condition: currentCondition,
             conditionCode: String(response.current.weatherCode),
             isDaylight: response.current.isDay == 1,
-            uvIndex: hourly.first(where: { Calendar.current.isDate($0.date, equalTo: currentDate, toGranularity: .hour) })?.uvIndex ?? 0,
+            uvIndex: hourly.first(where: { calendar.isDate($0.date, equalTo: currentDate, toGranularity: .hour) })?.uvIndex ?? 0,
             pressureHectopascals: response.current.pressureMSL,
             visibilityMeters: response.current.visibility,
             dewPointCelsius: nil,
@@ -300,7 +300,7 @@ final class OpenMeteoProvider: WeatherProviding {
                 uvIndexMax: value(at: index, in: source.uvIndexMax).map { Int(round($0)) },
                 sunrise: sunriseDates[safe: index],
                 sunset: sunsetDates[safe: index],
-                moonPhase: nil,
+                moonPhase: MoonPhaseHelper.moonPhase(for: date),
                 moonrise: nil,
                 moonset: nil
             )
@@ -385,7 +385,7 @@ final class OpenMeteoProvider: WeatherProviding {
             swellHeightMeters: current.swellWaveHeight ?? current.windWaveHeight,
             swellDirectionDegrees: current.swellWaveDirection,
             seaSurfaceTemperatureCelsius: current.seaSurfaceTemperature,
-            currentSpeedMetersPerSecond: current.oceanCurrentVelocity,
+            currentSpeedMetersPerSecond: current.oceanCurrentVelocity.map { $0 / 3.6 },
             currentDirectionDegrees: current.oceanCurrentDirection
         )
     }

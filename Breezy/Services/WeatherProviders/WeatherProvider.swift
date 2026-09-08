@@ -54,7 +54,14 @@ struct WeatherFormattingContext {
     func formattedPressure(hectopascals: Double?) -> String? {
         guard let hectopascals else { return nil }
         let converted = pressureUnit.convert(hectopascals)
-        return String(format: "%.0f %@", converted, pressureUnit.displayName)
+        switch pressureUnit {
+        case .inchesOfMercury:
+            return String(format: "%.2f %@", converted, pressureUnit.displayName)
+        case .millimetersOfMercury:
+            return String(format: "%.1f %@", converted, pressureUnit.displayName)
+        case .hectopascals, .millibars:
+            return String(format: "%.0f %@", converted, pressureUnit.displayName)
+        }
     }
 
     func formattedVisibility(meters: Double?) -> String? {

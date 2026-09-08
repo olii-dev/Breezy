@@ -27,13 +27,13 @@ struct RecentlyViewedStore {
     
     static func add(_ location: LocationData) {
         var list = recentLocations
-        list.removeAll { $0.city == location.city }
+        list.removeAll { $0.id == location.id }
         list.insert(location, at: 0)
         recentLocations = Array(list.prefix(15))
     }
     
     static func remove(_ location: LocationData) {
-        recentLocations = recentLocations.filter { $0.city != location.city }
+        recentLocations = recentLocations.filter { $0.id != location.id }
     }
     
     static func clear() {

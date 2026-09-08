@@ -59,24 +59,12 @@ struct ContentView: View {
                     }
                 }
                 .onChange(of: locationHelper.userLocation) { oldValue, newLocation in
-                    // Only auto-update if using GPS location
-                    let useGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
+                    // Single auto-fetch path for GPS updates (significant changes also update userLocation)
                     if suppressNextAutomaticLocationFetch {
                         suppressNextAutomaticLocationFetch = false
                         return
                     }
-                    if useGPS, let location = newLocation {
-                        Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
-                    }
-                }
-                .onChange(of: locationHelper.significantLocationChange) { oldValue, newLocation in
-                    // Auto-refresh on significant location changes (only if using GPS)
-                    let useGPS = UserDefaults.standard.bool(forKey: "Breezy.shouldFollowGPS")
-                    if suppressNextAutomaticLocationFetch {
-                        suppressNextAutomaticLocationFetch = false
-                        return
-                    }
-                    if useGPS, let location = newLocation {
+                    if viewModel.shouldFollowGPS, let location = newLocation {
                         Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
                     }
                 }
@@ -588,8 +576,8 @@ struct ContentView: View {
                     
             case .windSummary:
                 if widget.config?["style"] == "rose", let metrics = weather.metrics {
-                   // Extract speed (remove " km/h" etc)
-                    let speedString = metrics.windSpeed?.components(separatedBy: CharacterSet.decimalDigits.inverted).joined() ?? "0"
+                    let speedString = metrics.windSpeed?
+                        .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression) ?? "0"
                     let speed = Double(speedString) ?? 0
                     
                     VStack(alignment: .leading, spacing: 12) {
@@ -603,7 +591,8 @@ struct ContentView: View {
                             speed: speed,
                             direction: metrics.windDirectionCardinal ?? "N",
                             degree: metrics.windDirection ?? 0,
-                            color: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                            color: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                            unitLabel: viewModel.windSpeedUnit.displayName
                         )
                         .padding(.bottom, 16)
                         .padding(.horizontal)
@@ -672,6 +661,15 @@ struct ContentView: View {
                     )
                     .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
                     .padding(.horizontal, DesignSystem.spacingM)
+                } else {
+                    DashboardUnavailableCard(
+                        title: "Sun Path",
+                        systemImage: "sun.max.fill",
+                        message: "Sunrise and sunset data is unavailable for this location.",
+                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                        glassOpacity: viewModel.glassOpacity
+                    )
+                    .padding(.horizontal, DesignSystem.spacingM)
                 }
                 
             case .moonPhase:
@@ -696,13 +694,22 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                } else {
+                    DashboardUnavailableCard(
+                        title: "Moon Phase",
+                        systemImage: "moon.stars.fill",
+                        message: "Moon phase data is unavailable right now.",
+                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                        glassOpacity: viewModel.glassOpacity
+                    )
+                    .padding(.horizontal, DesignSystem.spacingM)
                 }
 
                 
             case .uvIndexCurve:
-                if let hourly = weather.allHourlyData {
+                if let hourly = weather.allHourlyData, !hourly.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
-                        Label("UV Index", systemImage: "aqi.medium")
+                        Label("UV Index", systemImage: "sun.max.fill")
                             .font(.caption.weight(.bold))
                             .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
                             .padding(.horizontal)
@@ -723,6 +730,15 @@ struct ContentView: View {
                             .overlay(RoundedRectangle(cornerRadius: DesignSystem.radiusL).stroke(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.18), lineWidth: 0.5))
                     )
                     .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+                    .padding(.horizontal, DesignSystem.spacingM)
+                } else {
+                    DashboardUnavailableCard(
+                        title: "UV Index",
+                        systemImage: "sun.max.fill",
+                        message: "Hourly UV data is unavailable for this location.",
+                        textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                        glassOpacity: viewModel.glassOpacity
+                    )
                     .padding(.horizontal, DesignSystem.spacingM)
                 }
 
@@ -2079,29 +2095,40 @@ struct SimpleDailyRow: View {
                     .frame(width: 30, height: 30)
             }
 
-            // Rain total for the day (only when meaningful).
-            if let mm = day.precipitationAmountMillimeters, mm >= 0.05 {
-                HStack(spacing: 3) {
-                    Image(systemName: "drop.fill")
-                        .font(.caption2)
-                        .foregroundColor(DesignSystem.skyBlue.opacity(0.9))
-                    Text(String(format: "%.1f %@", viewModel.precipitationUnit.convert(mm), viewModel.precipitationUnit.symbol))
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.75))
+            // Reserved rain column keeps temperatures right-aligned on every row.
+            Group {
+                if let mm = day.precipitationAmountMillimeters, mm >= 0.05 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "drop.fill")
+                            .font(.caption2)
+                            .foregroundColor(DesignSystem.skyBlue.opacity(0.9))
+                        Text(String(format: "%.1f %@", viewModel.precipitationUnit.convert(mm), viewModel.precipitationUnit.symbol))
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.75))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                } else {
+                    Color.clear
                 }
             }
+            .frame(width: 64, alignment: .leading)
             
-            Spacer()
+            Spacer(minLength: 4)
             
-            // Temps
+            // Temps — fixed size so rain never forces degree symbols onto a new line
             HStack(spacing: 10) {
                 Text(day.lowTemp)
                     .font(.body)
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
+                    .lineLimit(1)
                 Text(day.highTemp)
                     .font(.body.weight(.semibold))
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                    .lineLimit(1)
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
         }
         .padding(.vertical, DesignSystem.spacingXS)
     }
@@ -2310,26 +2337,15 @@ struct HourlyTemperaturesWidget: View {
         let padding = max(2, (maxTemp - minTemp) * 0.15)
         let range = (minTemp - padding)...(maxTemp + padding)
         let stride = hours.count <= 6 ? 1 : hours.count <= 12 ? 2 : 3
-        let labelHourValues: [Int] = {
-            let values = hours.map(\.hourValue)
-            return values.enumerated().compactMap { index, v in
-                (index == 0 || index == values.count - 1 || index % stride == 0) ? v : nil
-            }
-        }()
-
-        // X domain: derive from the min/max hour values rather than first/last.
-        // hourValue is local hour-of-day (0–23); when the forecast window
-        // spans midnight the array is chronologically ordered but its hour
-        // values wrap (e.g. 22,23,0,1…), so `first...last` can invert and
-        // trap (`Range requires lowerBound <= upperBound`).
-        let hourValues = hours.map(\.hourValue)
-        let hourDomainMin = hourValues.min() ?? 0
-        let hourDomainMax = max(hourValues.max() ?? 23, hourDomainMin)
+        let labelIndices: [Int] = hours.indices.filter { index in
+            index == 0 || index == hours.count - 1 || index % stride == 0
+        }
+        let xDomainMax = max(hours.count - 1, 1)
 
         Chart {
-            ForEach(hours) { hour in
+            ForEach(Array(hours.enumerated()), id: \.element.id) { index, hour in
                 AreaMark(
-                    x: .value("Hour", hour.hourValue),
+                    x: .value("Index", index),
                     yStart: .value("Baseline", range.lowerBound),
                     yEnd: .value("Temperature", hour.temperatureRaw)
                 )
@@ -2343,7 +2359,7 @@ struct HourlyTemperaturesWidget: View {
                 )
 
                 LineMark(
-                    x: .value("Hour", hour.hourValue),
+                    x: .value("Index", index),
                     y: .value("Temperature", hour.temperatureRaw)
                 )
                 .interpolationMethod(interpolation)
@@ -2351,8 +2367,10 @@ struct HourlyTemperaturesWidget: View {
                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
             }
 
-            if let selID = selectedHourID, let hour = hours.first(where: { $0.id == selID }) {
-                RuleMark(x: .value("Selected", Double(hour.hourValue)))
+            if let selID = selectedHourID,
+               let selectedIndex = hours.firstIndex(where: { $0.id == selID }) {
+                let hour = hours[selectedIndex]
+                RuleMark(x: .value("Selected", selectedIndex))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
                     .foregroundStyle(theme.textColor.opacity(0.35))
                     .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
@@ -2371,15 +2389,15 @@ struct HourlyTemperaturesWidget: View {
                     }
             }
         }
-        .chartXScale(domain: hourDomainMin...hourDomainMax)
+        .chartXScale(domain: 0...xDomainMax)
         .chartYScale(domain: range)
         .chartXAxis {
-            AxisMarks(values: labelHourValues) { value in
+            AxisMarks(values: labelIndices) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
                     .foregroundStyle(theme.textColor.opacity(0.12))
                 AxisValueLabel {
-                    if let hour = value.as(Int.self), let match = hours.first(where: { $0.hourValue == hour }) {
-                        Text(match.time)
+                    if let index = value.as(Int.self), hours.indices.contains(index) {
+                        Text(hours[index].time)
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(theme.textColor.opacity(0.72))
                     }
@@ -2411,12 +2429,19 @@ struct HourlyTemperaturesWidget: View {
                                 guard let plotFrame = proxy.plotFrame else { return }
                                 let origin = geometry[plotFrame].origin
                                 let locationX = value.location.x - origin.x
-                                if let hourInt: Int = proxy.value(atX: locationX) {
-                                    let nearest = hours.min { abs($0.hourValue - hourInt) < abs($1.hourValue - hourInt) }
-                                    if nearest?.id != selectedHourID {
+                                if let index: Int = proxy.value(atX: locationX), hours.indices.contains(index) {
+                                    let nearest = hours[index]
+                                    if nearest.id != selectedHourID {
                                         HapticsManager.shared.impact(style: .light)
                                     }
-                                    selectedHourID = nearest?.id
+                                    selectedHourID = nearest.id
+                                } else if let index: Int = proxy.value(atX: locationX) {
+                                    let clamped = min(max(index, 0), hours.count - 1)
+                                    let nearest = hours[clamped]
+                                    if nearest.id != selectedHourID {
+                                        HapticsManager.shared.impact(style: .light)
+                                    }
+                                    selectedHourID = nearest.id
                                 }
                             }
                             .onEnded { _ in
@@ -2888,24 +2913,18 @@ struct HumidityStripWidget: View {
                     .padding(.horizontal)
                     .padding(.bottom, 16)
             } else {
-                let stride = hours.count <= 6 ? 1 : hours.count <= 12 ? 2 : 3
-                let labelHourValues: [Int] = hours.map(\.hourValue).enumerated().compactMap { i, v in
-                    (i == 0 || i == hours.count - 1 || i % stride == 0) ? v : nil
+                let strideStep = hours.count <= 6 ? 1 : hours.count <= 12 ? 2 : 3
+                let labelIndices: [Int] = hours.indices.filter { i in
+                    i == 0 || i == hours.count - 1 || i % strideStep == 0
                 }
                 let interpolation: InterpolationMethod = hours.count >= 4 ? .catmullRom : .linear
-                let selectedHour = selectedHourID.flatMap { id in hours.first { $0.id == id } }
-
-                // X domain from min/max hour values (not first/last) so a
-                // midnight-spanning forecast (e.g. 22,23,0,1…) can't invert the
-                // ClosedRange and trap the Charts layout.
-                let hourVals = hours.map(\.hourValue)
-                let hourDomainMin = hourVals.min() ?? 0
-                let hourDomainMax = max(hourVals.max() ?? 23, hourDomainMin)
+                let selectedIndex = selectedHourID.flatMap { id in hours.firstIndex { $0.id == id } }
+                let xDomainMax = max(hours.count - 1, 1)
 
                 Chart {
-                    ForEach(hours) { hour in
+                    ForEach(Array(hours.enumerated()), id: \.element.id) { index, hour in
                         AreaMark(
-                            x: .value("Hour", hour.hourValue),
+                            x: .value("Index", index),
                             yStart: .value("Base", 0),
                             yEnd: .value("Humidity", Double(hour.humidity ?? 0))
                         )
@@ -2919,7 +2938,7 @@ struct HumidityStripWidget: View {
                         )
 
                         LineMark(
-                            x: .value("Hour", hour.hourValue),
+                            x: .value("Index", index),
                             y: .value("Humidity", Double(hour.humidity ?? 0))
                         )
                         .interpolationMethod(interpolation)
@@ -2927,8 +2946,9 @@ struct HumidityStripWidget: View {
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                     }
 
-                    if let sel = selectedHour {
-                        RuleMark(x: .value("Selected", sel.hourValue))
+                    if let selectedIndex {
+                        let sel = hours[selectedIndex]
+                        RuleMark(x: .value("Selected", selectedIndex))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                             .foregroundStyle(textColor.opacity(0.35))
                             .annotation(position: .top, overflowResolution: .init(x: .fit, y: .disabled)) {
@@ -2947,15 +2967,15 @@ struct HumidityStripWidget: View {
                             }
                     }
                 }
-                .chartXScale(domain: hourDomainMin...hourDomainMax)
+                .chartXScale(domain: 0...xDomainMax)
                 .chartYScale(domain: 0...100)
                 .chartXAxis {
-                    AxisMarks(values: labelHourValues) { value in
+                    AxisMarks(values: labelIndices) { value in
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
                             .foregroundStyle(textColor.opacity(0.12))
                         AxisValueLabel {
-                            if let h = value.as(Int.self), let match = hours.first(where: { $0.hourValue == h }) {
-                                Text(match.time)
+                            if let index = value.as(Int.self), hours.indices.contains(index) {
+                                Text(hours[index].time)
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(textColor.opacity(0.72))
                             }
@@ -2986,12 +3006,13 @@ struct HumidityStripWidget: View {
                                         isChartInteracting?.wrappedValue = true
                                         guard let plotFrame = proxy.plotFrame else { return }
                                         let locationX = value.location.x - geometry[plotFrame].origin.x
-                                        if let hourInt: Int = proxy.value(atX: locationX) {
-                                            let nearest = hours.min { abs($0.hourValue - hourInt) < abs($1.hourValue - hourInt) }
-                                            if nearest?.id != selectedHourID {
+                                        if let index: Int = proxy.value(atX: locationX) {
+                                            let clamped = min(max(index, 0), hours.count - 1)
+                                            let nearest = hours[clamped]
+                                            if nearest.id != selectedHourID {
                                                 HapticsManager.shared.impact(style: .light)
                                             }
-                                            selectedHourID = nearest?.id
+                                            selectedHourID = nearest.id
                                         }
                                     }
                                     .onEnded { _ in
@@ -3417,11 +3438,14 @@ struct AirQualityCardWidget: View {
                     }
 
                     Capsule()
-                        .fill(badgeColor.opacity(0.22))
-                        .overlay(
-                            Capsule()
-                                .stroke(badgeColor.opacity(0.9), lineWidth: 0.8)
-                        )
+                        .fill(badgeColor.opacity(0.18))
+                        .overlay(alignment: .leading) {
+                            GeometryReader { geo in
+                                Capsule()
+                                    .fill(badgeColor.opacity(0.9))
+                                    .frame(width: max(8, geo.size.width * min(1, CGFloat(aqi) / 300.0)))
+                            }
+                        }
                         .frame(height: 10)
                 }
             } else {
@@ -4249,14 +4273,16 @@ struct WindSummaryWidget: View {
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
             
             if let metrics = weather.metrics {
-                let speedString = metrics.windSpeed?.components(separatedBy: CharacterSet.decimalDigits.inverted).joined() ?? "0"
+                let speedString = metrics.windSpeed?
+                    .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression) ?? "0"
                 let speed = Double(speedString) ?? 0
                 
                 WindRoseView(
                     speed: speed,
                     direction: metrics.windDirectionCardinal ?? "N",
                     degree: metrics.windDirection ?? 0,
-                    color: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                    color: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                    unitLabel: viewModel.windSpeedUnit.displayName
                 )
                 .padding(.vertical, 8)
             }
@@ -4903,8 +4929,9 @@ struct SmartStackWidget: View {
     }
 
     private var hasStrongWindSignal: Bool {
-        guard let windValue = parsedWindSpeedValue(from: weather.metrics?.windSpeed) else { return false }
-        return windValue >= 28
+        guard let metersPerSecond = parsedWindSpeedMetersPerSecond(from: weather.metrics?.windSpeed) else { return false }
+        // ~28 km/h ≈ 7.8 m/s — meaningful "strong wind" regardless of display unit
+        return metersPerSecond >= 7.8
     }
 
     private func parsedWindSpeedValue(from speed: String?) -> Double? {
@@ -4912,6 +4939,16 @@ struct SmartStackWidget: View {
         let cleaned = speed
             .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
         return Double(cleaned)
+    }
+
+    private func parsedWindSpeedMetersPerSecond(from speed: String?) -> Double? {
+        guard let speed else { return nil }
+        let lowercased = speed.lowercased()
+        guard let value = parsedWindSpeedValue(from: speed) else { return nil }
+        if lowercased.contains("km/h") { return value / 3.6 }
+        if lowercased.contains("mph") { return value / 2.23694 }
+        if lowercased.contains("knot") { return value / 1.94384 }
+        return value
     }
 }
 
@@ -5000,6 +5037,37 @@ private struct SmartStackMetricTile: View {
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.radiusM)
                 .fill(Color.white.opacity(0.05))
+        )
+    }
+}
+
+private struct DashboardUnavailableCard: View {
+    let title: String
+    let systemImage: String
+    let message: String
+    let textColor: Color
+    let glassOpacity: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundColor(textColor.opacity(0.6))
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(textColor.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusL)
+                        .stroke(textColor.opacity(0.18), lineWidth: 0.5)
+                )
         )
     }
 }

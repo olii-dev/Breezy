@@ -8,10 +8,11 @@
 import SwiftUI
 
 struct WindRoseView: View {
-    let speed: Double // km/h
+    let speed: Double
     let direction: String // "N", "NW", etc.
     let degree: Double // 0-360
     let color: Color
+    var unitLabel: String = "m/s"
     @AppStorage("Breezy.typography") private var typographyRaw: String = WeatherFont.system.rawValue
 
     private var typographyDesign: Font.Design {
@@ -64,10 +65,10 @@ struct WindRoseView: View {
             
             // Center Metrics
             VStack(spacing: 0) {
-                Text("\(Int(speed))")
+                Text("\(Int(speed.rounded()))")
                     .font(.system(size: 24, weight: .bold, design: typographyDesign))
                     .foregroundColor(color)
-                Text("km/h")
+                Text(unitLabel)
                     .font(.caption2)
                     .foregroundColor(color.opacity(0.7))
             }

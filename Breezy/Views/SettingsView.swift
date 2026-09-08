@@ -410,16 +410,22 @@ struct DataSettingsView: View {
                                 Label("Wind Speed", systemImage: "wind")
                                     .foregroundColor(theme.textColor)
                                 Spacer()
-                                Picker("", selection: $viewModel.windSpeedUnit) {
+                                Picker("", selection: Binding(
+                                    get: { viewModel.windSpeedUnit },
+                                    set: { newUnit in
+                                        HapticsManager.shared.selectionChanged()
+                                        viewModel.windSpeedUnit = newUnit
+                                        if let location = viewModel.currentLocation {
+                                            Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
+                                        }
+                                    }
+                                )) {
                                     ForEach(WindSpeedUnit.allCases) { unit in
                                         Text(unit.displayName).tag(unit)
                                     }
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
-                                .onChange(of: viewModel.windSpeedUnit) { _, _ in
-                                    HapticsManager.shared.selectionChanged()
-                                }
                             }
                             .padding()
                             
@@ -430,16 +436,22 @@ struct DataSettingsView: View {
                                 Label("Pressure", systemImage: "gauge.medium")
                                     .foregroundColor(theme.textColor)
                                 Spacer()
-                                Picker("", selection: $viewModel.pressureUnit) {
+                                Picker("", selection: Binding(
+                                    get: { viewModel.pressureUnit },
+                                    set: { newUnit in
+                                        HapticsManager.shared.selectionChanged()
+                                        viewModel.pressureUnit = newUnit
+                                        if let location = viewModel.currentLocation {
+                                            Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
+                                        }
+                                    }
+                                )) {
                                     ForEach(PressureUnit.allCases) { unit in
                                         Text(unit.displayName).tag(unit)
                                     }
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
-                                .onChange(of: viewModel.pressureUnit) { _, _ in
-                                    HapticsManager.shared.selectionChanged()
-                                }
                             }
                             .padding()
                             
@@ -450,16 +462,22 @@ struct DataSettingsView: View {
                                 Label("Visibility", systemImage: "eye.fill")
                                     .foregroundColor(theme.textColor)
                                 Spacer()
-                                Picker("", selection: $viewModel.visibilityUnit) {
+                                Picker("", selection: Binding(
+                                    get: { viewModel.visibilityUnit },
+                                    set: { newUnit in
+                                        HapticsManager.shared.selectionChanged()
+                                        viewModel.visibilityUnit = newUnit
+                                        if let location = viewModel.currentLocation {
+                                            Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
+                                        }
+                                    }
+                                )) {
                                     ForEach(VisibilityUnit.allCases) { unit in
                                         Text(unit.rawValue).tag(unit)
                                     }
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
-                                .onChange(of: viewModel.visibilityUnit) { _, _ in
-                                    HapticsManager.shared.selectionChanged()
-                                }
                             }
                             .padding()
                             
@@ -470,16 +488,22 @@ struct DataSettingsView: View {
                                 Label("Precipitation", systemImage: "cloud.rain.fill")
                                     .foregroundColor(theme.textColor)
                                 Spacer()
-                                Picker("", selection: $viewModel.precipitationUnit) {
+                                Picker("", selection: Binding(
+                                    get: { viewModel.precipitationUnit },
+                                    set: { newUnit in
+                                        HapticsManager.shared.selectionChanged()
+                                        viewModel.precipitationUnit = newUnit
+                                        if let location = viewModel.currentLocation {
+                                            Task { await viewModel.fetchWeather(for: location, isManualRefresh: false) }
+                                        }
+                                    }
+                                )) {
                                     ForEach(PrecipitationUnit.allCases) { unit in
                                         Text(unit.rawValue).tag(unit)
                                     }
                                 }
                                 .tint(theme.textColor)
                                 .labelsHidden()
-                                .onChange(of: viewModel.precipitationUnit) { _, _ in
-                                    HapticsManager.shared.selectionChanged()
-                                }
                             }
                             .padding()
                             
@@ -1066,7 +1090,7 @@ struct NotificationSettingsView: View {
                                         .font(.subheadline.weight(.medium))
                                         .foregroundColor(theme.textColor)
                                     Spacer()
-                                    Text("\(notificationSettings.windSpeedThreshold) \(viewModel.windSpeedUnit == .milesPerHour ? "mph" : "km/h")")
+                                    Text("\(notificationSettings.windSpeedThreshold) \(viewModel.windSpeedUnit.displayName)")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundColor(.cyan)
                                 }
@@ -1154,19 +1178,12 @@ struct NotificationSettingsView: View {
                 return
             }
             
-            // Convert wind speed threshold
+            // Convert threshold via m/s so all WindSpeedUnit cases stay coherent
             let currentThreshold = Double(notificationSettings.windSpeedThreshold)
-            let convertedThreshold: Int
+            let metersPerSecond = Self.windThresholdToMetersPerSecond(currentThreshold, unit: oldUnit)
+            let convertedThreshold = Int(round(Self.windThresholdFromMetersPerSecond(metersPerSecond, unit: newUnit)))
             
-            if newUnit == .milesPerHour {
-                // km/h to mph
-                convertedThreshold = Int(round(currentThreshold / 1.609))
-            } else {
-                // mph to km/h
-                convertedThreshold = Int(round(currentThreshold * 1.609))
-            }
-            
-            notificationSettings.windSpeedThreshold = convertedThreshold
+            notificationSettings.windSpeedThreshold = max(1, convertedThreshold)
             saveNotificationSettings()
             previousWindUnit = newUnit
         }
@@ -1233,6 +1250,19 @@ struct NotificationSettingsView: View {
     private func saveNotificationSettings() {
         UserDefaults.standard.notificationSettings = notificationSettings
         NotificationManager.shared.updateSettings(notificationSettings, weather: viewModel.weather, temperatureUnit: viewModel.temperatureUnit)
+    }
+
+    private static func windThresholdToMetersPerSecond(_ value: Double, unit: WindSpeedUnit) -> Double {
+        switch unit {
+        case .metersPerSecond: return value
+        case .kilometersPerHour: return value / 3.6
+        case .milesPerHour: return value / 2.23694
+        case .knots: return value / 1.94384
+        }
+    }
+
+    private static func windThresholdFromMetersPerSecond(_ metersPerSecond: Double, unit: WindSpeedUnit) -> Double {
+        unit.convert(metersPerSecond)
     }
 }
 

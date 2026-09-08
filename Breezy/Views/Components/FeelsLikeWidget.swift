@@ -42,34 +42,68 @@ struct FeelsLikeWidget: View {
                     }
                 }
             } else {
-                Text("N/A")
+                Text("Unavailable")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(textColor.opacity(0.55))
             }
         }
         .softGlassCard()
     }
     
     func impactDescription() -> String {
-        // Compare actual temp with feels like
-        // We need to parse the strings "20°C" -> 20.0
-        // This is a bit fragile without raw values, but WeatherInfo strings are formatted.
-        // Ideally we'd have raw values in WeatherInfo, but we only have formatted strings.
-        // However, WeatherInfo does NOT store raw values except in `hourlyForecast` or `metrics`?
-        // Wait, `WeatherInfo` has `temperature` (String).
-        // Let's rely on simple heuristic or just generic text if parsing fails.
-        // Actually, `WeatherInfo` is constructed from `WeatherViewModel` which has access to raw data.
-        // But the widget only gets `WeatherInfo`.
-        
-        // Let's access humidity and wind to give context.
+        let actual = parseTemperature(weather.temperature)
+        let feels = parseTemperature(weather.feelsLike)
+        let delta = (actual != nil && feels != nil) ? (feels! - actual!) : nil
+
         var reasons: [String] = []
         if let humidity = weather.metrics?.humidity, humidity > 70 {
             reasons.append("high humidity")
         }
-        // if let wind = weather.metrics?.windSpeed { ... } unused
-        
-        if reasons.isEmpty {
-            return "Similar to actual temperature."
-        } else {
-            return "Wind and humidity are affecting the feel."
+        if let windMPS = parseWindMetersPerSecond(weather.metrics?.windSpeed), windMPS >= 4.5 {
+            reasons.append("wind")
         }
+
+        if let delta, abs(delta) < 0.75 {
+            return "Similar to the actual temperature."
+        }
+
+        if reasons.isEmpty {
+            if let delta, delta > 0 {
+                return "Feels warmer than the air temperature."
+            }
+            if let delta, delta < 0 {
+                return "Feels cooler than the air temperature."
+            }
+            return "Similar to the actual temperature."
+        }
+
+        let reasonText = reasons.joined(separator: " and ")
+        if let delta, delta > 0 {
+            return "Feels warmer because of \(reasonText)."
+        }
+        if let delta, delta < 0 {
+            return "Feels cooler because of \(reasonText)."
+        }
+        return "Affected by \(reasonText)."
+    }
+
+    private func parseTemperature(_ value: String?) -> Double? {
+        guard let value else { return nil }
+        let cleaned = value
+            .replacingOccurrences(of: "°", with: "")
+            .replacingOccurrences(of: "[^0-9.-]", with: "", options: .regularExpression)
+        return Double(cleaned)
+    }
+
+    private func parseWindMetersPerSecond(_ windSpeed: String?) -> Double? {
+        guard let windSpeed else { return nil }
+        let lowercased = windSpeed.lowercased()
+        let cleaned = lowercased
+            .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+        guard let value = Double(cleaned) else { return nil }
+        if lowercased.contains("km/h") { return value / 3.6 }
+        if lowercased.contains("mph") { return value / 2.23694 }
+        if lowercased.contains("knot") { return value / 1.94384 }
+        return value // m/s default
     }
 }

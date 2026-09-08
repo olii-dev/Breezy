@@ -101,9 +101,10 @@ struct SurfDashboardCard: View {
 
     private func formattedHeight(_ m: Double?) -> String? {
         guard let m else { return nil }
-        // Surf heights are conventionally shown in feet or metres; follow the
-        // user's precipitation/length preference indirectly via temperature unit
-        // is not appropriate, so show metres consistently with Marine Outlook.
+        // Imperial users (Fahrenheit) get feet; otherwise metres — matches Marine Outlook convention.
+        if viewModel.temperatureUnit == .fahrenheit {
+            return String(format: "%.1f ft", m * 3.28084)
+        }
         return String(format: "%.1f m", m)
     }
 

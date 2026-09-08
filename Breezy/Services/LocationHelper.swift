@@ -8,7 +8,6 @@
 import Foundation
 import CoreLocation
 import Combine
-import WidgetKit
 
 class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
@@ -16,11 +15,14 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var locationError: String? = nil
     @Published var significantLocationChange: LocationData? = nil
 
-    private var continuation: CheckedContinuation<LocationData, Error>?
     private var isMonitoring = false
     private let significantChangeThreshold: Double = 5000 // meters (5km - only update when moved to different weather zone)
-    
-    private var backgroundLocationTask: Task<Void, Never>?
+
+    // Internal handler to bridge delegate to continuation safely
+    private var continuationHandler: ((Result<LocationData, Error>) -> Void)?
+    private var pendingLocationTimeoutWorkItem: DispatchWorkItem?
+    private var awaitingAuthorizationForRequest = false
+    private var pendingRequestTimeout: TimeInterval = 10
 
     override init() {
         super.init()
@@ -40,9 +42,6 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
         manager.stopMonitoringSignificantLocationChanges()
     }
 
-    // Internal handler to bridge delegate to continuation safely
-    private var continuationHandler: ((Result<LocationData, Error>) -> Void)?
-    
     // Thread-safe wrapper class
     private class ContinuationState {
         var continuation: CheckedContinuation<LocationData, Error>?
@@ -72,10 +71,11 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
     func requestLocationAndGetData(timeout: TimeInterval = 10) async throws -> LocationData {
         DispatchQueue.main.async { self.locationError = nil }
         
-        // Cancel existing if needed (though simplistic here)
+        pendingLocationTimeoutWorkItem?.cancel()
+        pendingLocationTimeoutWorkItem = nil
+        awaitingAuthorizationForRequest = false
         continuationHandler?(.failure(NSError(domain: "Location", code: 5, userInfo: [NSLocalizedDescriptionKey: "Cancelled by new request"])))
         
-        // Check auth inline first
         let status = manager.authorizationStatus
         if status == .denied || status == .restricted {
             DispatchQueue.main.async {
@@ -84,9 +84,12 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
             throw NSError(domain: "Location", code: 1, userInfo: [NSLocalizedDescriptionKey: "Location access denied"])
         }
         
+        pendingRequestTimeout = timeout
+        
         if status == .notDetermined {
+           awaitingAuthorizationForRequest = true
            manager.requestWhenInUseAuthorization()
-           // We continue, relying on delegate to trigger location update once authorized
+           // Timeout starts only after authorization is decided
         } else {
            manager.requestLocation()
         }
@@ -94,28 +97,35 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<LocationData, Error>) in
             let state = ContinuationState(cont: cont)
             
-            // Set up handler
-            self.continuationHandler = { result in
+            self.continuationHandler = { [weak self] result in
+                self?.pendingLocationTimeoutWorkItem?.cancel()
+                self?.pendingLocationTimeoutWorkItem = nil
+                self?.awaitingAuthorizationForRequest = false
                 if state.resume(with: result) {
-                    self.continuationHandler = nil
+                    self?.continuationHandler = nil
                 }
             }
             
-            // Timeout
-            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                let didTimeout = state.resume(with: .failure(NSError(domain: "Location", code: 2, userInfo: [NSLocalizedDescriptionKey: "Timed out"])))
-                guard didTimeout else { return }
-
-                self.continuationHandler = nil
-                DispatchQueue.main.async {
-                    self.locationError = "Location request timed out. Try again or choose a city manually."
-                }
+            if status != .notDetermined {
+                self.scheduleLocationRequestTimeout(timeout: timeout)
             }
         }
     }
+    
+    private func scheduleLocationRequestTimeout(timeout: TimeInterval) {
+        pendingLocationTimeoutWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.continuationHandler?(.failure(NSError(domain: "Location", code: 2, userInfo: [NSLocalizedDescriptionKey: "Timed out"])))
+            DispatchQueue.main.async {
+                self.locationError = "Location request timed out. Try again or choose a city manually."
+            }
+        }
+        pendingLocationTimeoutWorkItem = work
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: work)
+    }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // Resume continuation if active
         continuationHandler?(.failure(error))
         
         DispatchQueue.main.async {
@@ -126,12 +136,19 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         if status == .authorizedWhenInUse || status == .authorizedAlways {
-            manager.requestLocation()
+            if awaitingAuthorizationForRequest {
+                awaitingAuthorizationForRequest = false
+                manager.requestLocation()
+                scheduleLocationRequestTimeout(timeout: pendingRequestTimeout)
+            } else {
+                manager.requestLocation()
+            }
             if status == .authorizedAlways {
                 startMonitoringSignificantLocationChanges()
             }
         } else if status == .denied || status == .restricted {
             stopMonitoringSignificantLocationChanges()
+            awaitingAuthorizationForRequest = false
             continuationHandler?(.failure(NSError(domain: "Location", code: 4, userInfo: [NSLocalizedDescriptionKey: "Authorization denied"])))
             
             DispatchQueue.main.async {
@@ -149,13 +166,11 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
             let distance = loc.distance(from: previousCLLocation)
             
             if distance > significantChangeThreshold {
-                // Significant location change detected
                 updateLocation(from: loc, isSignificantChange: true)
                 return
             }
         }
         
-        // Regular location update
         updateLocation(from: loc, isSignificantChange: false)
     }
     
@@ -171,75 +186,15 @@ class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
                 DispatchQueue.main.async {
                     if isSignificantChange {
                         self.significantLocationChange = locationData
-                        // Trigger background weather fetch + widget update
-                        self.fetchWeatherAndUpdateWidget(for: locationData)
                     }
+                    // Single published path; ContentView fetches from userLocation changes.
                     self.userLocation = locationData
-                    // Resume continuation if active
                     self.continuationHandler?(.success(locationData))
                 }
             } else {
                 DispatchQueue.main.async {
                     self.locationError = "We couldn't find your city automatically. Try again or enter it below."
-                     // Resume continuation if active
                      self.continuationHandler?(.failure(NSError(domain: "Location", code: 3, userInfo: [NSLocalizedDescriptionKey: "No city found"])))
-                }
-            }
-        }
-    }
-    
-    private func fetchWeatherAndUpdateWidget(for location: LocationData) {
-        backgroundLocationTask?.cancel()
-        backgroundLocationTask = Task {
-            do {
-                let formatting = WeatherFormattingContext(
-                    temperatureUnit: TemperatureUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.temperatureUnit") ?? TemperatureUnit.celsius.rawValue) ?? .celsius,
-                    windSpeedUnit: WindSpeedUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.windSpeedUnit") ?? WindSpeedUnit.metersPerSecond.rawValue) ?? .metersPerSecond,
-                    pressureUnit: PressureUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.pressureUnit") ?? PressureUnit.hectopascals.rawValue) ?? .hectopascals,
-                    visibilityUnit: VisibilityUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.visibilityUnit") ?? VisibilityUnit.kilometers.rawValue) ?? .kilometers,
-                    precipitationUnit: PrecipitationUnit(rawValue: UserDefaults.standard.string(forKey: "Breezy.precipitationUnit") ?? PrecipitationUnit.millimeters.rawValue) ?? .millimeters
-                )
-                let result = try await WeatherProviderManager.shared.fetchWeather(for: location, formatting: formatting)
-                let weather = result.weather
-
-                let widgetData = WidgetWeatherData(
-                    city: location.city,
-                    temperature: weather.temperature,
-                    condition: weather.condition,
-                    emoji: weather.emoji,
-                    highTemp: weather.highTemp,
-                    lowTemp: weather.lowTemp,
-                    hourlyForecast: [],
-                    timestamp: Date(),
-                    useMinimalistIcons: nil,
-                    uvIndex: weather.metrics?.uvIndex,
-                    pressure: weather.metrics?.pressure,
-                    windSpeed: weather.metrics?.windSpeed,
-                    rainChance: weather.dailyForecast.first?.chanceOfRain,
-                    rainAmount: weather.metrics?.todayRainfall,
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                    conditionCode: result.conditionCode ?? weather.condition,
-                    isDaylight: result.isDaylight,
-                    minTemp: weather.lowTemp,
-                    maxTemp: weather.highTemp,
-                    humidity: weather.metrics?.humidity.map { "\($0)%" },
-                    visibility: weather.metrics?.visibility,
-                    dailyForecast: [],
-                    sunrise: nil,
-                    sunset: nil,
-                    moonPhase: nil,
-                    moonIllumination: nil as Double?,
-                    windDirectionDegrees: weather.metrics?.windDirection,
-                    surf: nil,
-                    pollen: nil
-                )
-                
-                // Save to widget store and refresh widget
-                WidgetDataStore.save(widgetData, source: WeatherSourceStore.selectedSource)
-            } catch {
-                DispatchQueue.main.async {
-                    self.locationError = "Background refresh failed. Pull to refresh when you open the app."
                 }
             }
         }

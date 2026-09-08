@@ -27,13 +27,13 @@ struct FavouritesStore {
     
     static func add(_ location: LocationData) {
         var list = favourites
-        list.removeAll { $0.city == location.city }
+        list.removeAll { $0.id == location.id }
         list.insert(location, at: 0)
         favourites = Array(list.prefix(10))
     }
     
     static func remove(_ location: LocationData) {
-        favourites = favourites.filter { $0.city != location.city }
+        favourites = favourites.filter { $0.id != location.id }
     }
     
     static func clear() {

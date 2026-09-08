@@ -41,6 +41,39 @@ struct WidgetPreviewView: View {
         )
         .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 6)
     }
+
+    private var previewForeground: Color {
+        switch config.backgroundStyle {
+        case .solid where isLightPreviewBackground,
+             .gradient where isLightPreviewBackground,
+             .blur where isLightPreviewBackground:
+            return Color.black.opacity(0.85)
+        default:
+            return .white
+        }
+    }
+
+    private var isLightPreviewBackground: Bool {
+        // Treat solid/gradient/blur as light canvas; weather-matched/transparent stay dark with white text.
+        switch config.backgroundStyle {
+        case .solid, .blur, .gradient:
+            return true
+        case .weatherMatch, .transparent:
+            return false
+        }
+    }
+
+    @AppStorage("Breezy.windSpeedUnit") private var windSpeedUnitRaw: String = WindSpeedUnit.metersPerSecond.rawValue
+    @AppStorage("Breezy.visibilityUnit") private var visibilityUnitRaw: String = VisibilityUnit.kilometers.rawValue
+
+    private var previewWindUnit: String {
+        WindSpeedUnit(rawValue: windSpeedUnitRaw)?.displayName ?? "m/s"
+    }
+
+    private var previewVisibilityLabel: String {
+        let unit = VisibilityUnit(rawValue: visibilityUnitRaw) ?? .kilometers
+        return unit == .miles ? "6 mi" : "10 km"
+    }
     
     // MARK: - Layouts
     
@@ -230,13 +263,13 @@ struct WidgetPreviewView: View {
                     metricStack(icon: "sun.max.fill", value: "6", label: "UV", alignment: align)
                     
                 case .wind:
-                    metricStack(icon: "wind", value: "15", label: "km/h", alignment: align)
+                    metricStack(icon: "wind", value: "15", label: previewWindUnit, alignment: align)
                     
                 case .humidity:
                     metricStack(icon: "humidity.fill", value: "45%", label: "", alignment: align)
                     
                 case .visibility:
-                    metricStack(icon: "eye.fill", value: "10km", label: "", alignment: align)
+                    metricStack(icon: "eye.fill", value: previewVisibilityLabel, label: "", alignment: align)
                     
                 case .feelsLike:
                     metricStack(icon: "figure.stand", value: "26°", label: "Feels", alignment: align)
@@ -299,8 +332,8 @@ struct WidgetPreviewView: View {
                      }
                 }
             }
-            .foregroundColor(.white)
-            .shadow(radius: 2)
+            .foregroundColor(previewForeground)
+            .shadow(color: Color.black.opacity(0.25), radius: 2)
         } else {
             // Empty slot hidden as per user request
             Color.clear
