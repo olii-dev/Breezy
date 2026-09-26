@@ -111,6 +111,8 @@ class WeatherViewModel: ObservableObject {
     @Published var error: String?
     @Published var historicalError: String?
     @Published var isUsingCachedFallback = false
+    /// Non-nil when the selected provider failed and the fetch was served by the alternate.
+    @Published private(set) var fallbackNotice: String?
 
     @AppStorage("Breezy.temperatureUnit") private var temperatureUnitRaw: String = TemperatureUnit.celsius.rawValue
     @AppStorage("Breezy.windSpeedUnit") private var windSpeedUnitRaw: String = WindSpeedUnit.metersPerSecond.rawValue
@@ -948,8 +950,14 @@ class WeatherViewModel: ObservableObject {
             let info = result.weather
             self.weather = info
             self.isUsingCachedFallback = false
+            if let used = result.fallbackUsed {
+                self.fallbackNotice = "\(WeatherSourceStore.selectedSource.displayName) was unavailable — showing \(used.displayName) data for this update."
+            } else {
+                self.fallbackNotice = nil
+            }
             if saveToCache {
-                WeatherCache.save(info, source: weatherSource)
+                // Cache under the provider that actually served the data.
+                WeatherCache.save(info, source: result.fallbackUsed ?? weatherSource)
             }
             self.attribution = result.attribution
             
@@ -991,6 +999,7 @@ class WeatherViewModel: ObservableObject {
             }
         } catch {
             guard latestWeatherFetchID == requestID else { return }
+            self.fallbackNotice = nil
             self.error = userFriendlyError(error)
         }
         if latestWeatherFetchID == requestID {

@@ -16,6 +16,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
     @State private var showingTimeMachine = false
+    @State private var showingTripMode = false
     @State private var showingLocationPicker = false
     @State private var isButtonBusy = false
     @State private var showingOnboarding = false
@@ -172,6 +173,17 @@ struct ContentView: View {
                                         .frame(width: 36, height: 36)
                                 }
                                 .accessibilityLabel("Time Machine")
+
+                                Button {
+                                    HapticsManager.shared.impact(style: .light)
+                                    showingTripMode = true
+                                } label: {
+                                    Image(systemName: "road.lanes")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(theme.textColor)
+                                        .frame(width: 36, height: 36)
+                                }
+                                .accessibilityLabel("On the Way")
                                 
                                 Button {
                                     HapticsManager.shared.impact(style: .light)
@@ -211,6 +223,9 @@ struct ContentView: View {
                 }
                 .sheet(isPresented: $showingTimeMachine) {
                     TimeMachineView(viewModel: viewModel)
+                }
+                .sheet(isPresented: $showingTripMode) {
+                    TripModeView(weatherViewModel: viewModel, locationHelper: locationHelper)
                 }
                 .sheet(isPresented: $showingWidgetGallery) {
                     WidgetGalleryView(viewModel: viewModel, onAdd: { widgetType in
@@ -280,6 +295,15 @@ struct ContentView: View {
                                 lastUpdated: lastUpdated,
                                 isStale: viewModel.isShowingStaleWeather,
                                 detail: viewModel.staleWeatherMessage,
+                                textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity
+                            )
+                            .padding(.horizontal, DesignSystem.spacingM)
+                        }
+
+                        if let fallbackNotice = viewModel.fallbackNotice {
+                            ProviderFallbackBanner(
+                                message: fallbackNotice,
                                 textColor: theme.textColor,
                                 glassOpacity: viewModel.glassOpacity
                             )
@@ -888,6 +912,44 @@ struct WeatherStatusBanner: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isStale ? "Showing saved weather" : "Weather updated")
+    }
+}
+
+struct ProviderFallbackBanner: View {
+    let message: String
+    let textColor: Color
+    let glassOpacity: Double
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "arrow.triangle.swap")
+                .foregroundColor(.blue.opacity(0.9))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Switched weather provider")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(textColor)
+
+                Text(message)
+                    .font(.caption2)
+                    .foregroundColor(textColor.opacity(0.75))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .fill(.ultraThinMaterial.opacity(glassOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                        .stroke(Color.blue.opacity(0.18), lineWidth: 0.5)
+                )
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Switched weather provider. \(message)")
     }
 }
 

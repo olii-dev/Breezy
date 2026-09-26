@@ -176,6 +176,8 @@ struct WeatherFetchResult {
     let attribution: AppWeatherAttribution?
     let conditionCode: String?
     let isDaylight: Bool
+    /// Set when the requested provider failed and the alternate served this fetch.
+    var fallbackUsed: WeatherSource? = nil
 }
 
 protocol WeatherProviding {
