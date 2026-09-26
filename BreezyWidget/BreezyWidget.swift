@@ -1913,6 +1913,8 @@ struct BreezyWidgetBundle: WidgetBundle {
         BreezyMoonWidget() // New Astronomy
         BreezySurfWidget() // Surf (Open-Meteo only)
         BreezyPollenWidget() // Pollen (Open-Meteo only, Europe)
+        TripLiveActivityWidget()
+        OnTheWayWidget()
         #endif
         BreezyWeatherWidget() // Custom Widget moved to end
     }

@@ -4,8 +4,10 @@
 <dict>
 	<key>NSWidgetWantsLocation</key>
 	<true/>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Breezy needs your location to provide accurate weather forecasts and alerts for your area.</string>
+	<string>Breezy needs your location for local weather and to update On the Way weather ahead while Go Now is active.</string>
     <key>CFBundleIcons</key>
     <dict>
         <key>CFBundleAlternateIcons</key>

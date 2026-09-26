@@ -27,7 +27,7 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
     override init() {
         super.init()
         completer.delegate = self
-        completer.resultTypes = .address
+        completer.resultTypes = [.address, .pointOfInterest]
         
         $searchQuery
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
