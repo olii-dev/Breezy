@@ -1915,6 +1915,7 @@ struct BreezyWidgetBundle: WidgetBundle {
         BreezyPollenWidget() // Pollen (Open-Meteo only, Europe)
         TripLiveActivityWidget()
         OnTheWayWidget()
+        RainLiveActivityWidget()
         #endif
         BreezyWeatherWidget() // Custom Widget moved to end
     }

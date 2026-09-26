@@ -750,6 +750,13 @@ struct NotificationSettingsView: View {
                     DisclosureGroup(isExpanded: $weatherAlertsExpanded) {
                         VStack(spacing: DesignSystem.spacingS) {
                             SettingsToggleRow(title: "Rain Alerts", icon: "cloud.rain.fill", color: .blue, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.rainAlertsEnabled}, set: {notificationSettings.rainAlertsEnabled=$0; saveNotificationSettings()}))
+
+                            SettingsToggleRow(title: "Rain Countdown on Lock Screen", icon: "timer", color: .cyan, textColor: theme.textColor, isOn: Binding(get: {UserDefaults.standard.object(forKey: "Breezy.rainLiveActivityEnabled") as? Bool ?? true}, set: { newValue in
+                                UserDefaults.standard.set(newValue, forKey: "Breezy.rainLiveActivityEnabled")
+                                if !newValue {
+                                    RainLiveActivityManager.shared.end()
+                                }
+                            }))
                             
                             SettingsToggleRow(title: "Rain Probability", icon: "cloud.drizzle.fill", color: .teal, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.precipitationProbabilityAlertsEnabled}, set: {notificationSettings.precipitationProbabilityAlertsEnabled=$0; saveNotificationSettings()}))
                             
