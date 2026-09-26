@@ -10,6 +10,9 @@ import Combine
 import CoreLocation
 import WeatherKit
 import WidgetKit
+import os
+
+private let fetchLogger = Logger(subsystem: "com.breezy.weather", category: "fetch")
 
 @MainActor
 class WeatherViewModel: ObservableObject {
@@ -887,6 +890,9 @@ class WeatherViewModel: ObservableObject {
     }
 
     func performStartupIfNeeded(locationHelper: LocationHelper) {
+        #if DEBUG
+        fetchLogger.notice("BREEZYSTARTUP entry followGPS=\(self.shouldFollowGPS, privacy: .public) manual=\(self.savedManualLocation()?.city ?? "none", privacy: .public)")
+        #endif
         // Request notification permissions and register categories
         Task {
             _ = await notificationManager.requestAuthorization()
@@ -919,8 +925,14 @@ class WeatherViewModel: ObservableObject {
         Task {
             do {
                 let location = try await locationHelper.requestLocationAndGetData()
+                #if DEBUG
+                fetchLogger.notice("BREEZYSTARTUP gps resolved city=\(location.city, privacy: .public)")
+                #endif
                 await fetchWeather(for: location, isManualRefresh: false)
             } catch {
+                #if DEBUG
+                fetchLogger.error("BREEZYSTARTUP gps failed \(String(describing: error), privacy: .public)")
+                #endif
                 if weather == nil {
                     self.error = "We couldn't determine your location yet. Choose a city manually or try again."
                 }
@@ -948,6 +960,9 @@ class WeatherViewModel: ObservableObject {
             let result = try await weatherProviderManager.fetchWeather(for: location, formatting: formattingContext)
             guard latestWeatherFetchID == requestID else { return }
             let info = result.weather
+            #if DEBUG
+            fetchLogger.notice("BREEZYFETCH applied city=\(info.location.city, privacy: .public)")
+            #endif
             self.weather = info
             self.isUsingCachedFallback = false
             if let used = result.fallbackUsed {
@@ -1002,6 +1017,9 @@ class WeatherViewModel: ObservableObject {
             }
         } catch {
             guard latestWeatherFetchID == requestID else { return }
+            #if DEBUG
+            fetchLogger.error("BREEZYFETCH ERR \(String(describing: error), privacy: .public)")
+            #endif
             self.fallbackNotice = nil
             self.error = userFriendlyError(error)
         }

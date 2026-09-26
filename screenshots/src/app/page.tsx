@@ -66,12 +66,10 @@ const COPY = {
       ),
     },
     feature4: {
-      label: "FORECAST",
+      label: "TIME MACHINE",
       headline: (
         <>
-          10 days out.<br />Interactive
-          <br />
-          charts.
+          Any day.<br />Any year.<br />Back to 1940.
         </>
       ),
     },
@@ -80,6 +78,22 @@ const COPY = {
       headline: (
         <>
           UV. Air quality.<br />Humidity.<br />Wind.
+        </>
+      ),
+    },
+    feature6: {
+      label: "LIVE RADAR",
+      headline: (
+        <>
+          Rain on radar.<br />Lightning,<br />live.
+        </>
+      ),
+    },
+    feature7: {
+      label: "ON THE WAY",
+      headline: (
+        <>
+          Weather for the<br />whole drive,<br />not just here.
         </>
       ),
     },
@@ -100,7 +114,8 @@ async function preloadAllImages() {
     "/screenshots/apple/iphone/en/02-forecast.png",
     "/screenshots/apple/iphone/en/03-charts.png",
     "/screenshots/apple/iphone/en/04-settings.png",
-    "/screenshots/apple/iphone/en/05-more.png",
+    "/screenshots/apple/iphone/en/05-radar.png",
+    "/screenshots/apple/iphone/en/06-trip.png",
   ];
 
   await Promise.all(
@@ -261,8 +276,9 @@ export default function ScreenshotsPage() {
 
   const exportAll = useCallback(async () => {
     let failedCount = 0;
-    for (let i = 0; i < 5; i++) {
-      setExporting(`${i + 1}/5`);
+    const slideIds = ["hero", "design", "customize", "timemachine", "radar", "trip"];
+    for (let i = 0; i < slideIds.length; i++) {
+      setExporting(`${i + 1}/${slideIds.length}`);
       const el = exportRefs.current[i];
       if (!el) continue;
       
@@ -275,12 +291,18 @@ export default function ScreenshotsPage() {
       if (dataUrl) {
         const a = document.createElement("a");
         a.href = dataUrl;
-        a.download = `${String(i + 1).padStart(2, "0")}-${["hero", "design", "customize", "forecast", "details"][i]}-en-${size.w}x${size.h}.png`;
+        a.download = `${String(i + 1).padStart(2, "0")}-${slideIds[i]}-en-${size.w}x${size.h}.png`;
         a.click();
         await new Promise((r) => setTimeout(r, 300));
+        if (typeof window !== "undefined") {
+          (window.__breezyShots ??= {})[slideIds[i]] = dataUrl;
+        }
       } else {
         failedCount++;
       }
+    }
+    if (typeof window !== "undefined") {
+      window.__breezyShotsDone = true;
     }
     if (failedCount > 0) {
       alert(`${failedCount} slides failed to export. Check console for errors.`);
@@ -318,17 +340,22 @@ export default function ScreenshotsPage() {
     {
       id: "customize",
       copy: COPY.en.feature3,
-      src: "/screenshots/apple/iphone/en/03-charts.png",
-    },
-    {
-      id: "forecast",
-      copy: COPY.en.feature4,
       src: "/screenshots/apple/iphone/en/04-settings.png",
     },
     {
-      id: "details",
-      copy: COPY.en.feature5,
-      src: "/screenshots/apple/iphone/en/05-more.png",
+      id: "timemachine",
+      copy: COPY.en.feature4,
+      src: "/screenshots/apple/iphone/en/03-charts.png",
+    },
+    {
+      id: "radar",
+      copy: COPY.en.feature6,
+      src: "/screenshots/apple/iphone/en/05-radar.png",
+    },
+    {
+      id: "trip",
+      copy: COPY.en.feature7,
+      src: "/screenshots/apple/iphone/en/06-trip.png",
     },
   ];
 

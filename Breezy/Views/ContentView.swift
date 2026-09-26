@@ -18,6 +18,10 @@ struct ContentView: View {
     @State private var showingTimeMachine = false
     @State private var showingTripMode = false
     @State private var showingLocationPicker = false
+#if DEBUG
+    @State private var showingDriverRadar = false
+    @State private var showingDriverDayDetail = false
+#endif
     @State private var isButtonBusy = false
     @State private var showingOnboarding = false
     @Environment(\.colorScheme) var colorScheme
@@ -49,10 +53,23 @@ struct ContentView: View {
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
                     // Set initial colors without animation
                     gradientColors = [theme.topColor, theme.bottomColor]
+#if DEBUG
+                    applyScreenshotDriver()
+#endif
                 }
                 .fullScreenCover(isPresented: $showingOnboarding) {
                     OnboardingView(isPresented: $showingOnboarding, viewModel: viewModel, locationHelper: locationHelper)
                 }
+#if DEBUG
+                .fullScreenCover(isPresented: $showingDriverRadar) {
+                    FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
+                }
+                .fullScreenCover(isPresented: $showingDriverDayDetail) {
+                    if let day = viewModel.weather?.dailyForecast.first {
+                        DailyForecastDetailView(day: day, viewModel: viewModel)
+                    }
+                }
+#endif
                 .onChange(of: showingOnboarding) { oldValue, isShowing in
                     if !isShowing && UserDefaults.standard.bool(forKey: "Breezy.HasCompletedOnboarding") {
                         // User just finished onboarding, start the app
@@ -435,6 +452,37 @@ struct ContentView: View {
     }
     
     // MARK: - Dashboard Rendering Functions
+
+#if DEBUG
+    /// Screenshot driver: `-BreezyShot <mode>` launch argument navigates to
+    /// the named screen after the weather loads, so marketing captures can
+    /// be taken hands-free with `simctl launch` + `simctl io screenshot`.
+    private func applyScreenshotDriver() {
+        let args = ProcessInfo.processInfo.arguments
+        guard let modeIndex = args.firstIndex(of: "-BreezyShot"), modeIndex + 1 < args.count else { return }
+        let mode = args[modeIndex + 1]
+        // Captures must show live data, not the saved-weather banner: pin the
+        // provider to Open-Meteo (no entitlement dependency in the simulator)
+        // and force a fresh fetch for the home shot.
+        WeatherSourceStore.selectedSource = .openMeteo
+        Task { [viewModel] in
+            if let location = viewModel.preferredLocationForCurrentSelection() {
+                await viewModel.fetchWeather(for: location, isManualRefresh: true)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+            switch mode {
+            case "settings": showingSettings = true
+            case "timemachine": showingTimeMachine = true
+            case "trip": showingTripMode = true
+            case "share": showShareCard = true
+            case "radar": showingDriverRadar = true
+            case "daydetail": showingDriverDayDetail = true
+            default: break
+            }
+        }
+    }
+#endif
 
     private func beginDashboardEditing() {
         HapticsManager.shared.impact(style: .heavy)
