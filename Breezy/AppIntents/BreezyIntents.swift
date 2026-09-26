@@ -23,7 +23,7 @@ struct RainCheckIntent: AppIntent {
         guard let answer = await BreezyIntentAnswers.rainCheck() else {
             return .result(dialog: "Open Breezy once so it can load your weather, then try again.")
         }
-        return .result(dialog: answer)
+        return .result(dialog: IntentDialog(stringLiteral: answer))
     }
 }
 
@@ -39,7 +39,7 @@ struct CurrentWeatherIntent: AppIntent {
         guard let answer = await BreezyIntentAnswers.currentWeather() else {
             return .result(dialog: "Open Breezy once so it can load your weather, then try again.")
         }
-        return .result(dialog: answer)
+        return .result(dialog: IntentDialog(stringLiteral: answer))
     }
 }
 
