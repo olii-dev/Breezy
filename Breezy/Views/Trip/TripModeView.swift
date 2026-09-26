@@ -13,6 +13,7 @@ struct TripModeView: View {
     @StateObject private var tripVM = TripViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showingShareCard = false
 
     private var theme: WeatherTheme {
         weatherViewModel.currentTheme(colorScheme: colorScheme)
@@ -118,13 +119,38 @@ struct TripModeView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(theme.textColor.opacity(0.7))
-                            .font(.title3)
+                    HStack(spacing: 4) {
+                        if tripVM.selectedRoute != nil {
+                            Button {
+                                HapticsManager.shared.impact(style: .light)
+                                showingShareCard = true
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                                    .foregroundStyle(theme.textColor.opacity(0.7))
+                                    .font(.body)
+                            }
+                        }
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(theme.textColor.opacity(0.7))
+                                .font(.title3)
+                        }
                     }
+                }
+            }
+            .sheet(isPresented: $showingShareCard) {
+                if let route = tripVM.selectedRoute, let origin = tripVM.origin {
+                    TripShareCardView(
+                        route: route,
+                        originName: origin.name,
+                        destinationName: tripVM.destination?.name ?? "your destination",
+                        departure: tripVM.departure,
+                        arrivalBrief: tripVM.arrivalBrief,
+                        theme: theme,
+                        glassOpacity: weatherViewModel.glassOpacity
+                    )
                 }
             }
             .preferredColorScheme(weatherViewModel.appearanceMode == .light ? .light : weatherViewModel.appearanceMode == .dark ? .dark : nil)
