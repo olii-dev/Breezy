@@ -111,6 +111,12 @@ class NotificationManager: NSObject, ObservableObject {
             title: "Dismiss",
             options: []
         )
+
+        let snoozeRainAction = UNNotificationAction(
+            identifier: "SNOOZE_RAIN_ACTION",
+            title: "Snooze 30 min",
+            options: []
+        )
         
         let weatherAlertCategory = UNNotificationCategory(
             identifier: "WEATHER_ALERT",
@@ -128,7 +134,7 @@ class NotificationManager: NSObject, ObservableObject {
         
         let rainAlertCategory = UNNotificationCategory(
             identifier: "RAIN_ALERT",
-            actions: [viewAction, dismissAction],
+            actions: [viewAction, snoozeRainAction, dismissAction],
             intentIdentifiers: [],
             options: []
         )
@@ -172,6 +178,25 @@ class NotificationManager: NSObject, ObservableObject {
         ])
     }
     
+    // MARK: - Rain Alert Snooze
+
+    /// While set and in the future, rain alerts (hourly + minute) stay quiet.
+    private var rainAlertsSnoozedUntil: Date? {
+        get { UserDefaults.standard.object(forKey: "Breezy.rainAlertsSnoozedUntil") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "Breezy.rainAlertsSnoozedUntil") }
+    }
+
+    func snoozeRainAlerts(minutes: Int = 30) {
+        rainAlertsSnoozedUntil = Date().addingTimeInterval(TimeInterval(minutes) * 60)
+    }
+
+    private func isRainAlertSnoozed() -> Bool {
+        guard let until = rainAlertsSnoozedUntil else { return false }
+        if until > Date() { return true }
+        rainAlertsSnoozedUntil = nil // expired — clear it
+        return false
+    }
+
     // MARK: - Daily Forecast Notification
     
     func scheduleDailyForecast(weather: WeatherInfo, temperatureUnit: TemperatureUnit) {
@@ -484,6 +509,7 @@ class NotificationManager: NSObject, ObservableObject {
         guard settings.rainAlertsEnabled else { return }
         guard authorizationStatus == .authorized else { return }
         guard !isInQuietHours() else { return }
+        guard !isRainAlertSnoozed() else { return }
         
         // Check hourly forecast for rain in next few hours (skip hours that
         // have already passed, since hourlyForecast starts at 00:00).
@@ -626,6 +652,7 @@ class NotificationManager: NSObject, ObservableObject {
         guard settings.minuteRainAlertsEnabled else { return }
         guard authorizationStatus == .authorized else { return }
         guard !isInQuietHours() else { return }
+        guard !isRainAlertSnoozed() else { return }
         
         // Check if we have minute forecast data
         // For now, we'll use hourly forecast as a proxy since WeatherKit minute forecast
@@ -755,6 +782,10 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         if response.actionIdentifier == "VIEW_ACTION" {
             // Handle view action - will be handled in app
             NotificationCenter.default.post(name: NSNotification.Name("OpenWeatherDetails"), object: nil, userInfo: userInfo)
+        } else if response.actionIdentifier == "SNOOZE_RAIN_ACTION" {
+            Task { @MainActor in
+                NotificationManager.shared.snoozeRainAlerts()
+            }
         }
         
         completionHandler()
