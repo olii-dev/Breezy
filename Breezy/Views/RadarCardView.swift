@@ -119,6 +119,13 @@ struct RadarCardView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .allowsHitTesting(false)
                     .transition(.opacity)
+                } else if showLightning, let status = lightning.statusChipText {
+                    LightningStatusChip(text: status)
+                        .padding(.leading, 20)
+                        .padding(.bottom, 20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
                 }
                 
                 // Map Style Mini-Button
@@ -591,5 +598,27 @@ class PulsingLocationView: UIView {
         
         pulseLayer.add(animation, forKey: "pulse")
         pulseLayer.add(opacityAnimation, forKey: "opacity")
+    }
+}
+
+// MARK: - Lightning feed status
+
+/// Capsule chip for the live lightning feed health, shown in place of the
+/// nearest-strike readout when the layer is on but the stream is degraded.
+struct LightningStatusChip: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "bolt.slash.fill")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.orange)
+            Text(text)
+                .font(.caption2.weight(.bold))
+                .foregroundColor(.primary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial, in: Capsule())
     }
 }

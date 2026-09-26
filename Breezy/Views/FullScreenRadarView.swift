@@ -143,6 +143,13 @@ struct FullScreenRadarView: View {
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                         .transition(.opacity)
+                    } else if showLightning, let status = lightning.statusChipText {
+                        LightningStatusChip(text: status)
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
+                            .transition(.opacity)
                     }
 
                     // Playback controls (only for RainViewer precipitation)

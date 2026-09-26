@@ -35,17 +35,45 @@ struct LightningStrike: Identifiable, Equatable {
     }
 }
 
+/// Health of the live strike feed. `.stale` and `.unavailable` distinguish
+/// "socket looks alive but the stream went quiet" (possible protocol change)
+/// from "repeatedly failing to reconnect".
+enum LightningConnectionState: Equatable {
+    case idle
+    case connecting
+    case connected
+    case stale
+    case unavailable
+}
+
 final class LightningService: ObservableObject {
 
     static let shared = LightningService()
 
     /// Strikes recorded within the retention window, oldest first.
     @Published private(set) var strikes: [LightningStrike] = []
-    /// True while the websocket is connected (or trying to be).
-    @Published private(set) var isConnected = false
+    /// Feed health, surfaced by the radar UI instead of a silently empty layer.
+    @Published private(set) var connectionState: LightningConnectionState = .idle
+
+    /// True while the websocket is established (even if the stream looks stale).
+    var isConnected: Bool { connectionState == .connected || connectionState == .stale }
+
+    /// Short status for the radar UI, shown when the layer has no strikes so
+    /// a dead feed isn't mistaken for "no lightning anywhere".
+    var statusChipText: String? {
+        switch connectionState {
+        case .stale: return "Lightning feed reconnecting…"
+        case .unavailable: return "Lightning feed unavailable"
+        default: return nil
+        }
+    }
 
     private let retentionInterval: TimeInterval = 30 * 60
     private let servers = ["wss://ws1.blitzortung.org", "wss://ws2.blitzortung.org", "wss://ws3.blitzortung.org"]
+    /// Total silence (any frame, not just strikes) for this long counts as a dead stream.
+    private let stalenessTimeout: TimeInterval = 90
+    /// Consecutive failed reconnects before the feed is reported unavailable.
+    private let unavailableAfterAttempts = 4
 
     private var task: URLSessionWebSocketTask?
     private var session: URLSession?
@@ -53,6 +81,11 @@ final class LightningService: ObservableObject {
     private var reconnectAttempt = 0
     private var shouldRun = false
     private var pruneTimer: Timer?
+    /// Last time any frame arrived (strikes, status, keepalives — anything).
+    private var lastMessageAt: Date?
+    /// Set once a reconnect cycle has begun after silence, so stale is reported
+    /// instead of connected even before the recycle finishes.
+    private var recyclingAfterSilence = false
 
     private let queue = DispatchQueue(label: "Breezy.LightningService")
 
@@ -64,6 +97,10 @@ final class LightningService: ObservableObject {
         queue.async { [weak self] in
             guard let self, !self.shouldRun else { return }
             self.shouldRun = true
+            self.lastMessageAt = nil
+            self.reconnectAttempt = 0
+            self.recyclingAfterSilence = false
+            self.setState(.connecting)
             self.connect()
             self.startPruning()
         }
@@ -79,7 +116,9 @@ final class LightningService: ObservableObject {
             self.session = nil
             self.pruneTimer?.invalidate()
             self.pruneTimer = nil
-            DispatchQueue.main.async { self.isConnected = false }
+            self.lastMessageAt = nil
+            self.recyclingAfterSilence = false
+            self.setState(.idle)
         }
     }
 
@@ -90,6 +129,9 @@ final class LightningService: ObservableObject {
         let server = servers[serverIndex % servers.count]
         guard let url = URL(string: server) else { return }
 
+        // State was already set by start() (.connecting) or the recycle path
+        // (.stale); connect() itself stays state-neutral.
+
         let session = URLSession(configuration: .ephemeral)
         self.session = session
         let task = session.webSocketTask(with: url)
@@ -98,11 +140,19 @@ final class LightningService: ObservableObject {
 
         // Handshake: tells the server to start streaming strike messages.
         task.send(.string("{\"a\": 111}")) { [weak self] error in
-            DispatchQueue.main.async {
-                self?.isConnected = (error == nil)
-            }
-            if error != nil {
+            guard error == nil else {
                 self?.scheduleReconnect()
+                return
+            }
+            // Established — but only call it healthy once frames arrive.
+            // lastMessageAt anchors here so a server that never streams is
+            // still caught by the staleness check.
+            DispatchQueue.main.async {
+                guard let self, self.shouldRun, self.connectionState == .connecting else { return }
+                self.connectionState = .connected
+                if self.lastMessageAt == nil {
+                    self.lastMessageAt = Date()
+                }
             }
         }
         receiveNext()
@@ -131,7 +181,14 @@ final class LightningService: ObservableObject {
             self.session = nil
             self.serverIndex += 1
             self.reconnectAttempt += 1
-            DispatchQueue.main.async { self.isConnected = false }
+
+            // While recycling after detected silence the state stays .stale;
+            // only enough failed attempts upgrades that to .unavailable.
+            if self.reconnectAttempt >= self.unavailableAfterAttempts {
+                self.setState(.unavailable)
+            } else if !self.recyclingAfterSilence {
+                self.setState(.connecting)
+            }
 
             // Exponential backoff, capped at 30s.
             let delay = min(30.0, pow(2.0, Double(min(self.reconnectAttempt, 5))))
@@ -142,9 +199,38 @@ final class LightningService: ObservableObject {
         }
     }
 
+    /// Runs on the main timer (prune cadence). Detects a stream that looks
+    /// connected but has gone silent — e.g. an undocumented protocol change —
+    /// and recycles the connection rather than leaving a quietly empty layer.
+    private func checkStaleness() {
+        guard shouldRun, task != nil, let last = lastMessageAt else { return }
+        guard Date().timeIntervalSince(last) > stalenessTimeout else { return }
+
+        recyclingAfterSilence = true
+        connectionState = .stale
+        scheduleReconnect()
+    }
+
+    private func setState(_ state: LightningConnectionState) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.connectionState != state else { return }
+            self.connectionState = state
+        }
+    }
+
     // MARK: - Message handling
 
     private func handle(_ message: URLSessionWebSocketTask.Message) {
+        // Any frame — strike, status, or keepalive — is proof the stream lives.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.lastMessageAt = Date()
+            self.recyclingAfterSilence = false
+            self.reconnectAttempt = 0
+            if self.connectionState != .connected {
+                self.connectionState = .connected
+            }
+        }
         switch message {
         case .string(let text):
             parse(text)
@@ -211,6 +297,7 @@ final class LightningService: ObservableObject {
         let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.pruneExpired()
+                self?.checkStaleness()
             }
         }
         pruneTimer = timer
