@@ -200,6 +200,7 @@ function Caption({
         style={{
           fontSize: cW * 0.09,
           fontWeight: 700,
+          fontFamily: "var(--font-display), Georgia, 'Times New Roman', serif",
           color: THEMES["breezy-purple"].fg,
           lineHeight: 1.05,
         }}
@@ -233,16 +234,7 @@ export default function ScreenshotsPage() {
       clone.style.top = "0";
       clone.style.zIndex = "-9999";
       clone.removeAttribute("id");
-      
-      // Replace all font-family with system fonts 
-      const allElements = clone.querySelectorAll("*");
-      allElements.forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        if (htmlEl.style.fontFamily) {
-          htmlEl.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-        }
-      });
-      
+
       document.body.appendChild(clone);
       
       const opts = { 
