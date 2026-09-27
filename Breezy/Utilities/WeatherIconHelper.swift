@@ -31,13 +31,16 @@ struct WeatherIconHelper {
         return isNight(isDaylight: isDaylight, at: date) ? "🌙" : "🌡️"
     }
 
-    static func minimalistIcon(for condition: String) -> String {
+    static func minimalistIcon(for condition: String, isDaylight: Bool? = nil, at date: Date? = nil) -> String {
         let cond = condition.lowercased()
 
-        if cond.contains("sun") || cond.contains("sunny") { return "sun.max" }
-        if cond.contains("clear") || cond.contains("mostly clear") {
-            return isNight(isDaylight: nil, at: nil) ? "moon.stars" : "sun.max"
+        if cond.contains("sun") || cond.contains("sunny") {
+            return isNight(isDaylight: isDaylight, at: date) ? "moon.stars" : "sun.max"
         }
+        if cond.contains("clear") || cond.contains("mostly clear") {
+            return isNight(isDaylight: isDaylight, at: date) ? "moon.stars" : "sun.max"
+        }
+        if cond.contains("partly") && isNight(isDaylight: isDaylight, at: date) { return "cloud.moon" }
         if cond.contains("thunder") { return "cloud.bolt" }
         if cond.contains("shower") { return "cloud.sun.rain" }
         if cond.contains("rain") || cond.contains("drizzle") { return "cloud.rain" }

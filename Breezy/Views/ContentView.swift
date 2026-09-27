@@ -1072,7 +1072,7 @@ struct WeatherHeaderView: View {
             
             VStack(spacing: 10) {
                 if viewModel.useMinimalistIcons {
-                    Image(systemName: viewModel.weatherIcon(for: weather.condition))
+                    Image(systemName: viewModel.weatherIcon(for: weather.condition, isDaylight: viewModel.isDaylightAtLocation()))
                         .font(.system(size: 54, weight: .light)) // Smaller icon
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                         .symbolRenderingMode(.hierarchical)
@@ -1463,7 +1463,7 @@ struct DailyForecastRowView: View {
                 .frame(width: 60, alignment: .leading)
             
             if viewModel.useMinimalistIcons {
-                Image(systemName: viewModel.weatherIcon(for: day.condition))
+                Image(systemName: viewModel.weatherIcon(for: day.condition, at: dailyMidday(day)))
                     .font(.title3)
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                     .symbolRenderingMode(.hierarchical)
@@ -1651,7 +1651,7 @@ struct NewWeatherHeaderView: View {
             // Giant animated weather icon
             if viewModel.useMinimalistIcons {
                 AnimatedWeatherIcon(
-                    systemName: viewModel.weatherIcon(for: weather.condition),
+                    systemName: viewModel.weatherIcon(for: weather.condition, isDaylight: viewModel.isDaylightAtLocation()),
                     size: 140,
                     condition: weather.condition,
                     colorScheme: colorScheme
@@ -1821,7 +1821,7 @@ struct NewHourlyCardView: View {
                                         .foregroundColor(theme.textColor.opacity(index == currentHourIndex ? 1.0 : 0.75))
 
                                     if viewModel.useMinimalistIcons {
-                                        Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud"))
+                                        Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate))
                                             .font(.title3)
                                             .foregroundColor(theme.textColor)
                                             .symbolRenderingMode(.hierarchical)
@@ -2082,7 +2082,7 @@ struct HourlyForecastStripTile: View {
 
             Group {
                 if viewModel.useMinimalistIcons {
-                    Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud"))
+                    Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate))
                         .font(.title3)
                         .foregroundColor(textColor)
                         .symbolRenderingMode(.hierarchical)
@@ -2197,7 +2197,7 @@ struct SimpleDailyRow: View {
             // Icon
             if showIcons {
                 if viewModel.useMinimalistIcons {
-                    Image(systemName: viewModel.weatherIcon(for: day.condition))
+                    Image(systemName: viewModel.weatherIcon(for: day.condition, at: dailyMidday(day)))
                         .font(.title3)
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                         .symbolRenderingMode(.hierarchical)
@@ -5225,6 +5225,12 @@ private struct UnsupportedSourceWidgetCard: View {
 }
 
 // MARK: - Gallery & Config
+
+/// Representative midday for a forecast day (sunrise–sunset midpoint when known).
+func dailyMidday(_ day: DailyForecast) -> Date? {
+    guard let sunrise = day.sunriseDate, let sunset = day.sunsetDate else { return nil }
+    return sunrise.addingTimeInterval(sunset.timeIntervalSince(sunrise) / 2)
+}
 
 struct WidgetGalleryView: View {
     @ObservedObject var viewModel: WeatherViewModel

@@ -200,7 +200,6 @@ function Caption({
         style={{
           fontSize: cW * 0.09,
           fontWeight: 700,
-          fontFamily: "var(--font-display), Georgia, 'Times New Roman', serif",
           color: THEMES["breezy-purple"].fg,
           lineHeight: 1.05,
         }}

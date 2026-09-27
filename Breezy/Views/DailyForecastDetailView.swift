@@ -449,7 +449,7 @@ struct DailyForecastDetailView: View {
             // Large icon
             if viewModel.useMinimalistIcons {
                 AnimatedWeatherIcon(
-                    systemName: viewModel.weatherIcon(for: day.condition),
+                    systemName: viewModel.weatherIcon(for: day.condition, at: dailyMidday(day)),
                     size: 100,
                     condition: day.condition
                 )
@@ -1020,7 +1020,7 @@ struct HourlyDetailCard: View {
     private var weatherIcon: some View {
         if viewModel.useMinimalistIcons {
             return AnyView(
-                Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud"))
+                Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate))
                     .font(.title2)
                     .foregroundColor(textColor)
                     .symbolRenderingMode(.hierarchical)

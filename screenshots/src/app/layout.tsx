@@ -1,12 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces } from "next/font/google";
 import "./globals.css";
-
-const display = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
-  axes: ["SOFT", "WONK"],
-});
 
 export const metadata: Metadata = {
   title: "Breezy - App Store Screenshots",
@@ -19,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`h-full antialiased ${display.variable}`} style={{ fontFamily: "sans-serif" }}>
+    <html lang="en" className="h-full antialiased" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif" }}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

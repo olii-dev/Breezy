@@ -795,8 +795,23 @@ class WeatherViewModel: ObservableObject {
         return String(format: format, value, windSpeedUnit.displayName)
     }
     
-    func weatherIcon(for condition: String) -> String {
-        WeatherIconHelper.minimalistIcon(for: condition)
+    /// Daylight at the displayed location: sunrise/sunset from the forecast
+    /// when available, otherwise a 6am–8pm heuristic in the location timezone.
+    func isDaylightAtLocation() -> Bool {
+        guard let weather else { return true }
+        if let sunrise = weather.dailyForecast.first?.sunriseDate,
+           let sunset = weather.dailyForecast.first?.sunsetDate {
+            let now = Date()
+            return now >= sunrise && now <= sunset
+        }
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: weather.timezone) ?? .current
+        let hour = calendar.component(.hour, from: Date())
+        return hour >= 6 && hour < 20
+    }
+
+    func weatherIcon(for condition: String, isDaylight: Bool? = nil, at date: Date? = nil) -> String {
+        WeatherIconHelper.minimalistIcon(for: condition, isDaylight: isDaylight, at: date)
     }
     
     func currentTheme(colorScheme: ColorScheme) -> WeatherTheme {
