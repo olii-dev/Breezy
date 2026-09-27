@@ -9,6 +9,8 @@ import SwiftUI
 import Charts
 import UniformTypeIdentifiers
 import CoreLocation
+import UIKit
+import Photos
 
 struct ContentView: View {
     @StateObject private var viewModel = WeatherViewModel()
@@ -21,6 +23,7 @@ struct ContentView: View {
 #if DEBUG
     @State private var showingDriverRadar = false
     @State private var showingDriverDayDetail = false
+    @State private var showingDriverUnits = false
 #endif
     @State private var isButtonBusy = false
     @State private var showingOnboarding = false
@@ -68,6 +71,9 @@ struct ContentView: View {
                     if let day = viewModel.weather?.dailyForecast.first {
                         DailyForecastDetailView(day: day, viewModel: viewModel)
                     }
+                }
+                .sheet(isPresented: $showingDriverUnits) {
+                    DataSettingsView(viewModel: viewModel)
                 }
 #endif
                 .onChange(of: showingOnboarding) { oldValue, isShowing in
@@ -256,7 +262,7 @@ struct ContentView: View {
                             saveDashboard()
                             showingWidgetGallery = false
                         }
-                    })
+                    }, alreadyAdded: Set(dashboardWidgets.map(\.type)))
                 }
                 .sheet(item: $configuringWidget) { widget in
                     WidgetConfigView(widget: widget, viewModel: viewModel, onSave: { updatedWidget in
@@ -293,7 +299,7 @@ struct ContentView: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: DesignSystem.spacingXL) {
                     Spacer()
-                        .frame(height: DesignSystem.spacingS)
+                        .frame(height: 44)
 
                     if let locErr = locationHelper.locationError,
                        viewModel.shouldFollowGPS || viewModel.weather == nil {
@@ -478,6 +484,8 @@ struct ContentView: View {
             case "share": showShareCard = true
             case "radar": showingDriverRadar = true
             case "daydetail": showingDriverDayDetail = true
+            case "location": showingLocationPicker = true
+            case "units": showingDriverUnits = true
             default: break
             }
         }
@@ -2258,15 +2266,15 @@ struct MetricsPillsView: View {
         
         LazyVGrid(columns: columns, spacing: DesignSystem.spacingS) {
             ForEach(pills, id: \.title) { pill in
-                VStack(spacing: 6) {
+                VStack(spacing: 4) {
                     // Show emoji or SF Symbol based on setting
                     if viewModel.useMinimalistIcons {
                         Image(systemName: pill.icon)
-                            .font(.title3)
+                            .font(.body)
                             .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.9))
                     } else {
                         Text(pill.emoji)
-                            .font(.title3)
+                            .font(.callout)
                             .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(1))
                     }
                     
@@ -2275,12 +2283,12 @@ struct MetricsPillsView: View {
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                     
                     Text(pill.value)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.footnote.weight(.semibold))
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, DesignSystem.spacingM)
-                .softGlassCard(padding: DesignSystem.spacingS, cornerRadius: DesignSystem.radiusS)
+                .padding(.vertical, DesignSystem.spacingS)
+                .softGlassCard(padding: DesignSystem.spacingXS, cornerRadius: DesignSystem.radiusS)
             }
         }
     }
@@ -5223,6 +5231,8 @@ struct WidgetGalleryView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
     let onAdd: (WidgetType) -> Void
+    /// Widget types already on the dashboard — shown with an Added badge.
+    var alreadyAdded: Set<WidgetType> = []
     
     private let columns = [
         GridItem(.flexible(), spacing: DesignSystem.spacingS),
@@ -5247,10 +5257,9 @@ struct WidgetGalleryView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(theme.textColor.opacity(0.8))
-                            .font(.title2)
                     }
                     .padding(.trailing, DesignSystem.spacingM)
                 }
@@ -5264,10 +5273,17 @@ struct WidgetGalleryView: View {
                             Text("Customise Dashboard")
                                 .font(.system(size: 28, weight: .bold, design: viewModel.typography.design))
                                 .foregroundColor(theme.textColor)
-                            
+
                             Text("Tap a card to add it to your dashboard. Forecasts show what is ahead, while details focus on the conditions right now.")
                                 .font(.system(size: 16, weight: .medium, design: viewModel.typography.design))
                                 .foregroundColor(theme.textColor.opacity(0.7))
+
+                            if !alreadyAdded.isEmpty {
+                                Label(alreadyAdded.count == 1 ? "1 widget on your dashboard" : "\(alreadyAdded.count) widgets on your dashboard", systemImage: "square.grid.2x2.fill")
+                                    .font(.system(size: 12, weight: .semibold, design: viewModel.typography.design))
+                                    .foregroundColor(theme.textColor.opacity(0.55))
+                                    .padding(.top, 4)
+                            }
                         }
                         .padding(.horizontal)
                         .padding(.top, DesignSystem.spacingS)
@@ -5296,16 +5312,26 @@ struct WidgetGalleryView: View {
                                                 HStack(alignment: .top) {
                                                     ZStack {
                                                         RoundedRectangle(cornerRadius: 12)
-                                                            .fill(DesignSystem.skyBlue.opacity(0.15))
+                                                            .fill(categoryTint(category).opacity(0.15))
                                                             .frame(width: 44, height: 44)
                                                         Image(systemName: type.icon)
                                                             .font(.system(size: 22, weight: .medium))
-                                                            .foregroundColor(DesignSystem.skyBlue)
+                                                            .foregroundColor(categoryTint(category))
                                                     }
 
                                                     Spacer(minLength: 8)
 
-                                                    if let badge = providerBadge(for: type) {
+                                                    if alreadyAdded.contains(type) {
+                                                        Label("Added", systemImage: "checkmark")
+                                                            .font(.system(size: 10, weight: .bold, design: viewModel.typography.design))
+                                                            .foregroundColor(.mint)
+                                                            .padding(.horizontal, 8)
+                                                            .padding(.vertical, 5)
+                                                            .background(
+                                                                Capsule()
+                                                                    .fill(Color.mint.opacity(0.18))
+                                                            )
+                                                    } else if let badge = providerBadge(for: type) {
                                                         Text(badge)
                                                             .font(.system(size: 10, weight: .bold, design: viewModel.typography.design))
                                                             .tracking(0.4)
@@ -5392,6 +5418,16 @@ struct WidgetGalleryView: View {
         case .pollen: return "Open-Meteo only: tree, grass and weed pollen with an allergy-risk rating (Europe)"
         case .goldenHour: return "Sunrise and sunset golden hour windows"
         case .smartStack: return "Adaptive widget stack"
+        }
+    }
+
+    private func categoryTint(_ category: WidgetCategory) -> Color {
+        switch category {
+        case .forecasts: return DesignSystem.skyBlue
+        case .details: return .mint
+        case .astronomy: return DesignSystem.softOrange
+        case .maps: return .indigo
+        case .adaptive: return DesignSystem.softPink
         }
     }
 
@@ -6366,53 +6402,91 @@ struct ShareWeatherCardView: View {
     let colorScheme: ColorScheme
     @Environment(\.dismiss) var dismiss
     @State private var renderedImage: Image?
-    
+    @State private var renderedUIImage: UIImage?
+    @State private var cardStyle: ShareCardStyle = .classic
+    @State private var cardAppearance: ShareCardAppearance = .matchApp
+    @State private var saveConfirmation: String?
+
     private var theme: WeatherTheme {
         viewModel.currentTheme(colorScheme: colorScheme)
     }
-    
+
+    /// Theme used by the card itself; Light/Dark override the app's look.
+    private var cardTheme: WeatherTheme {
+        switch cardAppearance {
+        case .matchApp: return theme
+        case .light: return viewModel.currentTheme(colorScheme: .light)
+        case .dark: return viewModel.currentTheme(colorScheme: .dark)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
-                
-                VStack(spacing: 24) {
-                    Spacer()
-                    
-                    shareCardContent
-                        .padding(.horizontal, 24)
-                    
-                    Spacer()
-                    
-                    if let renderedImage {
-                        renderedImage
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .shadow(radius: 10)
-                    }
-                    
-                    ShareLink(
-                        item: renderedImage ?? Image(systemName: "photo"),
-                        preview: SharePreview("Weather in \(weather.location.city)", image: renderedImage ?? Image(systemName: "photo"))
-                    ) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 18, weight: .semibold))
-                            Text("Share")
-                                .font(.system(size: 18, weight: .semibold))
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        cardContent
+                            .padding(.horizontal, 24)
+                            .padding(.top, 8)
+
+                        if let renderedImage {
+                            renderedImage
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxHeight: 170)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                                .shadow(radius: 10)
                         }
-                        .foregroundStyle(theme.textColor)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                        )
+
+                        customisationControls
+
+                        HStack(spacing: 12) {
+                            ShareLink(
+                                item: renderedImage ?? Image(systemName: "photo"),
+                                preview: SharePreview("Weather in \(weather.location.city)", image: renderedImage ?? Image(systemName: "photo"))
+                            ) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 17, weight: .semibold))
+                                    Text("Share")
+                                        .font(.system(size: 17, weight: .semibold))
+                                }
+                                .foregroundStyle(theme.textColor)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                                )
+                            }
+
+                            Menu {
+                                Button {
+                                    saveToPhotos()
+                                } label: {
+                                    Label("Save to Photos", systemImage: "square.and.arrow.down")
+                                }
+                                Button {
+                                    copyToPasteboard()
+                                } label: {
+                                    Label("Copy Image", systemImage: "doc.on.doc")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(theme.textColor)
+                                    .frame(width: 52, height: 52)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                                    )
+                            }
+                        }
                         .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.bottom, 20)
                 }
             }
             .toolbar {
@@ -6422,59 +6496,63 @@ struct ShareWeatherCardView: View {
                         .fontWeight(.bold)
                 }
             }
+            .alert("Saved", isPresented: Binding(
+                get: { saveConfirmation != nil },
+                set: { if !$0 { saveConfirmation = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(saveConfirmation ?? "")
+            }
             .task { renderCard() }
+            .onChange(of: cardStyle) { _, _ in renderCard() }
+            .onChange(of: cardAppearance) { _, _ in renderCard() }
         }
     }
-    
-    private var shareCardContent: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Text(weather.location.city)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(theme.textColor.opacity(0.7))
-                Spacer()
-                Text(Date(), style: .date)
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.textColor.opacity(0.5))
-            }
-            
-            HStack(alignment: .center, spacing: 16) {
-                if viewModel.useMinimalistIcons {
-                    Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
-                        .font(.system(size: 48))
-                        .foregroundStyle(theme.textColor)
-                } else {
-                    Text(weather.emoji)
-                        .font(.system(size: 48))
+
+    // MARK: - Customisation controls
+
+    private var customisationControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("CARD STYLE")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(theme.textColor.opacity(0.55))
+                .padding(.horizontal, 28)
+
+            Picker("Card Style", selection: $cardStyle) {
+                ForEach(ShareCardStyle.allCases, id: \.self) { style in
+                    Text(style.rawValue).tag(style)
                 }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(weather.temperature)
-                        .font(.system(size: 52, weight: .thin, design: viewModel.typography.design))
-                        .foregroundStyle(theme.textColor)
-                    
-                    Text(weather.condition)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(theme.textColor.opacity(0.85))
-                }
-                
-                Spacer()
             }
-            
-            if let high = weather.highTemp, let low = weather.lowTemp {
-                HStack(spacing: 24) {
-                    Label(high, systemImage: "arrow.up")
-                        .font(.subheadline.weight(.medium))
-                    Label(low, systemImage: "arrow.down")
-                        .font(.subheadline.weight(.medium))
+            .pickerStyle(.segmented)
+            .tint(theme.textColor)
+            .padding(.horizontal, 24)
+
+            Text("APPEARANCE")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(theme.textColor.opacity(0.55))
+                .padding(.horizontal, 28)
+                .padding(.top, 4)
+
+            Picker("Appearance", selection: $cardAppearance) {
+                ForEach(ShareCardAppearance.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
                 }
-                .foregroundStyle(theme.textColor.opacity(0.6))
             }
-            
-            if let feelsLike = weather.feelsLike {
-                Text("Feels like \(feelsLike)")
-                    .font(.caption)
-                    .foregroundStyle(theme.textColor.opacity(0.5))
+            .pickerStyle(.segmented)
+            .tint(theme.textColor)
+            .padding(.horizontal, 24)
+        }
+    }
+
+    // MARK: - Card (single source used by preview AND export)
+
+    private var cardContent: some View {
+        Group {
+            switch cardStyle {
+            case .classic: classicCardBody
+            case .minimal: minimalCardBody
+            case .details: classicCardBody.detailsFooter(metrics: weather.metrics, theme: cardTheme)
             }
         }
         .padding(28)
@@ -6483,7 +6561,7 @@ struct ShareWeatherCardView: View {
                 .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                 .overlay(
                     RoundedRectangle(cornerRadius: 24)
-                        .stroke(theme.textColor.opacity(0.15), lineWidth: 1)
+                        .stroke(cardTheme.textColor.opacity(0.15), lineWidth: 1)
                 )
         )
         .background(
@@ -6491,79 +6569,221 @@ struct ShareWeatherCardView: View {
                 .opacity(0)
         )
     }
-    
+
+    private var cardHeader: some View {
+        HStack {
+            Text(weather.location.city)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(cardTheme.textColor.opacity(0.7))
+            Spacer()
+            Text(Date(), style: .date)
+                .font(.system(size: 12))
+                .foregroundStyle(cardTheme.textColor.opacity(0.5))
+        }
+    }
+
+    private var classicCardBody: some View {
+        VStack(spacing: 16) {
+            cardHeader
+
+            HStack(alignment: .center, spacing: 16) {
+                if viewModel.useMinimalistIcons {
+                    Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
+                        .font(.system(size: 48))
+                        .foregroundStyle(cardTheme.textColor)
+                } else {
+                    Text(weather.emoji)
+                        .font(.system(size: 48))
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(weather.temperature)
+                        .font(.system(size: 52, weight: .thin, design: viewModel.typography.design))
+                        .foregroundStyle(cardTheme.textColor)
+
+                    Text(weather.condition)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(cardTheme.textColor.opacity(0.85))
+                }
+
+                Spacer()
+            }
+
+            if let high = weather.highTemp, let low = weather.lowTemp {
+                HStack(spacing: 24) {
+                    Label(high, systemImage: "arrow.up")
+                        .font(.subheadline.weight(.medium))
+                    Label(low, systemImage: "arrow.down")
+                        .font(.subheadline.weight(.medium))
+                }
+                .foregroundStyle(cardTheme.textColor.opacity(0.6))
+            }
+
+            if let feelsLike = weather.feelsLike {
+                Text("Feels like \(feelsLike)")
+                    .font(.caption)
+                    .foregroundStyle(cardTheme.textColor.opacity(0.5))
+            }
+        }
+    }
+
+    private var minimalCardBody: some View {
+        VStack(spacing: 10) {
+            Text(weather.temperature)
+                .font(.system(size: 64, weight: .thin, design: viewModel.typography.design))
+                .foregroundStyle(cardTheme.textColor)
+
+            HStack(spacing: 8) {
+                if viewModel.useMinimalistIcons {
+                    Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
+                        .font(.system(size: 18))
+                        .foregroundStyle(cardTheme.textColor)
+                } else {
+                    Text(weather.emoji)
+                        .font(.system(size: 18))
+                }
+                Text(weather.condition)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(cardTheme.textColor.opacity(0.85))
+            }
+
+            Text(weather.location.city)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(cardTheme.textColor.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+
     @ViewBuilder
     private var shareCardRenderable: some View {
         ZStack {
             LinearGradient(
-                colors: [theme.topColor, theme.bottomColor],
+                colors: [cardTheme.topColor, cardTheme.bottomColor],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .frame(width: 400, height: 300)
+            .frame(width: 400, height: cardStyle == .details ? 360 : 300)
             .ignoresSafeArea()
-            
-            VStack(spacing: 16) {
-                HStack {
-                    Text(weather.location.city)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(theme.textColor.opacity(0.7))
-                    Spacer()
-                    Text(Date(), style: .date)
-                        .font(.system(size: 12))
-                        .foregroundStyle(theme.textColor.opacity(0.5))
-                }
-                
-                HStack(alignment: .center, spacing: 16) {
-                    if viewModel.useMinimalistIcons {
-                        Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
-                            .font(.system(size: 48))
-                            .foregroundStyle(theme.textColor)
-                    } else {
-                        Text(weather.emoji)
-                            .font(.system(size: 48))
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(weather.temperature)
-                            .font(.system(size: 52, weight: .thin))
-                            .foregroundStyle(theme.textColor)
-                        
-                        Text(weather.condition)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(theme.textColor.opacity(0.85))
-                    }
-                    
-                    Spacer()
-                }
-                
-                if let high = weather.highTemp, let low = weather.lowTemp {
-                    HStack(spacing: 24) {
-                        Label(high, systemImage: "arrow.up")
-                            .font(.subheadline.weight(.medium))
-                        Label(low, systemImage: "arrow.down")
-                            .font(.subheadline.weight(.medium))
-                    }
-                    .foregroundStyle(theme.textColor.opacity(0.6))
-                }
-                
-                HStack {
-                    Spacer()
-                    Text("Breezy")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.textColor.opacity(0.3))
+
+            Group {
+                switch cardStyle {
+                case .classic: classicCardBody.breezyFooter(theme: cardTheme)
+                case .minimal: minimalCardBody.breezyFooter(theme: cardTheme)
+                case .details: classicCardBody.detailsFooter(metrics: weather.metrics, theme: cardTheme).breezyFooter(theme: cardTheme)
                 }
             }
             .padding(28)
         }
     }
-    
+
+    // MARK: - Actions
+
+    private func saveToPhotos() {
+        guard let renderedUIImage else {
+            saveConfirmation = "The card is still rendering — try again in a moment."
+            return
+        }
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            guard status == .authorized || status == .limited else {
+                DispatchQueue.main.async {
+                    self.saveConfirmation = "Photo access is off — enable it in Settings to save cards."
+                }
+                return
+            }
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetChangeRequest.creationRequestForAsset(from: renderedUIImage)
+                request.creationDate = Date()
+            }, completionHandler: { success, _ in
+                DispatchQueue.main.async {
+                    self.saveConfirmation = success
+                        ? "Your weather card was saved to Photos."
+                        : "Couldn't save the card — please try again."
+                }
+            })
+        }
+    }
+
+    private func copyToPasteboard() {
+        guard let renderedUIImage else {
+            saveConfirmation = "The card is still rendering — try again in a moment."
+            return
+        }
+        UIPasteboard.general.image = renderedUIImage
+        saveConfirmation = "Card image copied to the clipboard."
+    }
+
     private func renderCard() {
         let renderer = ImageRenderer(content: shareCardRenderable)
         renderer.scale = 3.0
         if let uiImage = renderer.uiImage {
+            renderedUIImage = uiImage
             renderedImage = Image(uiImage: uiImage)
         }
+    }
+}
+
+enum ShareCardStyle: String, CaseIterable {
+    case classic = "Classic"
+    case minimal = "Minimal"
+    case details = "Details"
+}
+
+enum ShareCardAppearance: String, CaseIterable {
+    case matchApp = "Match App"
+    case light = "Light"
+    case dark = "Dark"
+}
+
+private extension View {
+    /// Small attribution row for the exported image.
+    func breezyFooter(theme: WeatherTheme) -> some View {
+        VStack(spacing: 12) {
+            self
+            HStack {
+                Spacer()
+                Text("Breezy")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.textColor.opacity(0.3))
+            }
+        }
+    }
+
+    /// Extra quick-stat chips for the Details card style.
+    func detailsFooter(metrics: WeatherMetrics?, theme: WeatherTheme) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            self
+            HStack(spacing: 10) {
+                if let uv = metrics?.uvIndex {
+                    ShareCardStatChip(icon: "sun.max.fill", label: "UV \(uv)", theme: theme)
+                }
+                if let wind = metrics?.windSpeed {
+                    ShareCardStatChip(icon: "wind", label: wind, theme: theme)
+                }
+                if let humidity = metrics?.humidity {
+                    ShareCardStatChip(icon: "humidity.fill", label: "\(humidity)%", theme: theme)
+                }
+            }
+        }
+    }
+}
+
+struct ShareCardStatChip: View {
+    let icon: String
+    let label: String
+    let theme: WeatherTheme
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+        }
+        .foregroundStyle(theme.textColor.opacity(0.75))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(theme.textColor.opacity(0.1)))
     }
 }
 

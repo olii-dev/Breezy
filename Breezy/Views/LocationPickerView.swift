@@ -63,10 +63,9 @@ struct LocationPickerView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                            .font(.title3)
                     }
                 }
             }

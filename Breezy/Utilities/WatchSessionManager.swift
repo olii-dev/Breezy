@@ -2,7 +2,7 @@
 //  WatchSessionManager.swift
 //  Breezy
 //
-//  Manages Watch Connectivity session on iOS
+//\  Manages Watch Connectivity session on iOS
 //
 
 import Foundation

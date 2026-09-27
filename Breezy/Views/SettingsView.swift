@@ -510,22 +510,29 @@ struct DataSettingsView: View {
                             Divider().padding(.leading)
                             
                             // Date Format
-                            HStack {
-                                Label("Date Format", systemImage: "calendar")
-                                    .foregroundColor(theme.textColor)
-                                Spacer()
-                                Picker("", selection: $viewModel.dateFormat) {
-                                    ForEach(DateFormat.allCases) { format in
-                                        Text("\(format.rawValue) (\(format.example))").tag(format)
+                            VStack(spacing: 6) {
+                                HStack {
+                                    Label("Date Format", systemImage: "calendar")
+                                        .foregroundColor(theme.textColor)
+                                    Spacer()
+                                    // Menu shows just the name; the live example
+                                    // sits below so the row never wraps.
+                                    Picker("Date Format", selection: $viewModel.dateFormat) {
+                                        ForEach(DateFormat.allCases) { format in
+                                            Text(format.rawValue).tag(format)
+                                        }
+                                    }
+                                    .tint(theme.textColor)
+                                    .labelsHidden()
+                                    .onChange(of: viewModel.dateFormat) { _, _ in
+                                        HapticsManager.shared.selectionChanged()
                                     }
                                 }
-                                .tint(theme.textColor)
-                                .labelsHidden()
-                                .onChange(of: viewModel.dateFormat) { _, _ in
-                                    HapticsManager.shared.selectionChanged()
-                                }
+                                Text("Example: \(viewModel.dateFormat.example)")
+                                    .font(.caption)
+                                    .foregroundColor(theme.textColor.opacity(0.55))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding()
                         }
                         .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                     }

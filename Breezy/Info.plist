@@ -8,6 +8,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Breezy needs your location for local weather and to update On the Way weather ahead while Go Now is active.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Breezy saves your shared weather cards to your photo library.</string>
     <key>CFBundleIcons</key>
     <dict>
         <key>CFBundleAlternateIcons</key>

@@ -59,8 +59,8 @@ struct IconGalleryView: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                 }
             }

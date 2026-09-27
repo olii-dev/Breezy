@@ -29,10 +29,9 @@ struct RadarLayerMenuView: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .symbolRenderingMode(.hierarchical)
                 }
             }
             .padding()
