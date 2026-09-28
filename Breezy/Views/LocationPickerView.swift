@@ -219,7 +219,7 @@ struct LocationPickerView: View {
                  ForEach(RecentlyViewedStore.recentLocations) { location in
                      LocationRowCard(
                          title: location.city,
-                         subtitle: location.coordinateString,
+                         subtitle: location.displaySubtitle,
                          icon: "clock.fill",
                          color: .purple,
                          textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
@@ -252,7 +252,7 @@ struct LocationPickerView: View {
                  ForEach(FavouritesStore.favourites) { location in
                      LocationRowCard(
                          title: location.city,
-                         subtitle: location.coordinateString,
+                         subtitle: location.displaySubtitle,
                          icon: "star.fill",
                          color: .yellow,
                          textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,

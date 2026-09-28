@@ -61,9 +61,6 @@ struct SurfDashboardCard: View {
                         if let period = formattedPeriod(surf.wavePeriodSeconds) {
                             SurfMetricTile(title: "Period", value: period, icon: "timer", textColor: textColor)
                         }
-                        if let temp = formattedSeaTemp(surf.seaTempCelsius) {
-                            SurfMetricTile(title: "Sea", value: temp, icon: "thermometer.medium", textColor: textColor)
-                        }
                     }
                 } else {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -75,9 +72,6 @@ struct SurfDashboardCard: View {
                         }
                         if let swell = formattedHeight(surf.swellHeightMeters) {
                             SurfMetricTile(title: "Swell", value: swell, icon: "waveform.path.ecg", textColor: textColor)
-                        }
-                        if let temp = formattedSeaTemp(surf.seaTempCelsius) {
-                            SurfMetricTile(title: "Sea Temp", value: temp, icon: "thermometer.medium", textColor: textColor)
                         }
                     }
 

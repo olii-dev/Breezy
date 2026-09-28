@@ -69,11 +69,15 @@ class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterD
         
         // Use locality (city) or name if locality is missing
         let city = item.placemark.locality ?? item.name ?? completion.title.components(separatedBy: ",").first ?? completion.title
-        
+
+        let regionParts = [item.placemark.administrativeArea, item.placemark.country].compactMap { $0 }
+        let region = regionParts.isEmpty ? nil : regionParts.joined(separator: ", ")
+
         return LocationData(
             city: city,
             latitude: location.coordinate.latitude,
-            longitude: location.coordinate.longitude
+            longitude: location.coordinate.longitude,
+            region: region
         )
     }
 }

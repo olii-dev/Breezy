@@ -107,7 +107,7 @@ final class OpenMeteoProvider: WeatherProviding {
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,pressure_msl,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,visibility"),
             URLQueryItem(name: "hourly", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,pressure_msl,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"),
-            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max"),
+            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,moonrise,moonset,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max"),
             URLQueryItem(name: "forecast_days", value: "14"),
             URLQueryItem(name: "past_days", value: "1")
         ]
@@ -177,7 +177,7 @@ final class OpenMeteoProvider: WeatherProviding {
             // as the live forecast API. Keep this list limited to archive-supported
             // fields so Time Machine requests do not get rejected with HTTP 400.
             URLQueryItem(name: "hourly", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m"),
-            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant")
+            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,moonrise,moonset,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant")
         ]
 
         guard let url = components?.url else {
@@ -284,6 +284,8 @@ final class OpenMeteoProvider: WeatherProviding {
         let dates = parseDailyDates(source.time, timezone: timezone)
         let sunriseDates = parseHourlyDates(source.sunrise ?? [], timezone: timezone)
         let sunsetDates = parseHourlyDates(source.sunset ?? [], timezone: timezone)
+        let moonriseDates = parseHourlyDates(source.moonrise ?? [], timezone: timezone)
+        let moonsetDates = parseHourlyDates(source.moonset ?? [], timezone: timezone)
 
         return dates.enumerated().map { index, date in
             let code = source.weatherCode?[safe: index] ?? 0
@@ -301,8 +303,8 @@ final class OpenMeteoProvider: WeatherProviding {
                 sunrise: sunriseDates[safe: index],
                 sunset: sunsetDates[safe: index],
                 moonPhase: MoonPhaseHelper.moonPhase(for: date),
-                moonrise: nil,
-                moonset: nil
+                moonrise: moonriseDates[safe: index],
+                moonset: moonsetDates[safe: index]
             )
         }
     }
@@ -597,6 +599,8 @@ private struct OpenMeteoDailyBlock: Decodable {
     let temperature2MMin: [Double]?
     let sunrise: [String]?
     let sunset: [String]?
+    let moonrise: [String]?
+    let moonset: [String]?
     let precipitationProbabilityMax: [Double?]?
     let precipitationSum: [Double?]?
     let windSpeed10MMax: [Double?]?
@@ -610,6 +614,8 @@ private struct OpenMeteoDailyBlock: Decodable {
         case temperature2MMin = "temperature_2m_min"
         case sunrise
         case sunset
+        case moonrise
+        case moonset
         case precipitationProbabilityMax = "precipitation_probability_max"
         case precipitationSum = "precipitation_sum"
         case windSpeed10MMax = "wind_speed_10m_max"

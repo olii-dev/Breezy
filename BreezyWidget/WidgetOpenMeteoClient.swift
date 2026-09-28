@@ -102,6 +102,7 @@ final class WidgetOpenMeteoClient {
             rainAmount: String(format: "%.1f %@", precipitationUnit.convert(todayRainAmount), precipitationUnit.symbol),
             latitude: latitude,
             longitude: longitude,
+            feelsLike: response.current.apparentTemperature.map { formatTemperature($0, isFahrenheit: isFahrenheit) },
             conditionCode: String(response.current.weatherCode),
             isDaylight: nil,
             minTemp: daily.first?.lowTemp,
@@ -132,7 +133,7 @@ final class WidgetOpenMeteoClient {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,visibility"),
+            URLQueryItem(name: "current", value: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,visibility"),
             URLQueryItem(name: "hourly", value: "temperature_2m,weather_code,uv_index"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset"),
             URLQueryItem(name: "forecast_days", value: "14")
@@ -431,6 +432,7 @@ private struct ForecastResponse: Decodable {
 private struct CurrentBlock: Decodable {
     let time: String
     let temperature2M: Double
+    let apparentTemperature: Double?
     let relativeHumidity2M: Double?
     let weatherCode: Int
     let pressureMSL: Double?
@@ -441,6 +443,7 @@ private struct CurrentBlock: Decodable {
     enum CodingKeys: String, CodingKey {
         case time
         case temperature2M = "temperature_2m"
+        case apparentTemperature = "apparent_temperature"
         case relativeHumidity2M = "relative_humidity_2m"
         case weatherCode = "weather_code"
         case pressureMSL = "pressure_msl"

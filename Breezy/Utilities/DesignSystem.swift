@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import UIKit
 
 struct DesignSystem {
     // MARK: - Pastel Color Palette
@@ -199,14 +200,14 @@ enum FontScale {
 struct JiggleModifier: ViewModifier {
     let isJiggling: Bool
     @State private var isAnimating = false
-    @State private var rotationOffset: Double = Double.random(in: -0.5...0.5)
-    @State private var xOffset: CGFloat = CGFloat.random(in: -0.5...0.5)
-    @State private var yOffset: CGFloat = CGFloat.random(in: -0.5...0.5)
+    @State private var rotationOffset: Double = Double.random(in: -0.35...0.35)
+    @State private var xOffset: CGFloat = CGFloat.random(in: -0.3...0.3)
+    @State private var yOffset: CGFloat = CGFloat.random(in: -0.3...0.3)
     @State private var animationTask: Task<Void, Never>?
     
     func body(content: Content) -> some View {
         content
-            .rotationEffect(.degrees(isJiggling ? (isAnimating ? 1.2 + rotationOffset : -1.2 - rotationOffset) : 0))
+            .rotationEffect(.degrees(isJiggling ? (isAnimating ? 0.7 + rotationOffset : -0.7 - rotationOffset) : 0))
             .offset(
                 x: isJiggling ? (isAnimating ? xOffset : -xOffset) : 0,
                 y: isJiggling ? (isAnimating ? yOffset : -yOffset) : 0
@@ -278,5 +279,47 @@ extension View {
         #else
         self
         #endif
+    }
+}
+
+
+// MARK: - Theme Contrast Guard
+
+/// Clamps a theme's text color against its gradient so custom themes can
+/// never produce unreadable white-on-white (or black-on-black) text.
+enum ThemeContrastGuard {
+    /// Minimum acceptable contrast ratio (WCAG large-text threshold).
+    private static let minimumRatio: Double = 2.6
+
+    static func readable(theme: WeatherTheme) -> WeatherTheme {
+        let gradientLuminances = [theme.topColor, theme.bottomColor].map(relativeLuminance)
+        let averageLuminance = gradientLuminances.reduce(0, +) / Double(gradientLuminances.count)
+
+        let textLuminance = relativeLuminance(theme.textColor)
+        let ratio = contrastRatio(textLuminance, averageLuminance)
+        guard ratio < minimumRatio else { return theme }
+
+        // Nudge to whichever neutral actually passes.
+        let whiteRatio = contrastRatio(1.0, averageLuminance)
+        let blackRatio = contrastRatio(0.0, averageLuminance)
+        let fallback: Color = whiteRatio >= blackRatio ? .white : .black
+        return WeatherTheme(topColor: theme.topColor, bottomColor: theme.bottomColor, textColor: fallback)
+    }
+
+    static func contrastRatio(_ a: Double, _ b: Double) -> Double {
+        let lighter = max(a, b)
+        let darker = min(a, b)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    static func relativeLuminance(_ color: Color) -> Double {
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func linear(_ channel: CGFloat) -> Double {
+            let c = Double(channel)
+            return c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 }

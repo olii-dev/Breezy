@@ -716,12 +716,23 @@ struct DailyForecastDetailView: View {
                         .padding(.top, 16)
                         
                     HStack(spacing: 24) {
-                        MoonPhaseView2(
-                            phase: phase,
-                            size: 60,
-                            color: theme.textColor
-                        )
-                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            MoonPhaseView2(
+                                phase: phase,
+                                size: 60,
+                                color: theme.textColor
+                            )
+
+                            Text(phase.phase)
+                                .font(.subheadline.bold())
+                                .foregroundColor(theme.textColor)
+
+                            Text("Illumination \(Int((phase.illumination * 100).rounded()))%")
+                                .font(.caption)
+                                .foregroundColor(theme.textColor.opacity(0.72))
+                        }
+                        .frame(width: 120, alignment: .leading)
+
                         Divider()
                             .frame(height: 60)
                             .background(theme.textColor.opacity(0.2))
@@ -833,6 +844,9 @@ struct DailyForecastDetailView: View {
         }
         .chartXScale(domain: 0...23)
         .chartYScale(domain: range)
+        .chartPlotStyle { plot in
+            plot.padding(.top, 34)
+        }
         .chartXAxis {
             AxisMarks(values: labelHours) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 4]))
@@ -1020,7 +1034,7 @@ struct HourlyDetailCard: View {
     private var weatherIcon: some View {
         if viewModel.useMinimalistIcons {
             return AnyView(
-                Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate))
+                Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate, in: viewModel.locationTimeZone))
                     .font(.title2)
                     .foregroundColor(textColor)
                     .symbolRenderingMode(.hierarchical)

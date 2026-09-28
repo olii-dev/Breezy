@@ -421,6 +421,12 @@ class WeatherViewModel: ObservableObject {
         }
     }
 
+    /// Rough CAMS Europe domain — pollen data only exists inside it.
+    var currentLocationInEuropePollenDomain: Bool {
+        guard let lat = currentLocation?.latitude, let lon = currentLocation?.longitude else { return false }
+        return (34.5...71.5).contains(lat) && (-10.5...41.0).contains(lon)
+    }
+
     var providerCapabilities: WeatherProviderCapabilities {
         weatherSource.capabilities
     }
@@ -570,6 +576,7 @@ class WeatherViewModel: ObservableObject {
             )
         }
 
+        // 1. Severe weather leads when it's actually in the outlook.
         if let severeDay = forecast.first(where: { isSevereCondition($0.condition) }) {
             let severeChance = percentageValue(from: severeDay.chanceOfRain)
             return ForecastNarrativeSummary(
@@ -578,20 +585,33 @@ class WeatherViewModel: ObservableObject {
             )
         }
 
-        let rainyDays = forecast.filter { day in
-            let chance = percentageValue(from: day.chanceOfRain) ?? 0
-            return chance >= 60 || containsRainLanguage(day.condition)
+        // 2. Rain: split near-term signal (next 2 days) from the wider stretch.
+        let isRainy: (DailyForecast) -> Bool = { [weak self] day in
+            guard let self else { return false }
+            return (self.percentageValue(from: day.chanceOfRain) ?? 0) >= 50 || self.containsRainLanguage(day.condition)
         }
+        let rainyDays = forecast.filter(isRainy)
 
         if let firstRainyDay = rainyDays.first {
             let wettestDay = rainyDays.max(by: { (percentageValue(from: $0.chanceOfRain) ?? 0) < (percentageValue(from: $1.chanceOfRain) ?? 0) })
             let peakChance = wettestDay.flatMap { percentageValue(from: $0.chanceOfRain) } ?? 0
 
+            // Same-day rain is the most actionable thing in the forecast.
+            if firstRainyDay.dayName == "Today" {
+                let todayPeak = percentageValue(from: firstRainyDay.chanceOfRain) ?? peakChance
+                return ForecastNarrativeSummary(
+                    headline: todayPeak >= 60 ? "Rain is likely today." : "A chance of rain today.",
+                    detail: wettestDay.map { wettest in
+                        if wettest.dayName == "Today" {
+                            return "Odds sit near \(todayPeak)% for the rest of the day, then the outlook quiets down."
+                        }
+                        return "Today peaks near \(todayPeak)%; the wettest day further out is \(dayLabel(for: wettest.dayName)) around \(peakChance)%."
+                    } ?? "Odds sit near \(todayPeak)% for the rest of the day."
+                )
+            }
+
             if rainyDays.count >= 2,
-               let lastRainyDay = consecutiveTail(from: forecast, startingAt: firstRainyDay, matching: { day in
-                   let chance = percentageValue(from: day.chanceOfRain) ?? 0
-                   return chance >= 60 || containsRainLanguage(day.condition)
-               }),
+               let lastRainyDay = consecutiveTail(from: forecast, startingAt: firstRainyDay, matching: isRainy),
                firstRainyDay.dayName != lastRainyDay.dayName {
                 return ForecastNarrativeSummary(
                     headline: "A wetter stretch runs from \(dayLabel(for: firstRainyDay.dayName)) to \(dayLabel(for: lastRainyDay.dayName)).",
@@ -605,35 +625,43 @@ class WeatherViewModel: ObservableObject {
             )
         }
 
+        // 3. Wind: threshold on converted speed; report in the user's unit.
         let windyDays = forecast.filter {
-            guard let speed = parseWindSpeed($0.windSpeed) else { return false }
-            return speed >= 20
+            (parseWindSpeedMetersPerSecond($0.windSpeed) ?? 0) >= 10.5 // ≈ 38 km/h, beaufort 5–6
         }
-
-        if let windiestDay = windyDays.max(by: { (parseWindSpeed($0.windSpeed) ?? 0) < (parseWindSpeed($1.windSpeed) ?? 0) }) {
-            let peakWind = Int(round(parseWindSpeed(windiestDay.windSpeed) ?? 0))
+        if let windiestDay = windyDays.max(by: { (parseWindSpeedMetersPerSecond($0.windSpeed) ?? 0) < (parseWindSpeedMetersPerSecond($1.windSpeed) ?? 0) }) {
+            let peakMps = parseWindSpeedMetersPerSecond(windiestDay.windSpeed) ?? 0
+            let peakDisplay = Int(round(windSpeedUnit.convert(peakMps)))
             return ForecastNarrativeSummary(
                 headline: "Wind picks up \(dayLabel(for: windiestDay.dayName)), so it may feel rougher outdoors.",
-                detail: peakWind > 0 ? "The breeziest part of the stretch looks close to \(peakWind) mph, which could make exposed spots feel noticeably less settled even if rain stays limited." : "Even without much rain, that part of the forecast may feel less settled thanks to the stronger breeze."
+                detail: "The breeziest part of the stretch looks close to \(peakDisplay) \(windSpeedUnit.displayName), which could make exposed spots feel noticeably less settled even if rain stays limited."
             )
         }
 
+        // 4. Temperature trend: compare the first half against the second half
+        // and name the actual peak/trough day instead of an arbitrary midpoint.
         let highs = forecast.map { parseNarrativeTemperature($0.highTemp) }
-        if let firstHigh = highs.first, let lastHigh = highs.last {
-            let delta = lastHigh - firstHigh
-            let targetDay = forecast[min(forecast.count - 1, 4)].dayName
+        if highs.count >= 4 {
+            let half = highs.count / 2
+            let firstHalf = Array(highs[..<half])
+            let secondHalf = Array(highs[half...])
+            let firstAvg = Double(firstHalf.reduce(0, +)) / Double(firstHalf.count)
+            let secondAvg = Double(secondHalf.reduce(0, +)) / Double(secondHalf.count)
+            let delta = secondAvg - firstAvg
 
-            if delta >= 4 {
+            if delta >= 3 {
+                let warmestDay = forecast.max(by: { parseNarrativeTemperature($0.highTemp) < parseNarrativeTemperature($1.highTemp) })!
                 return ForecastNarrativeSummary(
-                    headline: "A gradual warm-up builds through \(dayLabel(for: targetDay)).",
-                    detail: "Highs rise by about \(delta)° from the start of the outlook, so it should feel progressively milder instead of changing all at once."
+                    headline: "A gradual warm-up builds toward \(dayLabel(for: warmestDay.dayName)).",
+                    detail: "Highs climb about \(Int(delta.rounded()))° from the start of the outlook, peaking near \(parseNarrativeTemperature(warmestDay.highTemp))° that day."
                 )
             }
 
-            if delta <= -4 {
+            if delta <= -3 {
+                let coolestDay = forecast.min(by: { parseNarrativeTemperature($0.highTemp) < parseNarrativeTemperature($1.highTemp) })!
                 return ForecastNarrativeSummary(
-                    headline: "Cooler air settles in by \(dayLabel(for: targetDay)).",
-                    detail: "Highs slide by about \(abs(delta))° across the stretch, with the coolest part arriving later rather than showing up immediately."
+                    headline: "Cooler air settles in toward \(dayLabel(for: coolestDay.dayName)).",
+                    detail: "Highs ease about \(Int(abs(delta).rounded()))° across the outlook, bottoming out near \(parseNarrativeTemperature(coolestDay.highTemp))° that day."
                 )
             }
         }
@@ -653,6 +681,13 @@ class WeatherViewModel: ObservableObject {
             headline: "Mostly steady weather through the next few days.",
             detail: "No single rain, wind, or temperature swing dominates the next 10 days right now, so the broader pattern still looks fairly settled."
         )
+    }
+
+    /// Wind strings carry the display unit; convert to m/s for thresholds.
+    private func parseWindSpeedMetersPerSecond(_ windString: String?) -> Double? {
+        guard let value = parseWindSpeed(windString) else { return nil }
+        // parseWindSpeed returns mph.
+        return value * 0.44704
     }
 
     private func consecutiveTail(from forecast: [DailyForecast], startingAt startDay: DailyForecast, matching: (DailyForecast) -> Bool) -> DailyForecast? {
@@ -810,11 +845,21 @@ class WeatherViewModel: ObservableObject {
         return hour >= 6 && hour < 20
     }
 
-    func weatherIcon(for condition: String, isDaylight: Bool? = nil, at date: Date? = nil) -> String {
-        WeatherIconHelper.minimalistIcon(for: condition, isDaylight: isDaylight, at: date)
+    /// The displayed location's timezone, for day/night decisions.
+    var locationTimeZone: TimeZone {
+        TimeZone(identifier: weather?.timezone ?? "") ?? .current
+    }
+
+    func weatherIcon(for condition: String, isDaylight: Bool? = nil, at date: Date? = nil, in timeZone: TimeZone? = nil) -> String {
+        WeatherIconHelper.minimalistIcon(for: condition, isDaylight: isDaylight, at: date, in: timeZone ?? locationTimeZone)
     }
     
     func currentTheme(colorScheme: ColorScheme) -> WeatherTheme {
+        let resolved = rawCurrentTheme(colorScheme: colorScheme)
+        return ThemeContrastGuard.readable(theme: resolved)
+    }
+
+    private func rawCurrentTheme(colorScheme: ColorScheme) -> WeatherTheme {
         // Determine brightness first (needed for both Auto overrides and Presets)
         let isDark: Bool
         switch appearanceMode {
@@ -1694,6 +1739,7 @@ class WeatherViewModel: ObservableObject {
         rainAmount: String?,
         conditionCode: String = "Clear",
         isDaylight: Bool = true,
+        feelsLike: String? = nil,
         dailyForecast: [DailyForecast]
     ) {
         // Prefer location timezone for "current hour" so remote cities don't skip wrong slots

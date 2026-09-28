@@ -147,7 +147,6 @@ struct ContentView: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                                     .padding(8)
-                                    .background(Circle().fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                             }
                         } else {
                             Button(action: {
@@ -1821,7 +1820,7 @@ struct NewHourlyCardView: View {
                                         .foregroundColor(theme.textColor.opacity(index == currentHourIndex ? 1.0 : 0.75))
 
                                     if viewModel.useMinimalistIcons {
-                                        Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate))
+                                        Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate, in: viewModel.locationTimeZone))
                                             .font(.title3)
                                             .foregroundColor(theme.textColor)
                                             .symbolRenderingMode(.hierarchical)
@@ -2082,7 +2081,7 @@ struct HourlyForecastStripTile: View {
 
             Group {
                 if viewModel.useMinimalistIcons {
-                    Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate))
+                    Image(systemName: viewModel.weatherIcon(for: hour.condition ?? "cloud", at: hour.sourceDate, in: viewModel.locationTimeZone))
                         .font(.title3)
                         .foregroundColor(textColor)
                         .symbolRenderingMode(.hierarchical)
@@ -2185,32 +2184,32 @@ struct SimpleDailyRow: View {
     let showIcons: Bool
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Day name
             Text(day.dayName)
-                .font(.body.weight(.medium))
+                .font(.subheadline.weight(.medium))
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(width: 90, alignment: .leading)
+                .frame(width: 76, alignment: .leading)
             
             // Icon
             if showIcons {
                 if viewModel.useMinimalistIcons {
-                    Image(systemName: viewModel.weatherIcon(for: day.condition, at: dailyMidday(day)))
-                        .font(.title3)
+                    Image(systemName: viewModel.weatherIcon(for: day.condition, at: dailyMidday(day), in: viewModel.locationTimeZone))
+                        .font(.callout)
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                         .symbolRenderingMode(.hierarchical)
-                        .frame(width: 30)
+                        .frame(width: 24)
                 } else {
                     Text(day.emoji)
-                        .font(.title3)
-                        .frame(width: 30)
+                        .font(.callout)
+                        .frame(width: 24)
                         .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(2))
                 }
             } else {
                 Color.clear
-                    .frame(width: 30, height: 30)
+                    .frame(width: 24, height: 24)
             }
 
             // Reserved rain column keeps temperatures right-aligned on every row.
@@ -2235,13 +2234,13 @@ struct SimpleDailyRow: View {
             Spacer(minLength: 4)
             
             // Temps — fixed size so rain never forces degree symbols onto a new line
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Text(day.lowTemp)
-                    .font(.body)
+                    .font(.subheadline)
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.6))
                     .lineLimit(1)
                 Text(day.highTemp)
-                    .font(.body.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                     .lineLimit(1)
             }
@@ -2266,15 +2265,15 @@ struct MetricsPillsView: View {
         
         LazyVGrid(columns: columns, spacing: DesignSystem.spacingS) {
             ForEach(pills, id: \.title) { pill in
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     // Show emoji or SF Symbol based on setting
                     if viewModel.useMinimalistIcons {
                         Image(systemName: pill.icon)
-                            .font(.body)
+                            .font(.title3)
                             .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.9))
                     } else {
                         Text(pill.emoji)
-                            .font(.callout)
+                            .font(.title3)
                             .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(1))
                     }
                     
@@ -2283,12 +2282,12 @@ struct MetricsPillsView: View {
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                     
                     Text(pill.value)
-                        .font(.footnote.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, DesignSystem.spacingS)
-                .softGlassCard(padding: DesignSystem.spacingXS, cornerRadius: DesignSystem.radiusS)
+                .padding(.vertical, DesignSystem.spacingM)
+                .softGlassCard(padding: DesignSystem.spacingS, cornerRadius: DesignSystem.radiusS)
             }
         }
     }
@@ -3626,21 +3625,11 @@ struct MarineOutlookWidget: View {
                         }
                     }
                 } else {
-                    Text("Helpful for coastal trips, surf checks, and boat planning.")
-                        .font(.caption)
-                        .foregroundColor(textColor.opacity(0.7))
-
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         MarineMetricTile(
                             title: "Wave Height",
                             value: marine.waveHeight ?? "Unavailable",
                             icon: "water.waves",
-                            textColor: textColor
-                        )
-                        MarineMetricTile(
-                            title: "Wave Period",
-                            value: marine.wavePeriod ?? "Unavailable",
-                            icon: "timer",
                             textColor: textColor
                         )
                         MarineMetricTile(
@@ -4519,7 +4508,8 @@ private let smartStackSupportedTypes: [WidgetType] = [
     .feelsLike,
     .humidityStrip,
     .visibilityCard,
-    .cloudCoverCard
+    .cloudCoverCard,
+    .moonPhase
 ]
 
 struct SmartStackWidget: View {
@@ -4545,48 +4535,52 @@ struct SmartStackWidget: View {
         viewModel.currentTheme(colorScheme: colorScheme)
     }
 
+    /// Picks the page with the strongest live signal. Urgent rain outranks
+    /// everything; the rest compete on scored magnitude, with the time of day
+    /// (at the location) tipping UV and astronomy.
     private var featuredType: WidgetType {
-        if stackedTypes.contains(.rainSummary), hasImmediateRainSignal {
+        let candidates = stackedTypes
+
+        if hasImminentMinuteRain, candidates.contains(.rainSummary) {
             return .rainSummary
         }
 
-        if stackedTypes.contains(.windSummary), hasStrongWindSignal {
-            return .windSummary
+        var best: (type: WidgetType, score: Double)?
+        func consider(_ type: WidgetType, _ score: Double) {
+            guard score > 0, candidates.contains(type) else { return }
+            if best == nil || score > best!.score { best = (type, score) }
         }
 
-        if stackedTypes.contains(.airQualityCard), hasAirQualitySignal {
-            return .airQualityCard
-        }
+        consider(.rainSummary, rainSignalScore)
+        consider(.windSummary, windSignalScore)
+        consider(.uvIndex, uvSignalScore)
+        consider(.airQualityCard, airQualitySignalScore)
+        consider(.feelsLike, feelsLikeSwingScore)
+        consider(.moonPhase, moonPhaseScore)
+        consider(.hourlyForecast, upcomingHours.isEmpty ? 0 : 1)
+        consider(.forecastNarrative, viewModel.forecastNarrativeSummary != nil ? 0.8 : 0)
+        consider(.deepDetails, 0.5)
 
-        if stackedTypes.contains(.uvIndex), hasHighUVSignal {
-            return .uvIndex
-        }
-
-        if stackedTypes.contains(.hourlyForecast), !upcomingHours.isEmpty {
-            return .hourlyForecast
-        }
-
-        if stackedTypes.contains(.forecastNarrative), viewModel.forecastNarrativeSummary != nil {
-            return .forecastNarrative
-        }
-
-        if stackedTypes.contains(.deepDetails) {
-            return .deepDetails
-        }
-
-        return stackedTypes.first ?? .deepDetails
+        return best?.type ?? candidates.first ?? .deepDetails
     }
 
     private var featuredReason: String {
+        if hasImminentMinuteRain, featuredType == .rainSummary {
+            return "Rain is minutes away — this is the card that matters most right now."
+        }
         switch featuredType {
         case .rainSummary:
-            return "Showing the biggest rain signal in your next few hours."
+            return "Rain is the strongest signal in your outlook right now."
         case .windSummary:
             return "Wind is the strongest weather story right now."
         case .uvIndex:
-            return "UV exposure is elevated, so this is the most useful card right now."
+            return "UV exposure is elevated in daylight, so this is the most useful card right now."
         case .airQualityCard:
             return "Air quality is the strongest extra signal from your Open-Meteo feed right now."
+        case .feelsLike:
+            return "It feels quite different from the thermometer says, so this card leads for now."
+        case .moonPhase:
+            return "It's night at your location, so the sky itself is the story."
         case .hourlyForecast:
             return "Showing the literal next few hours so you can glance ahead quickly."
         case .forecastNarrative:
@@ -4598,11 +4592,73 @@ struct SmartStackWidget: View {
         }
     }
 
+    // MARK: Signal scores (higher = more urgent)
+
+    private var hasImminentMinuteRain: Bool {
+        guard let minutes = weather.metrics?.minuteForecast else { return false }
+        let horizon = Date().addingTimeInterval(45 * 60)
+        return minutes.contains {
+            $0.time >= Date() && $0.time <= horizon
+                && ($0.precipitationChance >= 0.35 || $0.precipitationIntensity > 0.05)
+        }
+    }
+
+    private var rainSignalScore: Double {
+        if let rainChance = weather.metrics?.rainChance?.replacingOccurrences(of: "%", with: ""),
+           let value = Int(rainChance) {
+            if value >= 70 { return 2 }
+            if value >= 55 { return 1.2 }
+        }
+        if let chanceOfRain = weather.dailyForecast.first?.chanceOfRain?.replacingOccurrences(of: "%", with: ""),
+           let value = Int(chanceOfRain) {
+            if value >= 70 { return 1.8 }
+            if value >= 55 { return 1 }
+        }
+        return 0
+    }
+
+    private var windSignalScore: Double {
+        guard let mps = parsedWindSpeedMetersPerSecond(from: weather.metrics?.windSpeed) else { return 0 }
+        if mps >= 12 { return 2 }      // ≈ 43 km/h
+        if mps >= 7.8 { return 1 }     // ≈ 28 km/h
+        return 0
+    }
+
+    private var uvSignalScore: Double {
+        guard viewModel.isDaylightAtLocation() else { return 0 } // UV means nothing at night
+        let uv = weather.metrics?.uvIndex ?? 0
+        if uv >= 8 { return 2 }
+        if uv >= 6 { return 1.2 }
+        return 0
+    }
+
+    private var airQualitySignalScore: Double {
+        guard let aqi = weather.metrics?.airQuality?.aqi else { return 0 }
+        if aqi >= 150 { return 2 }
+        if aqi >= 75 { return 1 }
+        return 0
+    }
+
+    private var feelsLikeSwingScore: Double {
+        guard let feels = weather.feelsLike?.replacingOccurrences(of: "[^0-9-]", with: "", options: .regularExpression),
+              let feelsValue = Double(feels),
+              let actual = weather.temperature.replacingOccurrences(of: "[^0-9-]", with: "", options: .regularExpression) as? Double else { return 0 }
+        let swing = abs(feelsValue - actual)
+        if swing >= 5 { return 1.5 }
+        if swing >= 3 { return 0.8 }
+        return 0
+    }
+
+    private var moonPhaseScore: Double {
+        // Night astronomy: lead with the moon when the sky story is active.
+        viewModel.isDaylightAtLocation() ? 0 : 1.4
+    }
+
     private var hasAirQualitySignal: Bool {
         guard let aqi = weather.metrics?.airQuality?.aqi else { return false }
         return aqi >= 75
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
@@ -4932,6 +4988,39 @@ struct SmartStackWidget: View {
                         .font(.system(size: 34, weight: .bold, design: viewModel.typography.design))
                         .foregroundColor(theme.textColor)
                     Spacer()
+                }
+            }
+        case .moonPhase:
+            SmartStackPageCard(
+                title: "Moon Phase",
+                subtitle: "Tonight's sky at a glance",
+                icon: "moon.stars.fill",
+                accent: .indigo,
+                textColor: theme.textColor
+            ) {
+                if let today = weather.dailyForecast.first, let phase = today.moonPhase {
+                    HStack(spacing: 20) {
+                        MoonPhaseView2(phase: phase, size: 72, color: theme.textColor)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(phase.phase)
+                                .font(.headline)
+                                .foregroundColor(theme.textColor)
+                            Text("Illumination \(Int((phase.illumination * 100).rounded()))%")
+                                .font(.caption)
+                                .foregroundColor(theme.textColor.opacity(0.7))
+                            if let set = today.moonset {
+                                Text("Moonset \(set)")
+                                    .font(.caption)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                            }
+                        }
+                        Spacer()
+                    }
+                } else {
+                    Text("Moon data unavailable.")
+                        .font(.subheadline)
+                        .foregroundColor(theme.textColor.opacity(0.6))
                 }
             }
         default:
@@ -5310,7 +5399,12 @@ struct WidgetGalleryView: View {
                                 .padding(.horizontal)
                                 
                                 LazyVGrid(columns: columns, spacing: DesignSystem.spacingS) {
-                                    ForEach(WidgetType.allCases.filter { $0.category == category && $0.isSupported(by: viewModel.weatherSource) }) { type in
+                                    ForEach(WidgetType.allCases.filter { type in
+                                        guard type.category == category, type.isSupported(by: viewModel.weatherSource) else { return false }
+                                        // Pollen data only exists in the CAMS Europe domain.
+                                        if type == .pollen { return viewModel.currentLocationInEuropePollenDomain }
+                                        return true
+                                    }) { type in
                                         Button {
                                             onAdd(type)
                                         } label: {
@@ -5318,11 +5412,11 @@ struct WidgetGalleryView: View {
                                                 HStack(alignment: .top) {
                                                     ZStack {
                                                         RoundedRectangle(cornerRadius: 12)
-                                                            .fill(categoryTint(category).opacity(0.15))
+                                                            .fill(DesignSystem.skyBlue.opacity(0.15))
                                                             .frame(width: 44, height: 44)
                                                         Image(systemName: type.icon)
                                                             .font(.system(size: 22, weight: .medium))
-                                                            .foregroundColor(categoryTint(category))
+                                                            .foregroundColor(DesignSystem.skyBlue)
                                                     }
 
                                                     Spacer(minLength: 8)
@@ -5424,16 +5518,6 @@ struct WidgetGalleryView: View {
         case .pollen: return "Open-Meteo only: tree, grass and weed pollen with an allergy-risk rating (Europe)"
         case .goldenHour: return "Sunrise and sunset golden hour windows"
         case .smartStack: return "Adaptive widget stack"
-        }
-    }
-
-    private func categoryTint(_ category: WidgetCategory) -> Color {
-        switch category {
-        case .forecasts: return DesignSystem.skyBlue
-        case .details: return .mint
-        case .astronomy: return DesignSystem.softOrange
-        case .maps: return .indigo
-        case .adaptive: return DesignSystem.softPink
         }
     }
 

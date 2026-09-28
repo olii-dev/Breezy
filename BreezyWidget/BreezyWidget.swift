@@ -129,6 +129,8 @@ struct WidgetWeatherData: Codable {
     let rainAmount: String?
     let latitude: Double?
     let longitude: Double?
+    /// Apparent temperature, pre-formatted (optional so older caches decode).
+    var feelsLike: String? = nil
     
     // New fields for accuracy
     let conditionCode: String?
@@ -395,7 +397,7 @@ struct WeatherThemeHelper {
         let code = conditionCode ?? condition
         let gradient = getGradient(for: code, isNight: effectiveIsDark, fallbackCondition: condition)
         let textColor = effectiveIsDark ? Color.white : Color(red: 0.2, green: 0.2, blue: 0.25)
-        return WidgetTheme(topColor: gradient[0], bottomColor: gradient[1], textColor: textColor)
+        return WidgetThemeContrastGuard.readable(theme: WidgetTheme(topColor: gradient[0], bottomColor: gradient[1], textColor: textColor))
     }
     
     static func gradientColors(for condition: String, isDark: Bool, conditionCode: String? = nil, isDaylight: Bool? = nil) -> [Color] {
@@ -526,6 +528,41 @@ struct WeatherThemeHelper {
                 Color(red: 0.83, green: 0.77, blue: 0.98)   // Lavender
             ]
         }
+    }
+}
+
+// MARK: - Widget Theme Contrast Guard
+
+/// Widget-target copy of the app's contrast clamp: custom themes synced from
+/// the app can never render unreadable text on their own gradient.
+enum WidgetThemeContrastGuard {
+    private static let minimumRatio: Double = 2.6
+
+    static func readable(theme: WeatherThemeHelper.WidgetTheme) -> WeatherThemeHelper.WidgetTheme {
+        let luminances = [theme.topColor, theme.bottomColor].map(relativeLuminance)
+        let average = luminances.reduce(0, +) / Double(luminances.count)
+        let ratio = contrastRatio(relativeLuminance(theme.textColor), average)
+        guard ratio < minimumRatio else { return theme }
+
+        let whiteRatio = contrastRatio(1.0, average)
+        let blackRatio = contrastRatio(0.0, average)
+        let fallback: Color = whiteRatio >= blackRatio ? .white : .black
+        return WeatherThemeHelper.WidgetTheme(topColor: theme.topColor, bottomColor: theme.bottomColor, textColor: fallback)
+    }
+
+    private static func contrastRatio(_ a: Double, _ b: Double) -> Double {
+        (max(a, b) + 0.05) / (min(a, b) + 0.05)
+    }
+
+    private static func relativeLuminance(_ color: Color) -> Double {
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func linear(_ channel: CGFloat) -> Double {
+            let c = Double(channel)
+            return c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 }
 
@@ -699,6 +736,7 @@ struct Provider: TimelineProvider {
                             rainAmount: data.rainAmount,
                             latitude: data.latitude,
                             longitude: data.longitude,
+                            feelsLike: data.feelsLike,
                             conditionCode: data.conditionCode, // Use parent's condition code/daylight for now or map?
                             isDaylight: data.isDaylight,       // Best guess: same as parent unless we calculate sunrise/set for every hour
                             minTemp: data.minTemp,
@@ -789,237 +827,217 @@ struct Provider: TimelineProvider {
                 return
             }
             
-            // 4. Fetch Fresh Data
-            do {
-                if selectedSource == .openMeteo {
-                    let openMeteoData = try await WidgetOpenMeteoClient.shared.fetchWeather(
+            // 4. Fetch fresh data — try the selected provider, then the
+            // alternate (matching the app's auto-fallback), then cache.
+            func fetchFresh(from source: WidgetWeatherSource) async throws -> WidgetWeatherData {
+                if source == .openMeteo {
+                    return try await WidgetOpenMeteoClient.shared.fetchWeather(
                         latitude: coords.lat,
                         longitude: coords.lon,
                         cachedCity: cachedData.city,
                         defaults: defaults
                     )
-                    if let encoded = try? JSONEncoder().encode(openMeteoData) {
-                        defaults?.set(encoded, forKey: "BreezyWidgetData.\(selectedSource.rawValue)")
-                        defaults?.set(Date(), forKey: "BreezyLastRefresh.\(selectedSource.rawValue)")
-                    }
-                    createTimeline(from: openMeteoData)
-                    return
                 }
 
                 let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
                 let weatherService = WeatherService.shared
                 let weather = try await weatherService.weather(for: location)
-                
-                // Parse fresh data
-                // Need to read user units prefs from App Group Defaults
-                let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
-                
-                // Units
-                let tempUnitRaw = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
-                let windUnitRaw = defaults?.string(forKey: "Breezy.windSpeedUnit") ?? "m/s"
-                let precipUnitRaw = defaults?.string(forKey: "Breezy.precipitationUnit") ?? "Millimeters"
-                let visUnitRaw = defaults?.string(forKey: "Breezy.visibilityUnit") ?? "Kilometers"
-                
-                let isFahrenheit = tempUnitRaw == "Fahrenheit"
-                let precipitationUnit = PrecipitationUnit(rawValue: precipUnitRaw) ?? .millimeters
-                let visibilityUnit = VisibilityUnit(rawValue: visUnitRaw) ?? .kilometers
-                
-                // Current Temp
-                let currentTemp = weather.currentWeather.temperature
-                let tempStr: String
-                if isFahrenheit {
-                    tempStr = String(format: "%.0f°", currentTemp.converted(to: .fahrenheit).value)
-                } else {
-                    tempStr = String(format: "%.0f°", currentTemp.converted(to: .celsius).value)
-                }
-                
-                // High/Low
-                let daily = weather.dailyForecast.first
-                let highTemp = daily?.highTemperature
-                let lowTemp = daily?.lowTemperature
-                
-                let highStr: String = (highTemp != nil) ? String(format: "%.0f°", isFahrenheit ? highTemp!.converted(to: .fahrenheit).value : highTemp!.converted(to: .celsius).value) : "--"
-                let lowStr: String = (lowTemp != nil) ? String(format: "%.0f°", isFahrenheit ? lowTemp!.converted(to: .fahrenheit).value : lowTemp!.converted(to: .celsius).value) : "--"
-
-                // Condition
-                let condition = weather.currentWeather.condition.description
-                let conditionCode = weather.currentWeather.condition.description 
-                let isDaylight = weather.currentWeather.isDaylight
-                let windDirectionDegrees = weather.currentWeather.wind.direction.converted(to: .degrees).value
-                
-                // Wind
-                let windVal = weather.currentWeather.wind.speed
-                let windStr: String
-                if windUnitRaw == "km/h" {
-                    windStr = String(format: "%.0f km/h", windVal.converted(to: .kilometersPerHour).value)
-                } else if windUnitRaw == "mph" {
-                    windStr = String(format: "%.0f mph", windVal.converted(to: .milesPerHour).value)
-                } else if windUnitRaw == "Knots" {
-                     windStr = String(format: "%.0f kn", windVal.converted(to: .knots).value)
-                } else {
-                    windStr = String(format: "%.0f m/s", windVal.converted(to: .metersPerSecond).value)
-                }
-                
-                // Pressure (Simplifying to formatted string for now)
-                let pressVal = weather.currentWeather.pressure
-                let pressStr = String(format: "%.0f hPa", pressVal.converted(to: .hectopascals).value)
-                
-                // UV
-                let uv = Int(weather.currentWeather.uvIndex.value)
-                
-                // Rain Chance
-                let rainChanceVal = daily?.precipitationChance ?? 0.0
-                let rainChanceStr = String(format: "%.0f%%", rainChanceVal * 100)
-                let startOfToday = calendar.startOfDay(for: currentDate)
-                let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? currentDate
-                let todayHours = weather.hourlyForecast.filter { $0.date >= startOfToday && $0.date < endOfToday }
-                let todayRainAmount = todayHours.reduce(0.0) { $0 + $1.precipitationAmount.value }
-                let rainAmountStr = String(format: "%.1f %@", precipitationUnit.convert(todayRainAmount), precipitationUnit.symbol)
-                
-                // Humidity
-                let humidityVal = weather.currentWeather.humidity
-                let humidityStr = String(format: "%.0f%%", humidityVal * 100)
-                
-                // Visibility
-                let visVal = weather.currentWeather.visibility.converted(to: .meters).value
-                let visStr = String(format: "%.1f %@", visibilityUnit.convert(visVal), visibilityUnit.symbol)
-                
-                // Hourly (Next 12h)
-                var hourlyForecasts: [WidgetWeatherData.WidgetHourlyForecast] = []
-                let nextHours = weather.hourlyForecast.filter { $0.date >= currentDate }.prefix(12)
-                
-                for hour in nextHours {
-                    let hDate = hour.date
-                    let hComp = calendar.component(.hour, from: hDate)
-                    
-                    let timeStr = WidgetHourFormatter.hourLabel(hComp)
-                    
-                    let hTempStr: String
-                    if isFahrenheit {
-                        hTempStr = String(format: "%.0f°", hour.temperature.converted(to: .fahrenheit).value)
-                    } else {
-                        hTempStr = String(format: "%.0f°", hour.temperature.converted(to: .celsius).value)
-                    }
-                    
-                    let hCond = hour.condition.description
-                    let hEmoji: String = WidgetIconHelper.getIcon(for: hCond, isMinimalist: true) // Reuse helper if possible or map
-                    
-                    hourlyForecasts.append(WidgetWeatherData.WidgetHourlyForecast(
-                        time: timeStr,
-                        temperature: hTempStr,
-                        emoji: hEmoji, // This might be SFSymbol string or Emoji. Let's assume helper returns SF Symbol name for now based on other code
-                        condition: hCond
-                    ))
-                }
-                
-                // Parse Daily Forecast (Next 10 Days)
-                var dailyForecasts: [WidgetWeatherData.WidgetDailyForecast] = []
-                let dailyFormatter = DateFormatter()
-                dailyFormatter.dateFormat = "EEEE" // Full Day Name (e.g., Monday)
-                
-                for day in weather.dailyForecast.prefix(10) {
-                     let dayName: String
-                     if calendar.isDateInToday(day.date) {
-                         dayName = "Today"
-                     } else {
-                         dayName = dailyFormatter.string(from: day.date)
-                     }
-                     
-                     let highStr_d: String
-                     let lowStr_d: String
-                     if isFahrenheit {
-                         highStr_d = String(format: "%.0f°", day.highTemperature.converted(to: .fahrenheit).value)
-                         lowStr_d = String(format: "%.0f°", day.lowTemperature.converted(to: .fahrenheit).value)
-                     } else {
-                         highStr_d = String(format: "%.0f°", day.highTemperature.converted(to: .celsius).value)
-                         lowStr_d = String(format: "%.0f°", day.lowTemperature.converted(to: .celsius).value)
-                     }
-                     
-                     dailyForecasts.append(WidgetWeatherData.WidgetDailyForecast(
-                        dayName: dayName,
-                        highTemp: highStr_d,
-                        lowTemp: lowStr_d,
-                        condition: day.condition.description
-                     ))
-                }
-                
-                // Create New Data Object
-                
-                // Fix: Reverse Geocode to get the correct city name for the new location
-                // If we are following GPS and moved, we must update the city name.
-                var finalCityName = cachedData.city
-                if shouldFollowGPS {
-                    // Start geocoding in parallel or just await it (fast enough usually)
-                    let geocoder = CLGeocoder()
-                    if let placemarks = try? await geocoder.reverseGeocodeLocation(location),
-                       let place = placemarks.first {
-                        finalCityName = place.locality ?? place.name ?? cachedData.city
-                    }
-                }
-                
-                let newData = WidgetWeatherData(
-                    city: finalCityName, // Use the fresh city name
-                    temperature: tempStr,
-                    condition: condition,
-                    emoji: "🌡️", // WidgetIconHelper handles emoji now based on condition
-                    highTemp: highStr,
-                    lowTemp: lowStr,
-                    hourlyForecast: hourlyForecasts,
-                    timestamp: currentDate,
-                    useMinimalistIcons: cachedData.useMinimalistIcons,
-                    uvIndex: uv,
-                    pressure: pressStr,
-                    windSpeed: windStr,
-                    rainChance: rainChanceStr,
-                    rainAmount: rainAmountStr,
-                    latitude: coords.lat,
-                    longitude: coords.lon,
-                    conditionCode: conditionCode,
-                    isDaylight: isDaylight,
-                    minTemp: lowStr,
-                    maxTemp: highStr,
-                    humidity: humidityStr,
-                    visibility: visStr,
-                    sunrise: daily?.sun.sunrise,
-                    sunset: daily?.sun.sunset,
-                    moonPhase: daily?.moon.phase.description,
-                    moonIllumination: getMoonIllumination(daily?.moon.phase),
-                    windDirectionDegrees: windDirectionDegrees,
-                    dailyForecast: dailyForecasts,
-                    surf: nil,
-                    pollen: nil
+                return await buildWeatherKitData(
+                    weather: weather,
+                    coordsLat: coords.lat,
+                    coordsLon: coords.lon,
+                    cachedData: cachedData,
+                    shouldFollowGPS: shouldFollowGPS,
+                    currentDate: currentDate,
+                    calendar: calendar
                 )
-                
-                if let encoded = try? JSONEncoder().encode(newData) {
+            }
+
+            do {
+                let data = try await fetchFresh(from: selectedSource)
+                if let encoded = try? JSONEncoder().encode(data) {
                     defaults?.set(encoded, forKey: "BreezyWidgetData.\(selectedSource.rawValue)")
                     defaults?.set(Date(), forKey: "BreezyLastRefresh.\(selectedSource.rawValue)")
                 }
-
-                createTimeline(from: newData)
-                
+                createTimeline(from: data)
             } catch {
-                // Fallback to cached data if fetch fails
-                createTimeline(from: cachedData)
+                let alternate: WidgetWeatherSource = selectedSource == .openMeteo ? .weatherKit : .openMeteo
+                do {
+                    let data = try await fetchFresh(from: alternate)
+                    if let encoded = try? JSONEncoder().encode(data) {
+                        defaults?.set(encoded, forKey: "BreezyWidgetData.\(selectedSource.rawValue)")
+                        defaults?.set(Date(), forKey: "BreezyLastRefresh.\(selectedSource.rawValue)")
+                    }
+                    createTimeline(from: data)
+                } catch {
+                    // Both providers failed — serve the last good data.
+                    createTimeline(from: cachedData)
+                }
             }
         }
         
-        func getMoonIllumination(_ phase: MoonPhase?) -> Double {
-            guard let phase = phase else { return 0.5 }
-            switch phase {
-            case .new: return 0.0
-            case .waxingCrescent: return 0.25
-            case .firstQuarter: return 0.5
-            case .waxingGibbous: return 0.75
-            case .full: return 1.0
-            case .waningGibbous: return 0.75
-            case .lastQuarter: return 0.5
-            case .waningCrescent: return 0.25
-            @unknown default: return 0.5
+    }
+}
+
+
+    /// Builds fresh widget data from a WeatherKit payload (extracted from
+    /// getTimeline so the provider-fallback path can reuse it).
+    private func buildWeatherKitData(
+        weather: WeatherKit.Weather,
+        coordsLat: Double,
+        coordsLon: Double,
+        cachedData: WidgetWeatherData,
+        shouldFollowGPS: Bool,
+        currentDate: Date,
+        calendar: Calendar
+    ) async -> WidgetWeatherData {
+        let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
+
+        let tempUnitRaw = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
+        let windUnitRaw = defaults?.string(forKey: "Breezy.windSpeedUnit") ?? "m/s"
+        let precipUnitRaw = defaults?.string(forKey: "Breezy.precipitationUnit") ?? "Millimeters"
+        let visUnitRaw = defaults?.string(forKey: "Breezy.visibilityUnit") ?? "Kilometers"
+
+        let isFahrenheit = tempUnitRaw == "Fahrenheit"
+        let precipitationUnit = PrecipitationUnit(rawValue: precipUnitRaw) ?? .millimeters
+        let visibilityUnit = VisibilityUnit(rawValue: visUnitRaw) ?? .kilometers
+
+        let currentTemp = weather.currentWeather.temperature
+        let tempStr = isFahrenheit
+            ? String(format: "%.0f°", currentTemp.converted(to: .fahrenheit).value)
+            : String(format: "%.0f°", currentTemp.converted(to: .celsius).value)
+        let apparent = weather.currentWeather.apparentTemperature
+        let feelsStr = isFahrenheit
+            ? String(format: "%.0f°", apparent.converted(to: .fahrenheit).value)
+            : String(format: "%.0f°", apparent.converted(to: .celsius).value)
+
+        let daily = weather.dailyForecast.first
+        let highTemp = daily?.highTemperature
+        let lowTemp = daily?.lowTemperature
+        let highStr = highTemp.map { String(format: "%.0f°", isFahrenheit ? $0.converted(to: .fahrenheit).value : $0.converted(to: .celsius).value) } ?? "--"
+        let lowStr = lowTemp.map { String(format: "%.0f°", isFahrenheit ? $0.converted(to: .fahrenheit).value : $0.converted(to: .celsius).value) } ?? "--"
+
+        let condition = weather.currentWeather.condition.description
+        let conditionCode = weather.currentWeather.condition.description
+        let isDaylight = weather.currentWeather.isDaylight
+        let windDirectionDegrees = weather.currentWeather.wind.direction.converted(to: .degrees).value
+
+        let windVal = weather.currentWeather.wind.speed
+        let windStr: String
+        if windUnitRaw == "km/h" {
+            windStr = String(format: "%.0f km/h", windVal.converted(to: .kilometersPerHour).value)
+        } else if windUnitRaw == "mph" {
+            windStr = String(format: "%.0f mph", windVal.converted(to: .milesPerHour).value)
+        } else if windUnitRaw == "Knots" {
+            windStr = String(format: "%.0f kn", windVal.converted(to: .knots).value)
+        } else {
+            windStr = String(format: "%.0f m/s", windVal.converted(to: .metersPerSecond).value)
+        }
+
+        let pressStr = String(format: "%.0f hPa", weather.currentWeather.pressure.converted(to: .hectopascals).value)
+        let uv = Int(weather.currentWeather.uvIndex.value)
+
+        let rainChanceVal = daily?.precipitationChance ?? 0.0
+        let rainChanceStr = String(format: "%.0f%%", rainChanceVal * 100)
+        let startOfToday = calendar.startOfDay(for: currentDate)
+        let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? currentDate
+        let todayHours = weather.hourlyForecast.filter { $0.date >= startOfToday && $0.date < endOfToday }
+        let todayRainAmount = todayHours.reduce(0.0) { $0 + $1.precipitationAmount.value }
+        let rainAmountStr = String(format: "%.1f %@", precipitationUnit.convert(todayRainAmount), precipitationUnit.symbol)
+
+        let humidityStr = String(format: "%.0f%%", weather.currentWeather.humidity * 100)
+        let visStr = String(format: "%.1f %@", visibilityUnit.convert(weather.currentWeather.visibility.converted(to: .meters).value), visibilityUnit.symbol)
+
+        var hourlyForecasts: [WidgetWeatherData.WidgetHourlyForecast] = []
+        let nextHours = weather.hourlyForecast.filter { $0.date >= currentDate }.prefix(12)
+        for hour in nextHours {
+            let hComp = calendar.component(.hour, from: hour.date)
+            let timeStr = WidgetHourFormatter.hourLabel(hComp)
+            let hTempStr = isFahrenheit
+                ? String(format: "%.0f°", hour.temperature.converted(to: .fahrenheit).value)
+                : String(format: "%.0f°", hour.temperature.converted(to: .celsius).value)
+            let hCond = hour.condition.description
+            hourlyForecasts.append(.init(
+                time: timeStr,
+                temperature: hTempStr,
+                emoji: WidgetIconHelper.getIcon(for: hCond, isMinimalist: true),
+                condition: hCond
+            ))
+        }
+
+        let dailyFormatter = DateFormatter()
+        dailyFormatter.dateFormat = "EEEE"
+        var dailyForecasts: [WidgetWeatherData.WidgetDailyForecast] = []
+        for day in weather.dailyForecast.prefix(10) {
+            let dayName = calendar.isDateInToday(day.date) ? "Today" : dailyFormatter.string(from: day.date)
+            let highStr_d = String(format: "%.0f°", isFahrenheit ? day.highTemperature.converted(to: .fahrenheit).value : day.highTemperature.converted(to: .celsius).value)
+            let lowStr_d = String(format: "%.0f°", isFahrenheit ? day.lowTemperature.converted(to: .fahrenheit).value : day.lowTemperature.converted(to: .celsius).value)
+            dailyForecasts.append(.init(
+                dayName: dayName,
+                highTemp: highStr_d,
+                lowTemp: lowStr_d,
+                condition: day.condition.description
+            ))
+        }
+
+        var finalCityName = cachedData.city
+        if shouldFollowGPS {
+            let geocoder = CLGeocoder()
+            if let placemarks = try? await geocoder.reverseGeocodeLocation(CLLocation(latitude: coordsLat, longitude: coordsLon)),
+               let place = placemarks.first {
+                finalCityName = place.locality ?? place.name ?? cachedData.city
             }
         }
+
+        return WidgetWeatherData(
+            city: finalCityName,
+            temperature: tempStr,
+            condition: condition,
+            emoji: "🌡️",
+            highTemp: highStr,
+            lowTemp: lowStr,
+            hourlyForecast: hourlyForecasts,
+            timestamp: currentDate,
+            useMinimalistIcons: cachedData.useMinimalistIcons,
+            uvIndex: uv,
+            pressure: pressStr,
+            windSpeed: windStr,
+            rainChance: rainChanceStr,
+            rainAmount: rainAmountStr,
+            latitude: coordsLat,
+            longitude: coordsLon,
+            feelsLike: feelsStr,
+            conditionCode: conditionCode,
+            isDaylight: isDaylight,
+            minTemp: lowStr,
+            maxTemp: highStr,
+            humidity: humidityStr,
+            visibility: visStr,
+            sunrise: daily?.sun.sunrise,
+            sunset: daily?.sun.sunset,
+            moonPhase: daily?.moon.phase.description,
+            moonIllumination: moonIllumination(from: daily?.moon.phase),
+            windDirectionDegrees: windDirectionDegrees,
+            dailyForecast: dailyForecasts,
+            surf: nil,
+            pollen: nil
+        )
     }
-    
-}
+
+    private func moonIllumination(from phase: MoonPhase?) -> Double {
+        guard let phase else { return 0.5 }
+        switch phase {
+        case .new: return 0.0
+        case .waxingCrescent: return 0.25
+        case .firstQuarter: return 0.5
+        case .waxingGibbous: return 0.75
+        case .full: return 1.0
+        case .waningGibbous: return 0.75
+        case .lastQuarter: return 0.5
+        case .waningCrescent: return 0.25
+        @unknown default: return 0.5
+        }
+    }
 
 struct WeatherEntry: TimelineEntry {
     let date: Date
@@ -1893,6 +1911,69 @@ struct BreezyWidgetEntryView: View {
 
 // MARK: - Main Widget Bundle
 
+// MARK: - Feels Like Lock Screen (circular)
+
+struct BreezyFeelsLikeLockWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "BreezyFeelsLikeLockWidget", provider: Provider()) { entry in
+            FeelsLikeLockView(entry: entry)
+                .containerBackground(for: .widget) { Color.clear }
+        }
+        .configurationDisplayName("Feels Like")
+        .description("What the temperature actually feels like right now.")
+        .supportedFamilies([.accessoryCircular, .accessoryInline])
+    }
+}
+
+struct FeelsLikeLockView: View {
+    let entry: WeatherEntry
+    @Environment(\.widgetFamily) var family
+
+    private var displayText: String {
+        entry.weather.feelsLike ?? entry.weather.temperature
+    }
+
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            Label("Feels \(displayText)", systemImage: "thermometer.medium")
+        default:
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.12))
+                VStack(spacing: 0) {
+                    Image(systemName: "thermometer.medium")
+                        .font(.system(size: 11, weight: .semibold))
+                        .widgetAccentable()
+                    Text(entry.weather.feelsLike ?? entry.weather.temperature)
+                        .font(.system(size: 15, weight: .bold))
+                        .minimumScaleFactor(0.7)
+                    Text("feels")
+                        .font(.system(size: 8, weight: .medium))
+                        .opacity(0.7)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Rain + UV Lock Screen (inline)
+
+struct BreezyRainUVInlineWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "BreezyRainUVInlineWidget", provider: Provider()) { entry in
+            let uv = entry.weather.uvIndex ?? 0
+            let rain = entry.weather.rainChance ?? "0%"
+            Text("☔ \(rain) · UV \(uv)")
+                .font(.system(size: 15, weight: .semibold))
+                .containerBackground(for: .widget) { Color.clear }
+        }
+        .configurationDisplayName("Rain & UV")
+        .description("Rain chance and UV index in one line.")
+        .supportedFamilies([.accessoryInline])
+    }
+}
+
 @main
 struct BreezyWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -1906,6 +1987,8 @@ struct BreezyWidgetBundle: WidgetBundle {
         BreezyCircularWindWidget() // Ensure Wind is also available
         BreezySunLockWidget() // Sun Lock Screen
         BreezyMoonLockWidget() // Moon Lock Screen
+        BreezyFeelsLikeLockWidget() // Feels Like circular
+        BreezyRainUVInlineWidget() // Rain + UV inline
         #if os(iOS)
         BreezyUVWidget() // New Graph Widget
         BreezyWindWidget() // New Wind Widget
