@@ -34,6 +34,11 @@ final class TripAheadAlertScheduler {
                 let fireDate = sample.eta.addingTimeInterval(-20 * 60)
                 guard fireDate > now else { continue }
 
+                // Honor the user's quiet-hours window: skip alerts that would
+                // fire inside it rather than buzz through the night.
+                let notificationSettings = UserDefaults.standard.notificationSettings
+                guard !notificationSettings.isQuietHours(at: fireDate) else { continue }
+
                 let content = UNMutableNotificationContent()
                 content.title = "Weather ahead"
                 if let flag = sample.riskFlags.first {

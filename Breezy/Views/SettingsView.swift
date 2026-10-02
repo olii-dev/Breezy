@@ -722,15 +722,22 @@ struct NotificationSettingsView: View {
                                     get: {
                                         let c = Calendar.current
                                         var comps = DateComponents()
-                                        comps.hour = notificationSettings.dailyForecastHour
-                                        comps.minute = notificationSettings.dailyForecastMinute
+                                        comps.hour = notificationSettings.dailyForecastTimes.first?.hour ?? notificationSettings.dailyForecastHour
+                                        comps.minute = notificationSettings.dailyForecastTimes.first?.minute ?? notificationSettings.dailyForecastMinute
                                         return c.date(from: comps) ?? Date()
                                     },
                                     set: {
                                         HapticsManager.shared.selectionChanged()
                                         let c = Calendar.current
-                                        notificationSettings.dailyForecastHour = c.component(.hour, from: $0)
-                                        notificationSettings.dailyForecastMinute = c.component(.minute, from: $0)
+                                        let hour = c.component(.hour, from: $0)
+                                        let minute = c.component(.minute, from: $0)
+                                        notificationSettings.dailyForecastHour = hour
+                                        notificationSettings.dailyForecastMinute = minute
+                                        if notificationSettings.dailyForecastTimes.isEmpty {
+                                            notificationSettings.dailyForecastTimes = [ForecastTime(hour: hour, minute: minute)]
+                                        } else {
+                                            notificationSettings.dailyForecastTimes[0] = ForecastTime(hour: hour, minute: minute)
+                                        }
                                         saveNotificationSettings()
                                     }
                                 ), displayedComponents: .hourAndMinute)
@@ -948,51 +955,6 @@ struct NotificationSettingsView: View {
                                     .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                                 }
                             }
-                            
-                            Divider()
-                            
-                            // Preferences
-                            HStack {
-                                Image(systemName: "speaker.wave.3.fill")
-                                    .foregroundColor(.red)
-                                    .frame(width: 24)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Critical Sound for Severe Weather")
-                                        .font(FontScale.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    
-                                    Text("Bypasses Do Not Disturb for emergencies")
-                                        .font(FontScale.caption2)
-                                        .foregroundColor(theme.textColor.opacity(0.6))
-                                }
-                                
-                                Spacer()
-                                
-                                Toggle("", isOn: Binding(
-                                    get: { notificationSettings.useCriticalAlertsForSevere },
-                                    set: { 
-                                        notificationSettings.useCriticalAlertsForSevere = $0
-                                        saveNotificationSettings()
-                                    }
-                                ))
-                                .labelsHidden()
-                                .tint(.red)
-                                .onChange(of: notificationSettings.useCriticalAlertsForSevere) { _, _ in
-                                    HapticsManager.shared.impact(style: .light)
-                                }
-                                
-                                InfoButton(
-                                    color: .red,
-                                    title: "About Critical Alerts",
-                                    description: "Critical alerts produce a special sound that plays even when your phone is in silent mode or Do Not Disturb is on. Use them only for life-threatening weather events like tornadoes or flash floods."
-                                )
-                            }
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-                            )
                             
                             SettingsToggleRow(title: "Weekdays Only Daily Forecast", icon: "calendar", color: .purple, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.onlyWeekdayForecast}, set: {notificationSettings.onlyWeekdayForecast=$0; saveNotificationSettings()}))
                             

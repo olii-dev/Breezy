@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import UserNotifications
 import CoreLocation
+import os.log
 
 struct SevereWeatherAssessment: Equatable {
     let isSevere: Bool
@@ -24,6 +25,9 @@ class NotificationManager: NSObject, ObservableObject {
     @Published var authorizationStatus: UNAuthorizationStatus = .notDetermined
     
     private let notificationCenter = UNUserNotificationCenter.current()
+#if DEBUG
+    private let logger = Logger(subsystem: "com.breezy.weather", category: "notifications")
+#endif
     private var settings: NotificationSettings {
         get { UserDefaults.standard.notificationSettings }
         set { UserDefaults.standard.notificationSettings = newValue }
@@ -61,23 +65,7 @@ class NotificationManager: NSObject, ObservableObject {
     // MARK: - Quiet Hours
     
     private func isInQuietHours() -> Bool {
-        guard settings.quietHoursEnabled else { return false }
-        
-        let calendar = Calendar.current
-        let now = Date()
-        let currentHour = calendar.component(.hour, from: now)
-        
-        let start = settings.quietHoursStart
-        let end = settings.quietHoursEnd
-        
-        // Handle cases where quiet hours span midnight
-        if start > end {
-            // Spans midnight: e.g., 22:00 - 07:00 next day
-            return currentHour >= start || currentHour < end
-        } else {
-            // Same day: e.g., 01:00 - 05:00
-            return currentHour >= start && currentHour < end
-        }
+        settings.isQuietHours()
     }
     
     // MARK: - Sound Helper
@@ -198,67 +186,99 @@ class NotificationManager: NSObject, ObservableObject {
     }
 
     // MARK: - Daily Forecast Notification
-    
+
+    /// Days of forecast scheduled ahead. Non-repeating triggers with baked content;
+    /// every successful weather fetch cancels and refills the window, so the forecast
+    /// keeps arriving for up to a week even if the app is never opened.
+    private static let dailyForecastDaysAhead = 7
+
     func scheduleDailyForecast(weather: WeatherInfo, temperatureUnit: TemperatureUnit) {
         guard settings.dailyForecastEnabled else {
             cancelDailyForecast()
             return
         }
-        
-        // Check weekday restriction
-        if settings.onlyWeekdayForecast {
-            let calendar = Calendar.current
-            let today = Date()
-            let weekday = calendar.component(.weekday, from: today)
-            
-            // 1 = Sunday, 7 = Saturday
-            if weekday == 1 || weekday == 7 {
-                cancelDailyForecast()
-                return
-            }
-        }
-        
+
         guard authorizationStatus == .authorized else { return }
-        
-        // Cancel existing forecasts before scheduling new ones
-        cancelDailyForecast()
-        
-        let calendar = Calendar.current
-        let now = Date()
-        
-        // Schedule for each time in dailyForecastTimes
-        for (index, time) in settings.dailyForecastTimes.enumerated() {
-            var dateComponents = DateComponents()
-            dateComponents.hour = time.hour
-            dateComponents.minute = time.minute
-            
-            guard let scheduledTime = calendar.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: now) else { continue }
-            
-            let isForTomorrow = now > scheduledTime
-            let targetForecastIndex = isForTomorrow ? 1 : 0
-            let targetDateLabel = isForTomorrow ? "Tomorrow" : "Today"
-            
-            let content = UNMutableNotificationContent()
-            content.title = "\(targetDateLabel)'s Weather"
-            content.body = formatDailyForecastBody(weather: weather, temperatureUnit: temperatureUnit, dayIndex: targetForecastIndex)
-            content.sound = getSound(for: "dailyForecast") ?? .default
-            content.categoryIdentifier = "DAILY_FORECAST"
-            content.userInfo = ["type": "dailyForecast"]
-            
-            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
-            let request = UNNotificationRequest(
-                identifier: "dailyForecast_\(index)",
-                content: content,
-                trigger: trigger
-            )
-            
-            notificationCenter.add(request) { _ in }
+
+        // Reschedule off the main actor: inspecting pending requests is async.
+        // Request identifiers are deterministic per (day, slot), so overlapping
+        // reschedules converge instead of duplicating.
+        Task {
+            await removeAllPendingDailyForecasts()
+            await addDailyForecastRequests(weather: weather, temperatureUnit: temperatureUnit)
         }
     }
-    
+
     func cancelDailyForecast() {
-        let identifiers = settings.dailyForecastTimes.indices.map { "dailyForecast_\($0)" }
-        notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
+        Task {
+            await removeAllPendingDailyForecasts()
+        }
+    }
+
+    /// Cancel every pending daily-forecast request regardless of which id scheme or
+    /// settings config scheduled it, matched on category rather than id list.
+    private func removeAllPendingDailyForecasts() async {
+        let requests = await notificationCenter.pendingNotificationRequests()
+        let ids = requests
+            .filter { $0.content.categoryIdentifier == "DAILY_FORECAST" }
+            .map(\.identifier)
+        guard !ids.isEmpty else { return }
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: ids)
+        #if DEBUG
+        logger.debug("cancelled \(ids.count) pending daily forecast requests")
+        #endif
+    }
+
+    private func addDailyForecastRequests(weather: WeatherInfo, temperatureUnit: TemperatureUnit) async {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var scheduled = 0
+
+        for dayOffset in 0..<Self.dailyForecastDaysAhead {
+            guard let targetDay = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
+
+            // Weekday restriction applies per scheduled day, not just today.
+            if settings.onlyWeekdayForecast && calendar.isDateInWeekend(targetDay) { continue }
+
+            for (slotIndex, time) in settings.dailyForecastTimes.enumerated() {
+                var dateComponents = calendar.dateComponents([.year, .month, .day], from: targetDay)
+                dateComponents.hour = time.hour
+                dateComponents.minute = time.minute
+
+                guard let fireDate = calendar.date(from: dateComponents), fireDate > Date() else { continue }
+
+                let content = UNMutableNotificationContent()
+                content.title = dailyForecastTitle(for: targetDay, dayOffset: dayOffset)
+                content.body = formatDailyForecastBody(weather: weather, temperatureUnit: temperatureUnit, dayIndex: dayOffset)
+                content.sound = getSound(for: "dailyForecast") ?? .default
+                content.categoryIdentifier = "DAILY_FORECAST"
+                content.userInfo = ["type": "dailyForecast"]
+
+                let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+                let request = UNNotificationRequest(
+                    identifier: "dailyForecast_\(dayOffset)_\(slotIndex)",
+                    content: content,
+                    trigger: trigger
+                )
+
+                notificationCenter.add(request) { _ in }
+                scheduled += 1
+            }
+        }
+
+        #if DEBUG
+        logger.debug("scheduled \(scheduled) daily forecast requests over \(Self.dailyForecastDaysAhead) days")
+        #endif
+    }
+
+    private func dailyForecastTitle(for date: Date, dayOffset: Int) -> String {
+        switch dayOffset {
+        case 0: return "Today's Weather"
+        case 1: return "Tomorrow's Weather"
+        default:
+            let weekday = Calendar.current.component(.weekday, from: date)
+            return "\(Calendar.current.weekdaySymbols[weekday - 1])'s Weather"
+        }
     }
     
     private func formatDailyForecastBody(weather: WeatherInfo, temperatureUnit: TemperatureUnit, dayIndex: Int = 0) -> String {
@@ -490,7 +510,7 @@ class NotificationManager: NSObject, ObservableObject {
             preferences: settings.severeWeatherContent,
             limit: 3
         )
-        content.sound = getSound(for: "severeWeather") ?? .defaultCritical
+        content.sound = getSound(for: "severeWeather") ?? .default
         content.categoryIdentifier = "WEATHER_ALERT"
         content.userInfo = ["type": "severeWeather", "location": weather.location.city]
         
@@ -649,7 +669,9 @@ class NotificationManager: NSObject, ObservableObject {
     }
     
     func checkMinutePrecipitation(weather: WeatherInfo) {
-        guard settings.minuteRainAlertsEnabled else { return }
+        // Shares the Rain Alerts toggle with the hourly check (there is no separate
+        // UI switch for short-fuse rain).
+        guard settings.rainAlertsEnabled else { return }
         guard authorizationStatus == .authorized else { return }
         guard !isInQuietHours() else { return }
         guard !isRainAlertSnoozed() else { return }
