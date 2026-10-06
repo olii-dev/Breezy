@@ -100,6 +100,7 @@ struct OnTheWayWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: OnTheWayProvider()) { entry in
             OnTheWayWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
+                .widgetURL(URL(string: "breezy://trip"))
         }
         .configurationDisplayName("On the Way")
         .description("Your planned drive weather, or live ahead conditions while Go Now is on.")

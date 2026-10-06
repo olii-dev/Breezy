@@ -293,22 +293,10 @@ final class TripLiveActivityManager {
             return AheadHero(
                 text: "\(weather.condition)\(place)",
                 minutes: minutes,
-                symbolName: Self.symbol(for: weather.condition)
+                symbolName: TripWeatherSnapshot.symbolName(for: weather.condition)
             )
         }
         return nil
-    }
-
-    private static func symbol(for condition: String) -> String {
-        let lowered = condition.lowercased()
-        if lowered.contains("thunder") { return "cloud.bolt.rain.fill" }
-        if lowered.contains("snow") || lowered.contains("sleet") { return "snowflake" }
-        if lowered.contains("heavy rain") { return "cloud.heavyrain.fill" }
-        if lowered.contains("rain") || lowered.contains("drizzle") || lowered.contains("shower") { return "cloud.rain.fill" }
-        if lowered.contains("fog") || lowered.contains("mist") { return "cloud.fog.fill" }
-        if lowered.contains("cloud") || lowered.contains("overcast") { return "cloud.fill" }
-        if lowered.contains("clear") || lowered.contains("sunny") { return "sun.max.fill" }
-        return "cloud.sun.fill"
     }
 
     /// Prefer GPS speed when valid; otherwise route average.
@@ -342,7 +330,12 @@ final class TripLiveActivityManager {
             aheadPlaceLabel: state.aheadPlaceLabel,
             distanceRemainingText: state.distanceRemainingText,
             isOffline: state.isOffline,
-            updatedAt: Date()
+            updatedAt: Date(),
+            arrival: state.arrival,
+            weatherAheadText: state.weatherAheadText,
+            weatherAheadMinutes: state.weatherAheadMinutes,
+            weatherAheadSymbolName: state.weatherAheadSymbolName,
+            isOffRoute: state.isOffRoute
         )
     }
 

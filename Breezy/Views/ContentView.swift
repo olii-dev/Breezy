@@ -15,6 +15,8 @@ import Photos
 struct ContentView: View {
     @StateObject private var viewModel = WeatherViewModel()
     @StateObject private var locationHelper = LocationHelper()
+    /// Shared trip state so the dashboard banner reacts to Go Now start/end.
+    @ObservedObject private var sharedTripVM = TripViewModel.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
     @State private var showingTimeMachine = false
@@ -252,6 +254,25 @@ struct ContentView: View {
                 }
                 .sheet(isPresented: $showingTripMode) {
                     TripModeView(weatherViewModel: viewModel, locationHelper: locationHelper)
+                }
+                .onOpenURL { url in
+                    // Deep link from the trip Live Activity / On the Way widget.
+                    if url.absoluteString == "breezy://trip" {
+                        showingTripMode = true
+                    }
+                }
+                .overlay(alignment: .top) {
+                    if sharedTripVM.isTripLive, TripStore.isGoNowActive() {
+                        TripBannerView(
+                            theme: viewModel.currentTheme(colorScheme: colorScheme),
+                            glassOpacity: viewModel.glassOpacity
+                        ) {
+                            showingTripMode = true
+                        }
+                        .padding(.horizontal, DesignSystem.spacingM)
+                        .padding(.top, 54) // clears the floating dashboard toolbar
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
                 .sheet(isPresented: $showingWidgetGallery) {
                     WidgetGalleryView(viewModel: viewModel, onAdd: { widgetType in

@@ -29,7 +29,15 @@ struct TripModeView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: DesignSystem.spacingL) {
-                        if tripVM.selectedRoute != nil {
+                        if tripVM.isTripLive {
+                            // A live drive gets a dedicated screen, not the
+                            // planning UI it has outgrown.
+                            TripDrivingView(
+                                tripVM: tripVM,
+                                theme: theme,
+                                glassOpacity: weatherViewModel.glassOpacity
+                            )
+                        } else if tripVM.selectedRoute != nil {
                             TripMapHeader(
                                 route: tripVM.selectedRoute,
                                 theme: theme,

@@ -80,6 +80,19 @@ struct TripWeatherSnapshot: Codable, Equatable, Hashable {
         let converted = unit.convert(windSpeedMetersPerSecond)
         return String(format: "%.0f %@", converted, unit.symbol)
     }
+
+    /// SF Symbol for a display condition string.
+    static func symbolName(for condition: String) -> String {
+        let lowered = condition.lowercased()
+        if lowered.contains("thunder") { return "cloud.bolt.rain.fill" }
+        if lowered.contains("snow") || lowered.contains("sleet") { return "snowflake" }
+        if lowered.contains("heavy rain") { return "cloud.heavyrain.fill" }
+        if lowered.contains("rain") || lowered.contains("drizzle") || lowered.contains("shower") { return "cloud.rain.fill" }
+        if lowered.contains("fog") || lowered.contains("mist") { return "cloud.fog.fill" }
+        if lowered.contains("cloud") || lowered.contains("overcast") { return "cloud.fill" }
+        if lowered.contains("clear") || lowered.contains("sunny") { return "sun.max.fill" }
+        return "cloud.sun.fill"
+    }
 }
 
 enum TripRiskFlag: String, Codable, Equatable, Hashable, CaseIterable {
