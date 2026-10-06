@@ -155,6 +155,14 @@ struct TripModeView: View {
                     )
                 }
             }
+            .alert("Keep your drive updating?", isPresented: $tripVM.showAlwaysUpgrade) {
+                Button("Allow Always") {
+                    tripVM.confirmAlwaysUpgrade()
+                }
+                Button("Not Now", role: .cancel) {}
+            } message: {
+                Text("Breezy keeps weather ahead fresh during a trip even when your phone is locked or CarPlay is active. Allowing location \"Always\" means tracking also survives the app being restarted mid-drive.")
+            }
             .preferredColorScheme(weatherViewModel.appearanceMode == .light ? .light : weatherViewModel.appearanceMode == .dark ? .dark : nil)
         }
     }

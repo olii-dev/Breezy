@@ -21,9 +21,23 @@ final class TripGoNowTracker: NSObject, CLLocationManagerDelegate {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = 750 // GPS-lite: ~0.75 km between updates
-        manager.pausesLocationUpdatesAutomatically = true
+        // Drives outlive the foreground: keep delivering fixes with the screen
+        // locked or CarPlay frontmost (requires the location background mode,
+        // which Info.plist declares, and a foreground Go Now start).
+        manager.allowsBackgroundLocationUpdates = true
+        manager.pausesLocationUpdatesAutomatically = false
         manager.activityType = .automotiveNavigation
-        manager.allowsBackgroundLocationUpdates = false
+        manager.showsBackgroundLocationIndicator = true
+    }
+
+    /// One-time upgrade prompt so tracking survives iOS killing the app
+    /// mid-drive (significant-change relaunch needs Always authorization).
+    func requestAlways() {
+        manager.requestAlwaysAuthorization()
+    }
+
+    var authorizationStatus: CLAuthorizationStatus {
+        manager.authorizationStatus
     }
 
     func start(route: TripRouteOption, onUpdate: @escaping (CLLocation) -> Void) {

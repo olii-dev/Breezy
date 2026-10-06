@@ -25,6 +25,9 @@ final class TripLiveActivityManager {
     private var originName: String = ""
     private var lastProgress: Double = 0
     private var routeAverageSpeed: Double = 13 // m/s fallback (~47 km/h)
+    private var lastLocation: CLLocation?
+    private var consecutiveOffRouteFixes = 0
+    private var lastWeatherRefreshAt: Date?
 
     private init() {}
 
@@ -39,6 +42,9 @@ final class TripLiveActivityManager {
         self.originName = trip.origin.name
         self.lastProgress = 0
         self.routeAverageSpeed = max(route.distanceMeters / max(route.expectedTravelTime, 1), 3)
+        self.lastLocation = nil
+        self.consecutiveOffRouteFixes = 0
+        self.lastWeatherRefreshAt = nil
 
         let state = makeState(
             route: route,
@@ -111,6 +117,9 @@ final class TripLiveActivityManager {
         self.originName = adopted?.attributes.originName ?? snapshot.originName
         self.lastProgress = snapshot.progress
         self.routeAverageSpeed = max(route.distanceMeters / max(route.expectedTravelTime, 1), 3)
+        self.lastLocation = nil
+        self.consecutiveOffRouteFixes = 0
+        self.lastWeatherRefreshAt = nil
         TripGoNowTracker.shared.start(route: route) { [weak self] location in
             self?.handleLocation(location)
         }
@@ -120,6 +129,9 @@ final class TripLiveActivityManager {
         TripGoNowTracker.shared.stop()
         route = nil
         lastProgress = 0
+        lastLocation = nil
+        consecutiveOffRouteFixes = 0
+        lastWeatherRefreshAt = nil
         let current = activity
         activity = nil
         TripStore.clearGoNowSnapshot()
@@ -139,8 +151,18 @@ final class TripLiveActivityManager {
         guard let route else { return }
         let snap = TripGoNowTracker.progress(along: route, location: location)
 
-        // Ignore noisy snaps far off-route.
-        guard snap.crossTrackMeters < 1_200 else { return }
+        // Far off-route (detour, tunnel exit, GPS drift): don't freeze silently
+        // — after a few far fixes flag the state and keep the last good
+        // progress until a fix snaps back onto the route.
+        guard snap.crossTrackMeters < 1_200 else {
+            consecutiveOffRouteFixes += 1
+            if consecutiveOffRouteFixes >= 3 {
+                pushCurrentState()
+            }
+            return
+        }
+        consecutiveOffRouteFixes = 0
+        lastLocation = location
 
         let progress = max(lastProgress, snap.progress)
         lastProgress = progress
@@ -153,9 +175,53 @@ final class TripLiveActivityManager {
         pushState(state)
         publishSnapshot(from: state)
 
+        maybeRefreshUpcomingWeather(distanceAlong: adjusted.distanceAlong)
+
         // End only when clearly near the destination on-route.
         if progress >= 0.97, adjusted.remaining < 500, snap.crossTrackMeters < 250 {
             end()
+        }
+    }
+
+    /// Re-push the current state (used when only flags like off-route change).
+    private func pushCurrentState() {
+        guard let route else { return }
+        let remaining = max(0, route.distanceMeters * (1 - lastProgress))
+        let snap = TripRouteGeometry.Snap(
+            distanceAlong: route.distanceMeters - remaining,
+            remaining: remaining,
+            progress: lastProgress,
+            crossTrackMeters: 1_200, // forces the off-route flag in makeState
+            coordinate: lastLocation?.coordinate ?? route.coordinates.first?.coordinate
+                ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        )
+        let state = makeState(route: route, snap: snap, location: lastLocation)
+        pushState(state)
+        publishSnapshot(from: state)
+    }
+
+    /// Weather along the road goes stale on long drives — re-fetch the
+    /// upcoming samples at most every 15 minutes of driving.
+    private func maybeRefreshUpcomingWeather(distanceAlong: Double) {
+        guard let route else { return }
+        let now = Date()
+        guard lastWeatherRefreshAt.map({ now.timeIntervalSince($0) >= 15 * 60 }) ?? true else { return }
+        guard route.distanceMeters * (1 - lastProgress) > 20_000 else { return }
+
+        lastWeatherRefreshAt = now
+        let upcoming = route.samples.filter { $0.distanceFromStartMeters >= distanceAlong }
+        guard !upcoming.isEmpty else { return }
+
+        Task { [weak self] in
+            let refreshed = await TripWeatherService.shared.enrichSamples(upcoming)
+            guard !refreshed.isEmpty else { return }
+            await MainActor.run { [weak self] in
+                guard let self, var currentRoute = self.route else { return }
+                let byID = Dictionary(uniqueKeysWithValues: refreshed.map { ($0.id, $0) })
+                currentRoute.samples = currentRoute.samples.map { byID[$0.id] ?? $0 }
+                self.route = currentRoute
+                self.pushCurrentState()
+            }
         }
     }
 
@@ -180,19 +246,69 @@ final class TripLiveActivityManager {
         let ahead = TripGoNowTracker.aheadSample(on: route, distanceAlong: snap.distanceAlong)
         let weather = ahead?.weather ?? route.samples.last?.weather
         let offline = !TripNetworkMonitor.shared.isOnline
+        let hero = aheadHero(route: route, distanceAlong: snap.distanceAlong, speed: speed)
+        let isOffRoute = snap.crossTrackMeters >= 1_200
 
         return TripActivityAttributes.ContentState(
             destinationName: destinationName,
             etaText: Self.etaFormatter.string(from: arrival),
             minutesToArrival: minutes,
+            arrival: arrival,
             condition: weather?.condition ?? "En route",
             temperatureText: weather?.formattedTemperature ?? "--°",
             progress: snap.progress,
-            nextAlert: aheadHint(route: route, distanceAlong: snap.distanceAlong, speed: speed),
+            nextAlert: hero.map { "\($0.text) in ~\($0.minutes) min" },
             aheadPlaceLabel: ahead?.placeLabel,
             distanceRemainingText: remainingText(snap.remaining),
-            isOffline: offline
+            weatherAheadText: hero?.text,
+            weatherAheadMinutes: hero?.minutes,
+            weatherAheadSymbolName: hero?.symbolName,
+            isOffline: offline,
+            isOffRoute: isOffRoute
         )
+    }
+
+    private struct AheadHero {
+        let text: String
+        let minutes: Int
+        let symbolName: String
+    }
+
+    /// The next stretch of road worth warning about (risk flag or likely
+    /// precipitation), split into parts the widget can lay out as a hero row.
+    private func aheadHero(route: TripRouteOption, distanceAlong: Double, speed: Double) -> AheadHero? {
+        let upcoming = route.samples.filter {
+            $0.distanceFromStartMeters >= distanceAlong + 500
+                && (!$0.riskFlags.isEmpty || ($0.weather?.precipitationProbability ?? 0) >= 0.5)
+        }
+        guard let next = upcoming.first else { return nil }
+        let remainingDrive = max(500, next.distanceFromStartMeters - distanceAlong)
+        let minutes = max(1, Int((remainingDrive / max(speed, 1)) / 60))
+        let place = next.placeLabel.isEmpty ? "" : " near \(next.placeLabel)"
+
+        if let flag = next.riskFlags.first {
+            return AheadHero(text: "\(flag.title)\(place)", minutes: minutes, symbolName: flag.systemImage)
+        }
+        if let weather = next.weather {
+            return AheadHero(
+                text: "\(weather.condition)\(place)",
+                minutes: minutes,
+                symbolName: Self.symbol(for: weather.condition)
+            )
+        }
+        return nil
+    }
+
+    private static func symbol(for condition: String) -> String {
+        let lowered = condition.lowercased()
+        if lowered.contains("thunder") { return "cloud.bolt.rain.fill" }
+        if lowered.contains("snow") || lowered.contains("sleet") { return "snowflake" }
+        if lowered.contains("heavy rain") { return "cloud.heavyrain.fill" }
+        if lowered.contains("rain") || lowered.contains("drizzle") || lowered.contains("shower") { return "cloud.rain.fill" }
+        if lowered.contains("fog") || lowered.contains("mist") { return "cloud.fog.fill" }
+        if lowered.contains("cloud") || lowered.contains("overcast") { return "cloud.fill" }
+        if lowered.contains("clear") || lowered.contains("sunny") { return "sun.max.fill" }
+        return "cloud.sun.fill"
     }
 
     /// Prefer GPS speed when valid; otherwise route average.
@@ -204,23 +320,6 @@ final class TripLiveActivityManager {
             }
         }
         return routeAverageSpeed
-    }
-
-    private func aheadHint(route: TripRouteOption, distanceAlong: Double, speed: Double) -> String? {
-        let upcoming = route.samples.filter {
-            $0.distanceFromStartMeters >= distanceAlong + 500
-                && (!$0.riskFlags.isEmpty || ($0.weather?.precipitationProbability ?? 0) >= 0.5)
-        }
-        guard let next = upcoming.first else { return nil }
-        let remainingDrive = max(500, next.distanceFromStartMeters - distanceAlong)
-        let minutes = max(1, Int((remainingDrive / max(speed, 1)) / 60))
-        if let flag = next.riskFlags.first {
-            return "\(flag.title) in ~\(minutes) min"
-        }
-        if let weather = next.weather {
-            return "\(weather.condition) in ~\(minutes) min"
-        }
-        return nil
     }
 
     private func remainingText(_ meters: Double) -> String {

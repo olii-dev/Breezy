@@ -10,8 +10,14 @@
 	<array>
 		<string>com.breezy.weather.refresh</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Breezy needs your location for local weather and to update On the Way weather ahead while Go Now is active.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Breezy keeps your On the Way drive weather updating while your phone is locked or CarPlay is active. Location is only used while a trip is live.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Breezy saves your shared weather cards to your photo library.</string>
     <key>CFBundleIcons</key>

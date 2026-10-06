@@ -34,6 +34,9 @@ final class TripViewModel: ObservableObject {
 
     @Published var isTripLive = false
     @Published var goNowError: String?
+    /// One-time offer to upgrade to Always location so tracking survives iOS
+    /// killing the app mid-drive.
+    @Published var showAlwaysUpgrade = false
 
     private let routeService = TripRouteService.shared
     private var departureDebounceTask: Task<Void, Never>?
@@ -282,6 +285,23 @@ final class TripViewModel: ObservableObject {
             persistCurrentTrip()
             goNowError = "Couldn't start Live Activity: \(message)"
         }
+
+        maybeOfferAlwaysUpgrade()
+    }
+
+    /// When-in-use already keeps a foreground-started drive alive in the
+    /// background; Always additionally lets the app relaunch if iOS kills it
+    /// mid-drive. Offer it once, only while a trip is actually live.
+    private func maybeOfferAlwaysUpgrade() {
+        guard isTripLive else { return }
+        guard !UserDefaults.standard.bool(forKey: "Breezy.tripAlwaysPromptShown") else { return }
+        guard TripGoNowTracker.shared.authorizationStatus == .authorizedWhenInUse else { return }
+        UserDefaults.standard.set(true, forKey: "Breezy.tripAlwaysPromptShown")
+        showAlwaysUpgrade = true
+    }
+
+    func confirmAlwaysUpgrade() {
+        TripGoNowTracker.shared.requestAlways()
     }
 
     func endGoNow() {
