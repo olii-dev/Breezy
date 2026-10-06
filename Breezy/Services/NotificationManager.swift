@@ -478,7 +478,8 @@ class NotificationManager: NSObject, ObservableObject {
     }
 
     /// Parse display wind string ("12 m/s", "40 km/h", "25 mph", "20 Knots") to m/s.
-    private static func parseWindSpeedMetersPerSecond(_ windString: String) -> Double? {
+    /// Shared with the wind Live Activity manager.
+    static func parseWindSpeedMetersPerSecond(_ windString: String) -> Double? {
         let lowercased = windString.lowercased()
         let cleaned = lowercased
             .replacingOccurrences(of: "km/h", with: "")

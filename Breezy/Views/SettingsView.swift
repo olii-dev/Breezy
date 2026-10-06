@@ -59,6 +59,15 @@ struct SettingsView: View {
                                 glassOpacity: viewModel.glassOpacity,
                                 destination: NotificationSettingsView(viewModel: viewModel)
                             )
+
+                            SettingsNavCard(
+                                title: "Live Activities",
+                                icon: "rectangle.on.rectangle.fill",
+                                color: .cyan,
+                                textColor: theme.textColor,
+                                glassOpacity: viewModel.glassOpacity,
+                                destination: LiveActivitySettingsView(viewModel: viewModel)
+                            )
                             
                             SettingsNavCard(
                                 title: "Units & Data",
@@ -668,15 +677,9 @@ struct NotificationSettingsView: View {
     
     @State private var notificationSettings = UserDefaults.standard.notificationSettings
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
-    @State private var essentialAlertsExpanded = true
-    @State private var weatherAlertsExpanded = false
-    @State private var advancedExpanded = false
     @State private var showResetConfirmation = false
     @State private var previousWindUnit: WindSpeedUnit?
     @State private var previousTempUnit: TemperatureUnit?
-    @State private var showSoundCustomization = false
-    @State private var showContentCustomization = false
-    @State private var showAddTimeSheet = false
     
     init(viewModel: WeatherViewModel) {
         self.viewModel = viewModel
@@ -712,431 +715,158 @@ struct NotificationSettingsView: View {
                     .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                     
                     
-                    // Essential Alerts Section
-                    DisclosureGroup(isExpanded: $essentialAlertsExpanded) {
+                    // Weather Alerts — each alert customizes on its own page
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("ALERTS")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                            .padding(.leading, 8)
+
                         VStack(spacing: DesignSystem.spacingS) {
-                            SettingsToggleRow(title: "Daily Forecast", icon: "sunrise.fill", color: .orange, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.dailyForecastEnabled}, set: {notificationSettings.dailyForecastEnabled=$0; saveNotificationSettings()}))
-                            
-                            if notificationSettings.dailyForecastEnabled {
-                                DatePicker("Forecast Time", selection: Binding(
-                                    get: {
-                                        let c = Calendar.current
-                                        var comps = DateComponents()
-                                        comps.hour = notificationSettings.dailyForecastTimes.first?.hour ?? notificationSettings.dailyForecastHour
-                                        comps.minute = notificationSettings.dailyForecastTimes.first?.minute ?? notificationSettings.dailyForecastMinute
-                                        return c.date(from: comps) ?? Date()
-                                    },
-                                    set: {
-                                        HapticsManager.shared.selectionChanged()
-                                        let c = Calendar.current
-                                        let hour = c.component(.hour, from: $0)
-                                        let minute = c.component(.minute, from: $0)
-                                        notificationSettings.dailyForecastHour = hour
-                                        notificationSettings.dailyForecastMinute = minute
-                                        if notificationSettings.dailyForecastTimes.isEmpty {
-                                            notificationSettings.dailyForecastTimes = [ForecastTime(hour: hour, minute: minute)]
-                                        } else {
-                                            notificationSettings.dailyForecastTimes[0] = ForecastTime(hour: hour, minute: minute)
-                                        }
-                                        saveNotificationSettings()
-                                    }
-                                ), displayedComponents: .hourAndMinute)
-                                .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                            }
-                            
-                            SettingsToggleRow(title: "Severe Weather", icon: "exclamationmark.triangle.fill", color: .red, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.severeWeatherEnabled}, set: {notificationSettings.severeWeatherEnabled=$0; saveNotificationSettings()}))
-                            
-                            SettingsToggleRow(title: "UV Alerts", icon: "sun.max.fill", color: .yellow, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.uvAlertsEnabled}, set: {notificationSettings.uvAlertsEnabled=$0; saveNotificationSettings()}))
+                            alertRow(
+                                "Daily Forecast", icon: "sunrise.fill", color: .orange, theme: theme,
+                                isOn: notificationSettings.dailyForecastEnabled,
+                                set: { notificationSettings.dailyForecastEnabled = $0 },
+                                config: AlertDetailSettingsView.AlertDetailConfig(
+                                    title: "Daily Forecast", icon: "sunrise.fill", color: .orange,
+                                    soundPath: \NotificationSettings.dailyForecastSound,
+                                    content: .daily,
+                                    isDailyForecast: true
+                                )
+                            )
+
+                            alertRow(
+                                "Severe Weather", icon: "exclamationmark.triangle.fill", color: .red, theme: theme,
+                                isOn: notificationSettings.severeWeatherEnabled,
+                                set: { notificationSettings.severeWeatherEnabled = $0 },
+                                config: AlertDetailSettingsView.AlertDetailConfig(
+                                    title: "Severe Weather", icon: "exclamationmark.triangle.fill", color: .red,
+                                    threshold: nil,
+                                    cooldown: .severe,
+                                    soundPath: \NotificationSettings.severeWeatherSound,
+                                    content: .severe
+                                )
+                            )
+
+                            alertRow(
+                                "Rain Alerts", icon: "cloud.rain.fill", color: .blue, theme: theme,
+                                isOn: notificationSettings.rainAlertsEnabled,
+                                set: { notificationSettings.rainAlertsEnabled = $0 },
+                                config: AlertDetailSettingsView.AlertDetailConfig(
+                                    title: "Rain Alerts", icon: "cloud.rain.fill", color: .blue,
+                                    threshold: .rainChance,
+                                    cooldown: .rain,
+                                    soundPath: \NotificationSettings.rainAlertSound,
+                                    content: .alerts
+                                )
+                            )
+
+                            alertRow(
+                                "UV Alerts", icon: "sun.max.fill", color: .yellow, theme: theme,
+                                isOn: notificationSettings.uvAlertsEnabled,
+                                set: { notificationSettings.uvAlertsEnabled = $0 },
+                                config: AlertDetailSettingsView.AlertDetailConfig(
+                                    title: "UV Alerts", icon: "sun.max.fill", color: .yellow,
+                                    threshold: .uv,
+                                    cooldown: .uv,
+                                    soundPath: \NotificationSettings.uvAlertSound,
+                                    content: .alerts
+                                )
+                            )
+
+                            alertRow(
+                                "Temperature Changes", icon: "thermometer.variable", color: .orange, theme: theme,
+                                isOn: notificationSettings.temperatureChangeAlertsEnabled,
+                                set: { notificationSettings.temperatureChangeAlertsEnabled = $0 },
+                                config: AlertDetailSettingsView.AlertDetailConfig(
+                                    title: "Temperature Changes", icon: "thermometer.variable", color: .orange,
+                                    threshold: .temperatureChange,
+                                    soundPath: \NotificationSettings.temperatureChangeSound,
+                                    content: .alerts
+                                )
+                            )
+
+                            alertRow(
+                                "High Wind", icon: "wind", color: .cyan, theme: theme,
+                                isOn: notificationSettings.windAlertsEnabled,
+                                set: { notificationSettings.windAlertsEnabled = $0 },
+                                config: AlertDetailSettingsView.AlertDetailConfig(
+                                    title: "High Wind", icon: "wind", color: .cyan,
+                                    threshold: .windSpeed,
+                                    cooldown: .wind,
+                                    soundPath: \NotificationSettings.windAlertSound,
+                                    content: .alerts
+                                )
+                            )
+
+                            alertRow(
+                                "Rain Probability", icon: "cloud.drizzle.fill", color: .teal, theme: theme,
+                                isOn: notificationSettings.precipitationProbabilityAlertsEnabled,
+                                set: { notificationSettings.precipitationProbabilityAlertsEnabled = $0 },
+                                config: AlertDetailSettingsView.AlertDetailConfig(
+                                    title: "Rain Probability", icon: "cloud.drizzle.fill", color: .teal,
+                                    threshold: .rainProbability,
+                                    soundPath: \NotificationSettings.precipitationProbabilitySound,
+                                    content: .alerts
+                                )
+                            )
                         }
+                    }
+
+                    // Quiet Hours (severe weather alerts ignore these for safety)
+                    VStack(spacing: DesignSystem.spacingS) {
+                        SettingsToggleRow(title: "Enable Quiet Hours", icon: "moon.fill", color: .indigo, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.quietHoursEnabled}, set: {notificationSettings.quietHoursEnabled=$0; saveNotificationSettings()}))
+
+                        if notificationSettings.quietHoursEnabled {
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Text("Start")
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                    Spacer()
+                                    Picker("", selection: Binding(get: {notificationSettings.quietHoursStart}, set: {notificationSettings.quietHoursStart=$0; saveNotificationSettings()})) {
+                                        ForEach(0..<24, id: \.self) { hour in
+                                            Text(String(format: "%02d:00", hour)).tag(hour)
+                                        }
+                                    }
+                                    .tint(theme.textColor)
+                                }
+
+                                HStack {
+                                    Text("End")
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                    Spacer()
+                                    Picker("", selection: Binding(get: {notificationSettings.quietHoursEnd}, set: {notificationSettings.quietHoursEnd=$0; saveNotificationSettings()})) {
+                                        ForEach(0..<24, id: \.self) { hour in
+                                            Text(String(format: "%02d:00", hour)).tag(hour)
+                                        }
+                                    }
+                                    .tint(theme.textColor)
+                                }
+
+                                Text("Severe weather alerts ignore quiet hours for safety")
+                                    .font(.caption2)
+                                    .foregroundColor(theme.textColor.opacity(0.5))
+                            }
+                            .padding()
+                            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                        }
+                    }
+
+                    // Reset thresholds
+                    Button {
+                        showResetConfirmation = true
                     } label: {
                         HStack {
-                            Image(systemName: "bell.badge.fill")
+                            Image(systemName: "arrow.counterclockwise")
                                 .foregroundColor(.orange)
-                            Text("Essential Alerts")
-                                .font(.headline)
+                            Text("Reset All Thresholds to Defaults")
+                                .font(.subheadline.weight(.medium))
                                 .foregroundColor(theme.textColor)
-                        }
-                    }
-                    .tint(theme.textColor)
-                    
-                    // All Other Alerts Section
-                    DisclosureGroup(isExpanded: $weatherAlertsExpanded) {
-                        VStack(spacing: DesignSystem.spacingS) {
-                            SettingsToggleRow(title: "Rain Alerts", icon: "cloud.rain.fill", color: .blue, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.rainAlertsEnabled}, set: {notificationSettings.rainAlertsEnabled=$0; saveNotificationSettings()}))
-
-                            SettingsToggleRow(title: "Rain Countdown on Lock Screen", icon: "timer", color: .cyan, textColor: theme.textColor, isOn: Binding(get: {UserDefaults.standard.object(forKey: "Breezy.rainLiveActivityEnabled") as? Bool ?? true}, set: { newValue in
-                                UserDefaults.standard.set(newValue, forKey: "Breezy.rainLiveActivityEnabled")
-                                if !newValue {
-                                    RainLiveActivityManager.shared.end()
-                                }
-                            }))
-                            
-                            SettingsToggleRow(title: "Rain Probability", icon: "cloud.drizzle.fill", color: .teal, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.precipitationProbabilityAlertsEnabled}, set: {notificationSettings.precipitationProbabilityAlertsEnabled=$0; saveNotificationSettings()}))
-                            
-                            SettingsToggleRow(title: "Temperature Changes", icon: "thermometer.variable", color: .orange, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.temperatureChangeAlertsEnabled}, set: {notificationSettings.temperatureChangeAlertsEnabled=$0; saveNotificationSettings()}))
-                            
-                            SettingsToggleRow(title: "High Wind", icon: "wind", color: .cyan, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.windAlertsEnabled}, set: {notificationSettings.windAlertsEnabled=$0; saveNotificationSettings()}))
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "cloud.rain.fill")
-                                .foregroundColor(.blue)
-                            Text("Other Weather Alerts")
-                                .font(.headline)
-                                .foregroundColor(theme.textColor)
-                        }
-                    }
-                    .tint(theme.textColor)
-                    
-                    
-                    // Advanced Settings, Quiet Hours & Preferences
-                    DisclosureGroup(isExpanded: $advancedExpanded) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            
-                            // MARK: - Sound Customization
-                            DisclosureGroup("Notification Sounds") {
-                                VStack(spacing: DesignSystem.spacingS) {
-                                    soundPicker(for: "Daily Forecast", selection: Binding(
-                                        get: { notificationSettings.dailyForecastSound },
-                                        set: { notificationSettings.dailyForecastSound = $0; saveNotificationSettings() }
-                                    ))
-                                    soundPicker(for: "Severe Weather", selection: Binding(
-                                        get: { notificationSettings.severeWeatherSound },
-                                        set: { notificationSettings.severeWeatherSound = $0; saveNotificationSettings() }
-                                    ))
-                                    soundPicker(for: "Rain Alerts", selection: Binding(
-                                        get: { notificationSettings.rainAlertSound },
-                                        set: { notificationSettings.rainAlertSound = $0; saveNotificationSettings() }
-                                    ))
-                                    soundPicker(for: "UV Alerts", selection: Binding(
-                                        get: { notificationSettings.uvAlertSound },
-                                        set: { notificationSettings.uvAlertSound = $0; saveNotificationSettings() }
-                                    ))
-                                    soundPicker(for: "Temperature Change", selection: Binding(
-                                        get: { notificationSettings.temperatureChangeSound },
-                                        set: { notificationSettings.temperatureChangeSound = $0; saveNotificationSettings() }
-                                    ))
-                                    soundPicker(for: "Wind Alerts", selection: Binding(
-                                        get: { notificationSettings.windAlertSound },
-                                        set: { notificationSettings.windAlertSound = $0; saveNotificationSettings() }
-                                    ))
-                                    soundPicker(for: "Rain Probability", selection: Binding(
-                                        get: { notificationSettings.precipitationProbabilitySound },
-                                        set: { notificationSettings.precipitationProbabilitySound = $0; saveNotificationSettings() }
-                                    ))
-                                }
-                                .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                            }
-                            
-                            // MARK: - Content Customization
-                            DisclosureGroup("Notification Content") {
-                                VStack(alignment: .leading, spacing: 16) {
-                                    notificationContentEditor(
-                                        title: "Daily Forecast",
-                                        subtitle: "Choose which details appear in your scheduled forecast updates.",
-                                        preference: Binding(
-                                            get: { notificationSettings.dailyForecastContent },
-                                            set: {
-                                                notificationSettings.dailyForecastContent = $0
-                                                saveNotificationSettings()
-                                            }
-                                        ),
-                                        theme: theme
-                                    )
-
-                                    notificationContentEditor(
-                                        title: "Severe Weather Alerts",
-                                        subtitle: "Add the context you want when severe alerts fire.",
-                                        preference: Binding(
-                                            get: { notificationSettings.severeWeatherContent },
-                                            set: {
-                                                notificationSettings.severeWeatherContent = $0
-                                                saveNotificationSettings()
-                                            }
-                                        ),
-                                        theme: theme
-                                    )
-
-                                    notificationContentEditor(
-                                        title: "Rain, UV, Wind & Temperature Alerts",
-                                        subtitle: "Fine-tune the extra details included in immediate alerts.",
-                                        preference: Binding(
-                                            get: { notificationSettings.alertContent },
-                                            set: {
-                                                notificationSettings.alertContent = $0
-                                                saveNotificationSettings()
-                                            }
-                                        ),
-                                        theme: theme
-                                    )
-                                }
-                                .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                            }
-                            
-                            // MARK: - Multiple Daily Forecast Times
-                            DisclosureGroup("Daily Forecast Times") {
-                                VStack(spacing: DesignSystem.spacingS) {
-                                    ForEach(Array(notificationSettings.dailyForecastTimes.enumerated()), id: \.offset) { index, time in
-                                        HStack {
-                                            Text("\(String(format: "%02d:%02d", time.hour, time.minute))")
-                                                .foregroundColor(theme.textColor)
-                                            Spacer()
-                                            if notificationSettings.dailyForecastTimes.count > 1 {
-                                                Button(action: {
-                                                    HapticsManager.shared.selectionChanged()
-                                                    notificationSettings.dailyForecastTimes.remove(at: index)
-                                                    saveNotificationSettings()
-                                                }) {
-                                                    Image(systemName: "minus.circle.fill")
-                                                        .foregroundColor(.red)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    Button(action: { showAddTimeSheet = true }) {
-                                        HStack {
-                                            Image(systemName: "plus.circle.fill")
-                                            Text("Add Time")
-                                        }
-                                        .foregroundColor(.blue)
-                                    }
-                                }
-                                .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                                .sheet(isPresented: $showAddTimeSheet) {
-                                    AddForecastTimeView(settings: $notificationSettings) { newTime in
-                                        notificationSettings.dailyForecastTimes.append(newTime)
-                                        saveNotificationSettings()
-                                    }
-                                }
-                            }
-                            
-                            Divider()
-                            
-                            // Quiet Hours
-                            VStack(spacing: DesignSystem.spacingS) {
-                                SettingsToggleRow(title: "Enable Quiet Hours", icon: "moon.fill", color: .indigo, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.quietHoursEnabled}, set: {notificationSettings.quietHoursEnabled=$0; saveNotificationSettings()}))
-                                
-                                if notificationSettings.quietHoursEnabled {
-                                    VStack(spacing: 12) {
-                                        HStack {
-                                            Text("Start")
-                                                .foregroundColor(theme.textColor.opacity(0.7))
-                                            Spacer()
-                                            Picker("", selection: Binding(get: {notificationSettings.quietHoursStart}, set: {notificationSettings.quietHoursStart=$0; saveNotificationSettings()})) {
-                                                ForEach(0..<24, id: \.self) { hour in
-                                                    Text(String(format: "%02d:00", hour)).tag(hour)
-                                                }
-                                            }
-                                            .tint(theme.textColor)
-                                        }
-                                        
-                                        HStack {
-                                            Text("End")
-                                                .foregroundColor(theme.textColor.opacity(0.7))
-                                            Spacer()
-                                            Picker("", selection: Binding(get: {notificationSettings.quietHoursEnd}, set: {notificationSettings.quietHoursEnd=$0; saveNotificationSettings()})) {
-                                                ForEach(0..<24, id: \.self) { hour in
-                                                    Text(String(format: "%02d:00", hour)).tag(hour)
-                                                }
-                                            }
-                                            .tint(theme.textColor)
-                                        }
-                                        
-                                        Text("Severe weather alerts ignore quiet hours for safety")
-                                            .font(.caption2)
-                                            .foregroundColor(theme.textColor.opacity(0.5))
-                                    }
-                                    .padding()
-                                    .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                                }
-                            }
-                            
-                            SettingsToggleRow(title: "Weekdays Only Daily Forecast", icon: "calendar", color: .purple, textColor: theme.textColor, isOn: Binding(get: {notificationSettings.onlyWeekdayForecast}, set: {notificationSettings.onlyWeekdayForecast=$0; saveNotificationSettings()}))
-                            
-                            Divider()
-                            // UV Threshold
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("UV Threshold", systemImage: "sun.max.fill")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    Spacer()
-                                    Text("\(notificationSettings.uvThreshold)+")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.yellow)
-                                }
-                                
-                                Slider(value: Binding(
-                                    get: { Double(notificationSettings.uvThreshold) },
-                                    set: { notificationSettings.uvThreshold = Int($0); saveNotificationSettings() }
-                                ), in: 3...11, step: 1)
-                                .tint(.yellow)
-                                
-                                Text("Alert when UV index reaches this level")
-                                    .font(.caption2)
-                                    .foregroundColor(theme.textColor.opacity(0.5))
-                            }
-                            
-                            Divider()
-                            
-                            // UV Cooldown
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("UV Alert Cooldown", systemImage: "clock.fill")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    Spacer()
-                                    Text("\(notificationSettings.uvAlertCooldownMinutes / 60)h")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.yellow)
-                                }
-                                
-                                Slider(value: Binding(
-                                    get: { Double(notificationSettings.uvAlertCooldownMinutes) },
-                                    set: { notificationSettings.uvAlertCooldownMinutes = Int($0); saveNotificationSettings() }
-                                ), in: 60...360, step: 60)
-                                .tint(.yellow)
-                                
-                                Text("Minimum time between UV alerts for same location")
-                                    .font(.caption2)
-                                    .foregroundColor(theme.textColor.opacity(0.5))
-                            }
-                            
-                            Divider()
-                            
-                            // Rain Cooldown
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("Rain Alert Cooldown", systemImage: "clock.fill")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    Spacer()
-                                    Text("\(notificationSettings.rainAlertCooldownMinutes)m")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.blue)
-                                }
-                                
-                                Slider(value: Binding(
-                                    get: { Double(notificationSettings.rainAlertCooldownMinutes) },
-                                    set: { notificationSettings.rainAlertCooldownMinutes = Int($0); saveNotificationSettings() }
-                                ), in: 5...60, step: 5)
-                                .tint(.blue)
-                                
-                                Text("Minimum time between rain alerts")
-                                    .font(.caption2)
-                                    .foregroundColor(theme.textColor.opacity(0.5))
-                            }
-                            
-                            Divider()
-                            
-                            // Temperature Change Threshold
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("Temperature Change", systemImage: "thermometer.variable")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    Spacer()
-                                    Text("\(notificationSettings.temperatureChangeThreshold)°")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.orange)
-                                }
-                                
-                                Slider(value: Binding(
-                                    get: { Double(notificationSettings.temperatureChangeThreshold) },
-                                    set: { notificationSettings.temperatureChangeThreshold = Int($0); saveNotificationSettings() }
-                                ), in: 5...20, step: 1)
-                                .tint(.orange)
-                                
-                                Text("Alert when temperature changes by this amount from yesterday")
-                                    .font(.caption2)
-                                    .foregroundColor(theme.textColor.opacity(0.5))
-                            }
-                            
-                            Divider()
-                            
-                            // Wind Speed Threshold
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("Wind Speed Alert", systemImage: "wind")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    Spacer()
-                                    Text("\(notificationSettings.windSpeedThreshold) \(viewModel.windSpeedUnit.displayName)")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.cyan)
-                                }
-                                
-                                Slider(value: Binding(
-                                    get: { Double(notificationSettings.windSpeedThreshold) },
-                                    set: { notificationSettings.windSpeedThreshold = Int($0); saveNotificationSettings() }
-                                ), in: 20...80, step: 5)
-                                .tint(.cyan)
-                                
-                                Text("Alert when wind speed exceeds this threshold")
-                                    .font(.caption2)
-                                    .foregroundColor(theme.textColor.opacity(0.5))
-                            }
-                            
-                            Divider()
-                            
-                            // Precipitation Probability Threshold  
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("Rain Probability", systemImage: "cloud.drizzle.fill")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    Spacer()
-                                    Text("\(notificationSettings.precipitationProbabilityThreshold)%")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.teal)
-                                }
-                                
-                                Slider(value: Binding(
-                                    get: { Double(notificationSettings.precipitationProbabilityThreshold) },
-                                    set: { notificationSettings.precipitationProbabilityThreshold = Int($0); saveNotificationSettings() }
-                                ), in: 30...100, step: 10)
-                                .tint(.teal)
-                                
-                                Text("Alert when rain probability exceeds this percentage")
-                                    .font(.caption2)
-                                    .foregroundColor(theme.textColor.opacity(0.5))
-                            }
-                            
-                            Divider()
-                            
-                            // Reset Button
-                            Button(action: {
-                                showResetConfirmation = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "arrow.counterclockwise")
-                                        .foregroundColor(.orange)
-                                    Text("Reset All Thresholds to Defaults")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundColor(theme.textColor)
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.orange.opacity(0.2)))
-                            }
+                            Spacer()
                         }
                         .padding()
-                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                    } label: {
-                        HStack {
-                            Image(systemName: "gearshape.fill")
-                                .foregroundColor(.purple)
-                            Text("Advanced Settings")
-                                .font(.headline)
-                                .foregroundColor(theme.textColor)
-                        }
+                        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.orange.opacity(0.2)))
                     }
-                    .tint(theme.textColor)
                 }
                 .padding()
             }
@@ -1226,6 +956,53 @@ struct NotificationSettingsView: View {
     private func saveNotificationSettings() {
         UserDefaults.standard.notificationSettings = notificationSettings
         NotificationManager.shared.updateSettings(notificationSettings, weather: viewModel.weather, temperatureUnit: viewModel.temperatureUnit)
+    }
+
+    /// Alert list row: inline toggle + full customization one tap deeper.
+    private func alertRow(
+        _ title: String,
+        icon: String,
+        color: Color,
+        theme: WeatherTheme,
+        isOn: Bool,
+        set: @escaping (Bool) -> Void,
+        config: AlertDetailSettingsView.AlertDetailConfig
+    ) -> some View {
+        NavigationLink {
+            AlertDetailSettingsView(
+                settings: $notificationSettings,
+                viewModel: viewModel,
+                config: config,
+                onSave: { saveNotificationSettings() }
+            )
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+                    .frame(width: 26)
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(theme.textColor)
+
+                Spacer(minLength: 0)
+
+                Toggle("", isOn: Binding(
+                    get: { isOn },
+                    set: { set($0); saveNotificationSettings() }
+                ))
+                .labelsHidden()
+                .tint(color)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(theme.textColor.opacity(0.4))
+            }
+            .padding()
+            .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+        }
+        .buttonStyle(.plain)
     }
 
     private static func windThresholdToMetersPerSecond(_ value: Double, unit: WindSpeedUnit) -> Double {
@@ -1612,91 +1389,6 @@ struct InfoButton: View {
             Text(description)
         }
     }
-}
-
-// MARK: - Helper Views for Notification Customization
-
-@ViewBuilder
-private func soundPicker(for notificationType: String, selection: Binding<SoundOption>) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-        Text(notificationType)
-            .font(.caption)
-            .foregroundColor(.secondary)
-        Picker("", selection: selection) {
-            ForEach(SoundOption.allCases, id: \.self) { option in
-                Text(option.displayName).tag(option)
-            }
-        }
-        .pickerStyle(.menu)
-        .tint(.primary)
-    }
-}
-
-@ViewBuilder
-private func contentToggle(title: String, binding: Binding<Bool>, theme: WeatherTheme) -> some View {
-    Button {
-        binding.wrappedValue.toggle()
-        HapticsManager.shared.selectionChanged()
-    } label: {
-        HStack(spacing: 12) {
-            Text(title)
-                .font(.caption.weight(.medium))
-                .foregroundColor(theme.textColor)
-
-            Spacer()
-
-            Image(systemName: binding.wrappedValue ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(binding.wrappedValue ? DesignSystem.skyBlue : theme.textColor.opacity(0.35))
-        }
-        .padding(.vertical, 4)
-    }
-    .buttonStyle(.plain)
-}
-
-@ViewBuilder
-private func notificationContentEditor(
-    title: String,
-    subtitle: String,
-    preference: Binding<NotificationContentPreference>,
-    theme: WeatherTheme
-) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(theme.textColor)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundColor(theme.textColor.opacity(0.6))
-        }
-
-        contentToggle(title: "Condition", binding: nestedContentBinding(preference, \.includeCondition), theme: theme)
-        contentToggle(title: "Temperature Range", binding: nestedContentBinding(preference, \.includeTemperatureRange), theme: theme)
-        contentToggle(title: "Humidity", binding: nestedContentBinding(preference, \.includeHumidity), theme: theme)
-        contentToggle(title: "Wind Speed", binding: nestedContentBinding(preference, \.includeWindSpeed), theme: theme)
-        contentToggle(title: "Feels Like", binding: nestedContentBinding(preference, \.includeFeelsLike), theme: theme)
-        contentToggle(title: "UV Index", binding: nestedContentBinding(preference, \.includeUVIndex), theme: theme)
-        contentToggle(title: "Rain Chance", binding: nestedContentBinding(preference, \.includeRainChance), theme: theme)
-        contentToggle(title: "Visibility", binding: nestedContentBinding(preference, \.includeVisibility), theme: theme)
-    }
-}
-
-private func nestedContentBinding(
-    _ preference: Binding<NotificationContentPreference>,
-    _ keyPath: WritableKeyPath<NotificationContentPreference, Bool>
-) -> Binding<Bool> {
-    Binding(
-        get: {
-            preference.wrappedValue[keyPath: keyPath]
-        },
-        set: { newValue in
-            var updated = preference.wrappedValue
-            updated[keyPath: keyPath] = newValue
-            preference.wrappedValue = updated
-        }
-    )
 }
 
 struct AddForecastTimeView: View {

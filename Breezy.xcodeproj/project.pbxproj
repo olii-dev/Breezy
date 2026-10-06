@@ -12,8 +12,8 @@
 		8613FBE62EED447E007683C4 /* BreezyWatchWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8613FBD72EED447D007683C4 /* BreezyWatchWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		866F108A2EB64FD5006223C3 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F10892EB64FD5006223C3 /* WidgetKit.framework */; };
 		866F108C2EB64FD5006223C3 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 866F108B2EB64FD5006223C3 /* SwiftUI.framework */; };
-		866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		866F109B2EB64FD6006223C3 /* BreezyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 866F10872EB64FD5006223C3 /* BreezyWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		86A805812EEAED9D0019EAD7 /* Breezy Watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 86A805772EEAED9B0019EAD7 /* Breezy Watch Watch App.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -597,6 +597,7 @@
 				CODE_SIGN_ENTITLEMENTS = Breezy/Breezy.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 7;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = ZVYZ759YYL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -616,7 +617,6 @@
 				);
 				MARKETING_VERSION = 0.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -640,6 +640,7 @@
 				CODE_SIGN_ENTITLEMENTS = Breezy/Breezy.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 7;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = ZVYZ759YYL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -659,7 +660,6 @@
 				);
 				MARKETING_VERSION = 0.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.breezy.weather;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

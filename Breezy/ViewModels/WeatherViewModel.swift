@@ -1065,8 +1065,8 @@ class WeatherViewModel: ObservableObject {
             // Update previous weather for change detection
             previousWeather = info
 
-            // Rain-countdown Live Activity follows the forecast.
-            RainLiveActivityManager.shared.update(with: info)
+            // Weather Live Activities follow the forecast.
+            LiveActivityHub.updateAll(with: info)
             
             // Refresh attribution periodically or on fetch
             if attribution == nil {
