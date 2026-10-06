@@ -25,6 +25,7 @@ class NotificationManager: NSObject, ObservableObject {
     @Published var authorizationStatus: UNAuthorizationStatus = .notDetermined
     
     private let notificationCenter = UNUserNotificationCenter.current()
+    private let alertState = AlertStateStore.shared
 #if DEBUG
     private let logger = Logger(subsystem: "com.breezy.weather", category: "notifications")
 #endif
@@ -168,20 +169,15 @@ class NotificationManager: NSObject, ObservableObject {
     
     // MARK: - Rain Alert Snooze
 
-    /// While set and in the future, rain alerts (hourly + minute) stay quiet.
-    private var rainAlertsSnoozedUntil: Date? {
-        get { UserDefaults.standard.object(forKey: "Breezy.rainAlertsSnoozedUntil") as? Date }
-        set { UserDefaults.standard.set(newValue, forKey: "Breezy.rainAlertsSnoozedUntil") }
-    }
-
+    /// While set and in the future, rain alerts stay quiet.
     func snoozeRainAlerts(minutes: Int = 30) {
-        rainAlertsSnoozedUntil = Date().addingTimeInterval(TimeInterval(minutes) * 60)
+        alertState.update { $0.rainSnoozedUntil = Date().addingTimeInterval(TimeInterval(minutes) * 60) }
     }
 
     private func isRainAlertSnoozed() -> Bool {
-        guard let until = rainAlertsSnoozedUntil else { return false }
+        guard let until = alertState.state.rainSnoozedUntil else { return false }
         if until > Date() { return true }
-        rainAlertsSnoozedUntil = nil // expired — clear it
+        alertState.update { $0.rainSnoozedUntil = nil } // expired — clear it
         return false
     }
 
@@ -421,11 +417,18 @@ class NotificationManager: NSObject, ObservableObject {
         guard settings.severeWeatherEnabled else { return }
         guard authorizationStatus == .authorized else { return }
         let assessment = Self.severeWeatherAssessment(for: weather)
+        guard assessment.isSevere else { return }
 
-        // Severe weather ignores quiet hours (safety critical)
-        if assessment.isSevere {
-            sendSevereWeatherAlert(weather: weather, assessment: assessment)
+        // One alert per cooldown window while a condition persists — without
+        // this every refresh during a storm re-alerted. Severe ignores quiet
+        // hours (safety critical).
+        if let last = alertState.state.lastSevereAlertDate,
+           Date().timeIntervalSince(last) < Double(settings.severeWeatherAlertCooldownMinutes) * 60 {
+            return
         }
+
+        sendSevereWeatherAlert(weather: weather, assessment: assessment)
+        alertState.update { $0.lastSevereAlertDate = Date() }
     }
 
     static func severeWeatherAssessment(for weather: WeatherInfo) -> SevereWeatherAssessment {
@@ -524,110 +527,192 @@ class NotificationManager: NSObject, ObservableObject {
     }
     
     // MARK: - Rain Alerts
-    
-    func checkRainAlert(weather: WeatherInfo) {
+
+    /// One rain alert fed by the best data available: the minute-level forecast
+    /// when the provider serves one (WeatherKit always; Open-Meteo via its
+    /// 15-minute precipitation block), otherwise the hourly probability series.
+    func checkRain(weather: WeatherInfo) {
         guard settings.rainAlertsEnabled else { return }
         guard authorizationStatus == .authorized else { return }
         guard !isInQuietHours() else { return }
         guard !isRainAlertSnoozed() else { return }
-        
-        // Check hourly forecast for rain in next few hours (skip hours that
-        // have already passed, since hourlyForecast starts at 00:00).
-        let nextHours = weather.hourlyForecast
+
+        let now = Date()
+
+        // Minute-level path.
+        let minuteSteps = weather.metrics?.minuteForecast ?? []
+        if !minuteSteps.isEmpty {
+            let currentlyRaining = minuteSteps.last(where: { $0.time <= now })?.isPrecipitating ?? false
+            let onset = minuteSteps.first(where: { $0.time >= now && $0.isPrecipitating })
+
+            // Cancellation: was predicting rain, minute data now says dry.
+            if alertState.state.previousRainPrediction, onset == nil, !currentlyRaining {
+                sendRainCancellationAlert(weather: weather)
+                alertState.update {
+                    $0.previousRainPrediction = false
+                    $0.lastRainAlertDate = nil
+                }
+                return
+            }
+
+            alertState.update { $0.previousRainPrediction = (onset != nil) || currentlyRaining }
+
+            guard let onset, !currentlyRaining else { return }
+            guard shouldSendRainAlert(location: weather.location.city) else { return }
+
+            let minutesUntil = max(1, Int(ceil(onset.time.timeIntervalSince(now) / 60)))
+            sendRainStartingAlert(minutesUntil: minutesUntil, weather: weather)
+            alertState.update {
+                $0.lastRainAlertDate = Date()
+                $0.lastRainAlertLocation = weather.location.city
+            }
+            return
+        }
+
+        // Hourly floor: first upcoming hour within 3 that clears the chance threshold.
+        let nextHours = (weather.allHourlyData ?? weather.hourlyForecast)
             .filter { hour in
-                guard let date = hour.sourceDate else { return true }
-                return date >= Date().addingTimeInterval(-600)
+                guard let date = hour.sourceDate else { return false }
+                return date >= now
             }
             .prefix(3)
-        for hour in nextHours {
-            let condition = (hour.condition ?? "").lowercased()
-            if condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower") {
-                sendRainAlert(hour: hour, weather: weather)
-                return // Only send one alert
-            }
+
+        guard let rainyHour = nextHours.first(where: { hour in
+            (hour.precipitationChance ?? 0) >= Double(settings.rainChanceThreshold) / 100.0
+        }) else { return }
+
+        guard shouldSendRainAlert(location: weather.location.city) else { return }
+
+        sendHourlyRainAlert(hour: rainyHour, weather: weather)
+        alertState.update {
+            $0.lastRainAlertDate = Date()
+            $0.lastRainAlertLocation = weather.location.city
         }
     }
-    
-    private func sendRainAlert(hour: HourlyForecast, weather: WeatherInfo) {
+
+    private func shouldSendRainAlert(location: String) -> Bool {
+        guard let lastAlert = alertState.state.lastRainAlertDate else { return true }
+        let cooldownSeconds = TimeInterval(settings.rainAlertCooldownMinutes * 60)
+
+        if alertState.state.lastRainAlertLocation == location {
+            return Date().timeIntervalSince(lastAlert) >= cooldownSeconds
+        }
+        return Date().timeIntervalSince(lastAlert) >= 3600
+    }
+
+    private func sendRainStartingAlert(minutesUntil: Int, weather: WeatherInfo) {
+        let content = UNMutableNotificationContent()
+        content.title = "Rain Alert"
+
+        if minutesUntil <= 10 {
+            content.body = alertBody(
+                base: "Rain starting in about \(minutesUntil) minutes in \(weather.location.city)",
+                weather: weather,
+                preferences: settings.alertContent
+            )
+        } else {
+            content.body = alertBody(
+                base: "Rain expected within the hour in \(weather.location.city)",
+                weather: weather,
+                preferences: settings.alertContent
+            )
+        }
+
+        content.sound = getSound(for: "minuteRain") ?? .default
+        content.categoryIdentifier = "RAIN_ALERT"
+        content.userInfo = ["type": "minuteRain", "minutesUntil": minutesUntil]
+
+        let request = UNNotificationRequest(
+            identifier: "minuteRain_\(UUID().uuidString)",
+            content: content,
+            trigger: nil // Immediate
+        )
+
+        notificationCenter.add(request)
+    }
+
+    private func sendHourlyRainAlert(hour: HourlyForecast, weather: WeatherInfo) {
+        let chancePercent = Int(round((hour.precipitationChance ?? 0) * 100))
         let content = UNMutableNotificationContent()
         content.title = "Rain Alert"
         content.body = alertBody(
-            base: "Rain expected at \(hour.time) in \(weather.location.city)",
+            base: "Rain likely around \(hour.time) in \(weather.location.city) (\(chancePercent)% chance)",
             weather: weather,
             preferences: settings.alertContent
         )
         content.sound = getSound(for: "rainAlert") ?? .default
         content.categoryIdentifier = "RAIN_ALERT"
         content.userInfo = ["type": "rainAlert", "time": hour.time]
-        
+
         let request = UNNotificationRequest(
             identifier: "rainAlert_\(UUID().uuidString)",
             content: content,
             trigger: nil // Immediate
         )
-        
+
+        notificationCenter.add(request)
+    }
+
+    private func sendRainCancellationAlert(weather: WeatherInfo) {
+        let content = UNMutableNotificationContent()
+        content.title = "Rain Alert Cancelled"
+        content.body = alertBody(
+            base: "Rain forecast cancelled for \(weather.location.city). Clear skies ahead.",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = getSound(for: "rainCancelled") ?? .default
+        content.categoryIdentifier = "RAIN_ALERT"
+        content.userInfo = ["type": "rainCancelled"]
+
+        let request = UNNotificationRequest(
+            identifier: "rainCancelled_\(UUID().uuidString)",
+            content: content,
+            trigger: nil  // Immediate
+        )
+
         notificationCenter.add(request)
     }
     
     // MARK: - UV Alerts
-    
-    // UV Alert Tracking Structure
-    private struct UVAlertInfo: Codable {
-        let date: Date
-        let location: String
-        let uvIndex: Int
-    }
-    
-    private var lastUVAlertInfo: UVAlertInfo? {
-        get {
-            if let data = UserDefaults.standard.data(forKey: "Breezy.lastUVAlert"),
-               let info = try? JSONDecoder().decode(UVAlertInfo.self, from: data) {
-                return info
-            }
-            return nil
-        }
-        set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: "Breezy.lastUVAlert")
-            }
-        }
-    }
-    
+
     func checkUVAlert(weather: WeatherInfo) {
         guard settings.uvAlertsEnabled else { return }
         guard authorizationStatus == .authorized else { return }
         guard !isInQuietHours() else { return }
-        
+
         guard let uvIndex = weather.metrics?.uvIndex,
               uvIndex >= settings.uvThreshold else { return }
-        
+
         // Check if we should send alert based on cooldown and location
-        if let lastAlert = lastUVAlertInfo {
-            let now = Date()
-            let timeSinceLastAlert = now.timeIntervalSince(lastAlert.date)
+        let state = alertState.state
+        if let lastAlert = state.lastUVAlertDate {
+            let elapsed = Date().timeIntervalSince(lastAlert)
             let cooldownSeconds = Double(settings.uvAlertCooldownMinutes) * 60
-            
+
             // Same location check with cooldown (default 3 hours)
-            if lastAlert.location == weather.location.city {
+            if state.lastUVAlertLocation == weather.location.city {
                 // Don't alert if within cooldown period
-                guard timeSinceLastAlert >= cooldownSeconds else { return }
-                
+                guard elapsed >= cooldownSeconds else { return }
+
                 // Don't alert if UV hasn't increased significantly (at least 2 points)
-                guard uvIndex >= lastAlert.uvIndex + 2 else { return }
+                if let lastIndex = state.lastUVAlertIndex {
+                    guard uvIndex >= lastIndex + 2 else { return }
+                }
             }
             // Different location - check if we alerted recently (within 1 hour) to avoid spam when traveling
-            else if timeSinceLastAlert < 3600 {
+            else if elapsed < 3600 {
                 return
             }
         }
-        
+
         // Send alert and track it
         sendUVAlert(weather: weather, uvIndex: uvIndex)
-        lastUVAlertInfo = UVAlertInfo(
-            date: Date(),
-            location: weather.location.city,
-            uvIndex: uvIndex
-        )
+        alertState.update {
+            $0.lastUVAlertDate = Date()
+            $0.lastUVAlertLocation = weather.location.city
+            $0.lastUVAlertIndex = uvIndex
+        }
     }
     
     private func sendUVAlert(weather: WeatherInfo, uvIndex: Int) {
@@ -651,134 +736,19 @@ class NotificationManager: NSObject, ObservableObject {
         notificationCenter.add(request)
     }
     
-    // MARK: - Minute Precipitation Alerts
-    
-    private var lastRainAlertTime: Date? {
-        get { UserDefaults.standard.object(forKey: "Breezy.lastRainAlertTime") as? Date }
-        set { UserDefaults.standard.set(newValue, forKey: "Breezy.lastRainAlertTime") }
+    // MARK: - Orchestrated Checks
+
+    /// Every immediate alert check in one call — used by the ViewModel after
+    /// automatic refreshes and by the background refresh task.
+    func runAllAlertChecks(weather: WeatherInfo, temperatureUnit: TemperatureUnit) {
+        checkSevereWeather(weather: weather)
+        checkRain(weather: weather)
+        checkUVAlert(weather: weather)
+        checkTemperatureChange(weather: weather, temperatureUnit: temperatureUnit)
+        checkWindAlert(weather: weather)
+        checkPrecipitationProbability(weather: weather)
     }
-    
-    private var lastRainAlertLocation: String? {
-        get { UserDefaults.standard.string(forKey: "Breezy.lastRainAlertLocation") }
-        set { UserDefaults.standard.set(newValue, forKey: "Breezy.lastRainAlertLocation") }
-    }
-    
-    private var previousRainPrediction: Bool {
-        get { UserDefaults.standard.bool(forKey: "Breezy.previousRainPrediction") }
-        set { UserDefaults.standard.set(newValue, forKey: "Breezy.previousRainPrediction") }
-    }
-    
-    func checkMinutePrecipitation(weather: WeatherInfo) {
-        // Shares the Rain Alerts toggle with the hourly check (there is no separate
-        // UI switch for short-fuse rain).
-        guard settings.rainAlertsEnabled else { return }
-        guard authorizationStatus == .authorized else { return }
-        guard !isInQuietHours() else { return }
-        guard !isRainAlertSnoozed() else { return }
-        
-        // Check if we have minute forecast data
-        // For now, we'll use hourly forecast as a proxy since WeatherKit minute forecast
-        // requires separate API call. This checks next hour for rain.
-        let now = Date()
-        guard let nextHour = weather.hourlyForecast
-            .filter({ hour in
-                guard let date = hour.sourceDate else { return true }
-                return date >= now
-            })
-            .sorted(by: { ($0.sourceDate ?? now) < ($1.sourceDate ?? now) })
-            .first else { return }
-        
-        let condition = (nextHour.condition ?? "").lowercased()
-        let willRain = condition.contains("rain") || condition.contains("drizzle") || condition.contains("shower")
-        
-        // Check for rain cancellation (was predicting rain, now not)
-        if previousRainPrediction && !willRain {
-            sendRainCancellationAlert(weather: weather)
-            previousRainPrediction = false
-            return
-        }
-        
-        // Update tracking
-        previousRainPrediction = willRain
-        
-        // If rain is expected, check cooldown before alerting
-        if willRain {
-            guard shouldSendRainAlert(location: weather.location.city) else { return }
-            
-            // Calculate approximate minutes until rain
-            let minutesUntil = max(0, Int(ceil((nextHour.sourceDate?.timeIntervalSince(now) ?? 0) / 60)))
-            
-            sendMinuteRainAlert(minutesUntil: minutesUntil, weather: weather)
-            lastRainAlertTime = Date()
-            lastRainAlertLocation = weather.location.city
-        }
-    }
-    
-    private func shouldSendRainAlert(location: String) -> Bool {
-        guard let lastAlert = lastRainAlertTime else { return true }
-        let cooldownSeconds = TimeInterval(settings.rainAlertCooldownMinutes * 60)
-        
-        if lastRainAlertLocation == location {
-            return Date().timeIntervalSince(lastAlert) >= cooldownSeconds
-        }
-        return Date().timeIntervalSince(lastAlert) >= 3600
-    }
-    
-    private func sendMinuteRainAlert(minutesUntil: Int, weather: WeatherInfo) {
-        let content = UNMutableNotificationContent()
-        content.title = "Rain Alert"
-        
-        if minutesUntil <= 10 {
-            content.body = alertBody(
-                base: "Rain starting in about \(minutesUntil) minutes in \(weather.location.city)",
-                weather: weather,
-                preferences: settings.alertContent
-            )
-        } else {
-            content.body = alertBody(
-                base: "Rain expected within the hour in \(weather.location.city)",
-                weather: weather,
-                preferences: settings.alertContent
-            )
-        }
-        
-        content.sound = getSound(for: "minuteRain") ?? .default
-        content.categoryIdentifier = "RAIN_ALERT"
-        content.userInfo = ["type": "minuteRain", "minutesUntil": minutesUntil]
-        
-        let request = UNNotificationRequest(
-            identifier: "minuteRain_\(UUID().uuidString)",
-            content: content,
-            trigger: nil // Immediate
-        )
-        
-        notificationCenter.add(request)
-    }
-    
-    private func sendRainCancellationAlert(weather: WeatherInfo) {
-        let content = UNMutableNotificationContent()
-        content.title = "Rain Alert Cancelled"
-        content.body = alertBody(
-            base: "Rain forecast cancelled for \(weather.location.city). Clear skies ahead.",
-            weather: weather,
-            preferences: settings.alertContent
-        )
-        content.sound = getSound(for: "rainCancelled") ?? .default
-        content.categoryIdentifier = "RAIN_ALERT"
-        content.userInfo = ["type": "rainCancelled"]
-        
-        let request = UNNotificationRequest(
-            identifier: "rainCancelled_\(UUID().uuidString)",
-            content: content,
-            trigger: nil  // Immediate
-        )
-        
-        notificationCenter.add(request)
-        
-        // Reset cooldown timer since this is helpful info
-        lastRainAlertTime = nil
-    }
-    
+
     // MARK: - Update Settings
     
     func updateSettings(_ newSettings: NotificationSettings, weather: WeatherInfo?, temperatureUnit: TemperatureUnit) {
@@ -829,25 +799,24 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         guard let displayTemp = Double(numericString) else { return }
         let currentCelsius = temperatureUnit == .celsius ? displayTemp : (displayTemp - 32) * 5.0 / 9.0
 
-        let defaults = UserDefaults.standard
-        let lastCelsius = defaults.double(forKey: "Breezy.lastTemperature")
-        let lastDate = defaults.object(forKey: "Breezy.lastTemperatureDate") as? Date
-        let lastCity = defaults.string(forKey: "Breezy.lastTemperatureCity")
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
         defer {
-            defaults.set(currentCelsius, forKey: "Breezy.lastTemperature")
-            defaults.set(Date(), forKey: "Breezy.lastTemperatureDate")
-            defaults.set(weather.location.city, forKey: "Breezy.lastTemperatureCity")
+            alertState.update {
+                $0.lastTemperatureCelsius = currentCelsius
+                $0.lastTemperatureDate = Date()
+                $0.lastTemperatureCity = weather.location.city
+            }
         }
 
-        guard lastCelsius != 0, let lastDate else { return }
+        guard let lastCelsius = alertState.state.lastTemperatureCelsius,
+              let lastDate = alertState.state.lastTemperatureDate else { return }
 
         // Only compare against a sample from a previous calendar day in the same city.
         let lastDay = calendar.startOfDay(for: lastDate)
         guard lastDay < today else { return }
-        if let lastCity, lastCity != weather.location.city { return }
+        if let lastCity = alertState.state.lastTemperatureCity, lastCity != weather.location.city { return }
 
         let change = abs(currentCelsius - lastCelsius)
 
@@ -901,7 +870,13 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         }()
         
         if speedMetersPerSecond >= thresholdMetersPerSecond {
+            // One alert per cooldown window while the wind stays strong.
+            if let last = alertState.state.lastWindAlertDate,
+               Date().timeIntervalSince(last) < Double(settings.windAlertCooldownMinutes) * 60 {
+                return
+            }
             sendWindAlert(speed: windSpeed, weather: weather)
+            alertState.update { $0.lastWindAlertDate = Date() }
         }
     }
     
@@ -938,16 +913,13 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         }
         
         if probability >= settings.precipitationProbabilityThreshold {
-            let lastAlertKey = "Breezy.lastPrecipProbabilityAlert"
-            if let lastAlertDate = UserDefaults.standard.object(forKey: lastAlertKey) as? Date {
-                let calendar = Calendar.current
-                if calendar.isDateInToday(lastAlertDate) {
-                    return
-                }
+            if let lastAlertDate = alertState.state.lastPrecipProbabilityAlertDate,
+               Calendar.current.isDateInToday(lastAlertDate) {
+                return
             }
-            
+
             sendPrecipitationProbabilityAlert(probability: probability, weather: weather)
-            UserDefaults.standard.set(Date(), forKey: lastAlertKey)
+            alertState.update { $0.lastPrecipProbabilityAlertDate = Date() }
         }
     }
     

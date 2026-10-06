@@ -1052,12 +1052,9 @@ class WeatherViewModel: ObservableObject {
                 dailyForecast: info.dailyForecast
             )
             
-            // Check for minute precipitation alerts (with cooldown built-in)
-            notificationManager.checkMinutePrecipitation(weather: info)
-            
             // Handle notifications - never on manual refresh or first app fetch
             let locationChanged = previousWeather?.location.city != location.city
-            
+
             if !isManualRefresh && shouldTriggerNotifications(oldWeather: previousWeather, newWeather: info, locationChanged: locationChanged) {
                 handleNotifications(newWeather: info, oldWeather: previousWeather, locationChanged: locationChanged)
             } else {
@@ -1929,17 +1926,9 @@ class WeatherViewModel: ObservableObject {
     private func handleNotifications(newWeather: WeatherInfo, oldWeather: WeatherInfo?, locationChanged: Bool) {
         // Schedule daily forecast (doesn't send immediate notification)
         notificationManager.scheduleDailyForecast(weather: newWeather, temperatureUnit: temperatureUnit)
-        
-        // Notification Checks
-        notificationManager.checkSevereWeather(weather: newWeather) // Assuming fetchedCounty is available in this scope
-        notificationManager.checkRainAlert(weather: newWeather)
-        notificationManager.checkUVAlert(weather: newWeather)
-        notificationManager.checkMinutePrecipitation(weather: newWeather)
-        
-        // New notification checks
-        notificationManager.checkTemperatureChange(weather: newWeather, temperatureUnit: self.temperatureUnit)
-        notificationManager.checkWindAlert(weather: newWeather)
-        notificationManager.checkPrecipitationProbability(weather: newWeather)
+
+        // All immediate alert checks (cooldowns live in NotificationManager).
+        notificationManager.runAllAlertChecks(weather: newWeather, temperatureUnit: temperatureUnit)
     }
     
     private func syncWatchContext() {

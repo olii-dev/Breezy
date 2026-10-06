@@ -103,12 +103,13 @@ extension WeatherSource {
         case .openMeteo:
             return WeatherProviderCapabilities(
                 source: self,
-                supportsMinuteForecast: false,
+                // minutely_15 precipitation block (15-min resolution).
+                supportsMinuteForecast: true,
                 supportsMoonData: false,
                 maxForecastDays: 14,
                 historicalStartDate: Calendar.current.date(from: DateComponents(year: 1940, month: 1, day: 1)),
                 supportedWidgets: Set(WidgetType.allCases.filter { widget in
-                    widget != .minutePrecipitation && widget != .moonPhase
+                    widget != .moonPhase
                 })
             )
         }

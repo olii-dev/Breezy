@@ -54,6 +54,7 @@ struct NotificationSettings: Codable {
 
     // Rain Alerts (hourly heads-up + short-fuse minute checks)
     var rainAlertsEnabled: Bool
+    var rainChanceThreshold: Int // Percentage 0-100 for the hourly fallback path (default 40)
     var rainAlertCooldownMinutes: Int // Minutes between alerts (default 10)
 
     // UV Alerts
@@ -68,6 +69,10 @@ struct NotificationSettings: Codable {
     // Wind Alerts
     var windAlertsEnabled: Bool
     var windSpeedThreshold: Int // mph or km/h depending on unit (default 40)
+    var windAlertCooldownMinutes: Int // Minutes between wind alerts (default 60)
+
+    // Severe Weather cooldown
+    var severeWeatherAlertCooldownMinutes: Int // Minutes between severe alerts (default 180)
 
     // Precipitation Probability
     var precipitationProbabilityAlertsEnabled: Bool
@@ -113,9 +118,12 @@ struct NotificationSettings: Codable {
     struct Defaults {
         static let uvThreshold = 6
         static let uvAlertCooldownMinutes = 180 // 3 hours
+        static let rainChanceThreshold = 40 // percentage
         static let rainAlertCooldownMinutes = 10
         static let temperatureChangeThreshold = 10 // degrees (applies to both C and F)
         static let windSpeedThreshold = 40 // speed units (applies to both km/h and mph)
+        static let windAlertCooldownMinutes = 60
+        static let severeWeatherAlertCooldownMinutes = 180
         static let precipitationProbabilityThreshold = 50 // percentage
     }
 
@@ -123,9 +131,12 @@ struct NotificationSettings: Codable {
     mutating func resetThresholdsToDefaults() {
         self.uvThreshold = Defaults.uvThreshold
         self.uvAlertCooldownMinutes = Defaults.uvAlertCooldownMinutes
+        self.rainChanceThreshold = Defaults.rainChanceThreshold
         self.rainAlertCooldownMinutes = Defaults.rainAlertCooldownMinutes
         self.temperatureChangeThreshold = Defaults.temperatureChangeThreshold
         self.windSpeedThreshold = Defaults.windSpeedThreshold
+        self.windAlertCooldownMinutes = Defaults.windAlertCooldownMinutes
+        self.severeWeatherAlertCooldownMinutes = Defaults.severeWeatherAlertCooldownMinutes
         self.precipitationProbabilityThreshold = Defaults.precipitationProbabilityThreshold
     }
 
@@ -136,6 +147,7 @@ struct NotificationSettings: Codable {
             dailyForecastMinute: 0,
             severeWeatherEnabled: true,
             rainAlertsEnabled: true,
+            rainChanceThreshold: Defaults.rainChanceThreshold,
             rainAlertCooldownMinutes: 10,
             uvAlertsEnabled: true,
             uvThreshold: 7,
@@ -144,6 +156,8 @@ struct NotificationSettings: Codable {
             temperatureChangeThreshold: 10,
             windAlertsEnabled: false,
             windSpeedThreshold: 40,
+            windAlertCooldownMinutes: Defaults.windAlertCooldownMinutes,
+            severeWeatherAlertCooldownMinutes: Defaults.severeWeatherAlertCooldownMinutes,
             precipitationProbabilityAlertsEnabled: false,
             precipitationProbabilityThreshold: 70,
             quietHoursEnabled: false,
@@ -189,11 +203,11 @@ extension ForecastTime {
 extension NotificationSettings {
     private enum CodingKeys: String, CodingKey {
         case dailyForecastEnabled, dailyForecastHour, dailyForecastMinute
-        case severeWeatherEnabled
-        case rainAlertsEnabled, rainAlertCooldownMinutes
+        case severeWeatherEnabled, severeWeatherAlertCooldownMinutes
+        case rainAlertsEnabled, rainChanceThreshold, rainAlertCooldownMinutes
         case uvAlertsEnabled, uvThreshold, uvAlertCooldownMinutes
         case temperatureChangeAlertsEnabled, temperatureChangeThreshold
-        case windAlertsEnabled, windSpeedThreshold
+        case windAlertsEnabled, windSpeedThreshold, windAlertCooldownMinutes
         case precipitationProbabilityAlertsEnabled, precipitationProbabilityThreshold
         case quietHoursEnabled, quietHoursStart, quietHoursEnd
         case onlyWeekdayForecast
@@ -218,6 +232,7 @@ extension NotificationSettings {
         dailyForecastMinute = try c.decodeIfPresent(Int.self, forKey: .dailyForecastMinute) ?? d.dailyForecastMinute
         severeWeatherEnabled = try c.decodeIfPresent(Bool.self, forKey: .severeWeatherEnabled) ?? d.severeWeatherEnabled
         rainAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .rainAlertsEnabled) ?? d.rainAlertsEnabled
+        rainChanceThreshold = try c.decodeIfPresent(Int.self, forKey: .rainChanceThreshold) ?? d.rainChanceThreshold
         rainAlertCooldownMinutes = try c.decodeIfPresent(Int.self, forKey: .rainAlertCooldownMinutes) ?? d.rainAlertCooldownMinutes
         uvAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .uvAlertsEnabled) ?? d.uvAlertsEnabled
         uvThreshold = try c.decodeIfPresent(Int.self, forKey: .uvThreshold) ?? d.uvThreshold
@@ -226,6 +241,8 @@ extension NotificationSettings {
         temperatureChangeThreshold = try c.decodeIfPresent(Int.self, forKey: .temperatureChangeThreshold) ?? d.temperatureChangeThreshold
         windAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .windAlertsEnabled) ?? d.windAlertsEnabled
         windSpeedThreshold = try c.decodeIfPresent(Int.self, forKey: .windSpeedThreshold) ?? d.windSpeedThreshold
+        windAlertCooldownMinutes = try c.decodeIfPresent(Int.self, forKey: .windAlertCooldownMinutes) ?? d.windAlertCooldownMinutes
+        severeWeatherAlertCooldownMinutes = try c.decodeIfPresent(Int.self, forKey: .severeWeatherAlertCooldownMinutes) ?? d.severeWeatherAlertCooldownMinutes
         precipitationProbabilityAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .precipitationProbabilityAlertsEnabled) ?? d.precipitationProbabilityAlertsEnabled
         precipitationProbabilityThreshold = try c.decodeIfPresent(Int.self, forKey: .precipitationProbabilityThreshold) ?? d.precipitationProbabilityThreshold
         quietHoursEnabled = try c.decodeIfPresent(Bool.self, forKey: .quietHoursEnabled) ?? d.quietHoursEnabled

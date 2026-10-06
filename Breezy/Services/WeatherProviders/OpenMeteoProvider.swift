@@ -107,6 +107,9 @@ final class OpenMeteoProvider: WeatherProviding {
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,pressure_msl,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,visibility"),
             URLQueryItem(name: "hourly", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,pressure_msl,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"),
+            URLQueryItem(name: "minutely_15", value: "precipitation,precipitation_probability,weather_code"),
+            URLQueryItem(name: "forecast_minutely_15", value: "12"),
+            URLQueryItem(name: "past_minutely_15", value: "1"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,moonrise,moonset,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max"),
             URLQueryItem(name: "forecast_days", value: "14"),
             URLQueryItem(name: "past_days", value: "1")
@@ -252,8 +255,38 @@ final class OpenMeteoProvider: WeatherProviding {
             current: current,
             hourly: hourly,
             daily: daily,
-            minuteForecast: []
+            minuteForecast: makeMinuteForecast(from: response.minutely15, timezone: timezone)
         )
+    }
+
+    /// Maps the 15-minute precipitation block onto the same `MinuteForecast`
+    /// semantics the WeatherKit provider produces: chance as a 0–1 fraction,
+    /// intensity in mm/h, precipitating when actual precipitation is forecast.
+    /// (minutely_15 `precipitation` is mm per 15-min step, so ×4 = mm/h.)
+    private func makeMinuteForecast(from source: OpenMeteoMinutely15Block?, timezone: TimeZone) -> [MinuteForecast] {
+        guard let source else { return [] }
+        let times = parseHourlyDates(source.time, timezone: timezone)
+
+        return times.enumerated().compactMap { index, date in
+            let mm = value(at: index, in: source.precipitation) ?? 0
+            let code = source.weatherCode?[safe: index] ?? 0
+            guard mm > 0 || code >= 51 else {
+                // Dry step: still keep it (consumers scan for onset transitions),
+                // with zeroed values.
+                return MinuteForecast(
+                    time: date,
+                    precipitationChance: (value(at: index, in: source.precipitationProbability) ?? 0) / 100.0,
+                    precipitationIntensity: 0,
+                    isPrecipitating: false
+                )
+            }
+            return MinuteForecast(
+                time: date,
+                precipitationChance: (value(at: index, in: source.precipitationProbability) ?? 0) / 100.0,
+                precipitationIntensity: mm * 4,
+                isPrecipitating: true
+            )
+        }
     }
 
     private func makeHourly(from source: OpenMeteoHourlyBlock, timezone: TimeZone) -> [ProviderHourlyWeather] {
@@ -442,6 +475,7 @@ private struct OpenMeteoForecastResponse: Decodable {
     let current: OpenMeteoCurrentBlock
     let hourly: OpenMeteoHourlyBlock
     let daily: OpenMeteoDailyBlock
+    let minutely15: OpenMeteoMinutely15Block?
 }
 
 private struct OpenMeteoArchiveResponse: Decodable {
@@ -589,6 +623,20 @@ private struct OpenMeteoHourlyBlock: Decodable {
         case windDirection10M = "wind_direction_10m"
         case windGusts10M = "wind_gusts_10m"
         case uvIndex = "uv_index"
+    }
+}
+
+private struct OpenMeteoMinutely15Block: Decodable {
+    let time: [String]
+    let precipitation: [Double?]?
+    let precipitationProbability: [Double?]?
+    let weatherCode: [Int]?
+
+    enum CodingKeys: String, CodingKey {
+        case time
+        case precipitation
+        case precipitationProbability = "precipitation_probability"
+        case weatherCode = "weather_code"
     }
 }
 
