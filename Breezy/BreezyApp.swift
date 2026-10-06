@@ -10,8 +10,24 @@ import WidgetKit
 import SwiftData
 import UserNotifications
 
+/// Owns the BGAppRefreshTask registration — it must happen before the app
+/// finishes launching.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        MainActor.assumeIsolated {
+            BackgroundRefreshScheduler.register()
+        }
+        return true
+    }
+}
+
 @main
 struct BreezyApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     var sharedModelContainer: ModelContainer? = {
         let schema = Schema([
             Item.self,

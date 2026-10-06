@@ -239,6 +239,10 @@ struct ContentView: View {
                     if newPhase == .active {
                         Task { await refreshIfNeededOnForeground() }
                     }
+
+                    if newPhase == .background {
+                        BackgroundRefreshScheduler.schedule()
+                    }
                 }
                 .sheet(isPresented: $showingSettings) {
                     SettingsView(viewModel: viewModel)
