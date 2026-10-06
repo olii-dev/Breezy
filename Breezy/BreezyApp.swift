@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         MainActor.assumeIsolated {
             BackgroundRefreshScheduler.register()
+            // Re-adopt any Live Activities that outlived the previous process.
+            LiveActivityHub.restoreAll()
         }
         return true
     }

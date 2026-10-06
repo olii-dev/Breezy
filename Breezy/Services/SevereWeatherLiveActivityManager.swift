@@ -27,6 +27,13 @@ final class SevereWeatherLiveActivityManager {
 
     var isActive: Bool { activity != nil }
 
+    /// Re-adopt a still-running activity after a process restart so updates
+    /// and end() work again (activities are system-owned and outlive the app).
+    func restore() {
+        guard activity == nil else { return }
+        activity = Activity<SevereWeatherActivityAttributes>.activities.first { $0.activityState == .active }
+    }
+
     /// Reconcile the Live Activity with the latest forecast. Called after every
     /// successful weather fetch.
     func update(with weather: WeatherInfo) {

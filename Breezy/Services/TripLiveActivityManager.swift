@@ -34,10 +34,6 @@ final class TripLiveActivityManager {
     func start(trip: Trip, route: TripRouteOption, destinationName: String) -> TripLiveActivityStartResult {
         end()
 
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            return .disabled
-        }
-
         self.route = route
         self.destinationName = destinationName
         self.originName = trip.origin.name
@@ -57,6 +53,19 @@ final class TripLiveActivityManager {
             location: nil
         )
 
+        // Trip tracking (snapshot, widget, alerts) runs regardless of whether
+        // the Live Activity itself can be shown.
+        TripStore.goNowRoute = route
+        TripStore.goNowStartedAt = Date()
+        publishSnapshot(from: state)
+        TripGoNowTracker.shared.start(route: route) { [weak self] location in
+            self?.handleLocation(location)
+        }
+
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            return .disabled
+        }
+
         let attributes = TripActivityAttributes(
             originName: trip.origin.name,
             destinationName: destinationName
@@ -69,15 +78,41 @@ final class TripLiveActivityManager {
                 content: .init(state: state, staleDate: arrival.addingTimeInterval(3600)),
                 pushType: nil
             )
-            publishSnapshot(from: state)
-            TripGoNowTracker.shared.start(route: route) { [weak self] location in
-                self?.handleLocation(location)
-            }
             pushState(state)
             return .started
         } catch {
             activity = nil
             return .failed(error.localizedDescription)
+        }
+    }
+
+    /// Re-adopt a trip that outlived the process: the system-owned activity
+    /// plus the persisted route/snapshot. Restarts tracking. Stale orphans
+    /// (activity with no fresh trip state) are dismissed.
+    func restore() {
+        guard activity == nil else { return }
+
+        let adopted = Activity<TripActivityAttributes>.activities.first { $0.activityState == .active }
+
+        guard TripStore.isGoNowActive(), let route = TripStore.goNowRoute else {
+            if let adopted {
+                activity = adopted
+                end()
+            } else {
+                TripStore.clearGoNowSnapshot()
+            }
+            return
+        }
+
+        let snapshot = TripStore.goNowSnapshot
+        activity = adopted
+        self.route = route
+        self.destinationName = adopted?.attributes.destinationName ?? snapshot.destinationName
+        self.originName = adopted?.attributes.originName ?? snapshot.originName
+        self.lastProgress = snapshot.progress
+        self.routeAverageSpeed = max(route.distanceMeters / max(route.expectedTravelTime, 1), 3)
+        TripGoNowTracker.shared.start(route: route) { [weak self] location in
+            self?.handleLocation(location)
         }
     }
 
@@ -99,7 +134,9 @@ final class TripLiveActivityManager {
     }
 
     private func handleLocation(_ location: CLLocation) {
-        guard let route, activity != nil else { return }
+        // Tracking continues even when the Live Activity handle is absent
+        // (e.g. LAs disabled mid-trip) so the snapshot and widget stay live.
+        guard let route else { return }
         let snap = TripGoNowTracker.progress(along: route, location: location)
 
         // Ignore noisy snaps far off-route.

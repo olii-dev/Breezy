@@ -10,7 +10,9 @@ import SwiftUI
 struct TripModeView: View {
     @ObservedObject var weatherViewModel: WeatherViewModel
     @ObservedObject var locationHelper: LocationHelper
-    @StateObject private var tripVM = TripViewModel()
+    // Shared instance: trip state (including a live drive) survives the sheet
+    // being dismissed and reopened, and restores across app relaunches.
+    @ObservedObject private var tripVM = TripViewModel.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var showingShareCard = false

@@ -61,7 +61,30 @@ final class TripViewModel: ObservableObject {
         reloadRecent()
         // Warm network monitor.
         _ = TripNetworkMonitor.shared
+        // A trip may have outlived the previous process — adopt it.
+        TripLiveActivityManager.shared.restore()
+        isTripLive = TripLiveActivityManager.shared.isActive || TripStore.isGoNowActive()
+        restorePlanningStateIfLive()
     }
+
+    /// Rebuild the planning screen inputs from the persisted live trip so the
+    /// sheet reopens mid-drive instead of showing setup + "Go Now".
+    private func restorePlanningStateIfLive() {
+        guard isTripLive, let route = TripStore.goNowRoute else { return }
+        routes = [route]
+        selectedRouteID = route.id
+        let snapshot = TripStore.goNowSnapshot
+        if let first = route.coordinates.first {
+            origin = origin ?? TripEndpoint(name: snapshot.originName, latitude: first.latitude, longitude: first.longitude)
+        }
+        if let last = route.coordinates.last {
+            destination = destination ?? TripEndpoint(name: snapshot.destinationName, latitude: last.latitude, longitude: last.longitude)
+        }
+    }
+
+    /// Shared so trip state survives the sheet being dismissed and reopened
+    /// (the sheet used to own a fresh view model, forgetting any live trip).
+    static let shared = TripViewModel()
 
     // MARK: - Endpoints
 
@@ -248,10 +271,15 @@ final class TripViewModel: ObservableObject {
             isTripLive = true
             persistCurrentTrip()
         case .disabled:
-            isTripLive = false
+            // Trip still tracks (snapshot + widget) without the Live Activity.
+            TripAheadAlertScheduler.shared.schedule(for: liveRoute, destinationName: destination.name)
+            isTripLive = true
+            persistCurrentTrip()
             goNowError = "Turn on Live Activities for Breezy in Settings to use Go Now on the Lock Screen and Dynamic Island."
         case .failed(let message):
-            isTripLive = false
+            TripAheadAlertScheduler.shared.schedule(for: liveRoute, destinationName: destination.name)
+            isTripLive = true
+            persistCurrentTrip()
             goNowError = "Couldn't start Live Activity: \(message)"
         }
     }

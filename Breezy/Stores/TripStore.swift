@@ -12,6 +12,7 @@ struct TripStore {
     private static let tripsKey = "Breezy.OnTheWay.RecentTrips"
     private static let legacyTripsKey = "Breezy.TripMode.RecentTrips"
     private static let goNowKey = "Breezy.OnTheWay.GoNowSnapshot"
+    private static let goNowRouteKey = "Breezy.OnTheWay.GoNowRoute"
     private static let summaryKey = "Breezy.OnTheWay.WidgetSummary"
     private static let maxCount = 12
     private static let appGroupID = "group.com.breezy.weather"
@@ -64,7 +65,7 @@ struct TripStore {
         recentTrips = []
     }
 
-    // MARK: - Go Now snapshot (widgets only — not a Live Activity)
+    // MARK: - Go Now snapshot (app-group truth for "on a trip")
 
     static var goNowSnapshot: TripGoNowSnapshot {
         get {
@@ -84,6 +85,50 @@ struct TripStore {
 
     static func clearGoNowSnapshot() {
         goNowSnapshot = .inactive
+        goNowRoute = nil
+        goNowStartedAt = nil
+    }
+
+    /// A snapshot only counts as an active trip while fresh: at most 3 hours
+    /// old, with an hour's grace past the recorded ETA. Anything older is a
+    /// crashed-or-forgotten trip, not a live one.
+    static func isGoNowActive(now: Date = Date()) -> Bool {
+        let snapshot = goNowSnapshot
+        guard snapshot.isActive else { return false }
+        let eta = goNowStartedAt.map { $0.addingTimeInterval(goNowRoute?.expectedTravelTime ?? 0) }
+        let deadline = max(goNowStartedAt?.addingTimeInterval(3 * 60 * 60) ?? .distantPast,
+                           eta?.addingTimeInterval(45 * 60) ?? .distantPast)
+        return now < deadline
+    }
+
+    /// The full route captured at Go Now, so a relaunched app can restore the
+    /// Live Activity, tracker and in-app driving state.
+    static var goNowRoute: TripRouteOption? {
+        get {
+            guard let data = defaults.data(forKey: goNowRouteKey),
+                  let decoded = try? JSONDecoder().decode(TripRouteOption.self, from: data) else {
+                return nil
+            }
+            return decoded
+        }
+        set {
+            if let newValue, let encoded = try? JSONEncoder().encode(newValue) {
+                defaults.set(encoded, forKey: goNowRouteKey)
+            } else {
+                defaults.removeObject(forKey: goNowRouteKey)
+            }
+        }
+    }
+
+    static var goNowStartedAt: Date? {
+        get { defaults.object(forKey: "\(goNowRouteKey).startedAt") as? Date }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: "\(goNowRouteKey).startedAt")
+            } else {
+                defaults.removeObject(forKey: "\(goNowRouteKey).startedAt")
+            }
+        }
     }
 
     static var widgetSummary: TripWidgetSummary? {

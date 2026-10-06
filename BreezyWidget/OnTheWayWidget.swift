@@ -80,7 +80,10 @@ struct OnTheWayProvider: TimelineProvider {
         var summary: OnTheWayWidgetSummary?
         if let data = defaults?.data(forKey: goNowKey),
            let decoded = try? JSONDecoder().decode(OnTheWayGoNowSnapshot.self, from: data),
-           decoded.isActive {
+           decoded.isActive,
+           // Freshness window: a snapshot older than 3 h is a crashed or
+           // forgotten drive, not a live trip — don't show "Go Now" forever.
+           Date().timeIntervalSince(decoded.updatedAt) < 3 * 60 * 60 {
             goNow = decoded
         }
         if let data = defaults?.data(forKey: summaryKey) {

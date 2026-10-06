@@ -18,4 +18,14 @@ enum LiveActivityHub {
         WindLiveActivityManager.shared.update(with: weather)
         DailySummaryLiveActivityManager.shared.update(with: weather)
     }
+
+    /// Re-adopt still-running activities after a process restart, so a
+    /// relaunched app can update and dismiss them again. Called at launch.
+    static func restoreAll() {
+        RainLiveActivityManager.shared.restore()
+        UVLiveActivityManager.shared.restore()
+        SevereWeatherLiveActivityManager.shared.restore()
+        WindLiveActivityManager.shared.restore()
+        TripLiveActivityManager.shared.restore()
+    }
 }
