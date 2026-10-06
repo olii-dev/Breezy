@@ -315,10 +315,10 @@ final class OpenMeteoProvider: WeatherProviding {
 
     private func makeDaily(from source: OpenMeteoDailyBlock, timezone: TimeZone) -> [ProviderDailyWeather] {
         let dates = parseDailyDates(source.time, timezone: timezone)
-        let sunriseDates = parseHourlyDates(source.sunrise ?? [], timezone: timezone)
-        let sunsetDates = parseHourlyDates(source.sunset ?? [], timezone: timezone)
-        let moonriseDates = parseHourlyDates(source.moonrise ?? [], timezone: timezone)
-        let moonsetDates = parseHourlyDates(source.moonset ?? [], timezone: timezone)
+        let sunriseDates = parseOptionalEventDates(source.sunrise, timezone: timezone)
+        let sunsetDates = parseOptionalEventDates(source.sunset, timezone: timezone)
+        let moonriseDates = parseOptionalEventDates(source.moonrise, timezone: timezone)
+        let moonsetDates = parseOptionalEventDates(source.moonset, timezone: timezone)
 
         return dates.enumerated().map { index, date in
             let code = source.weatherCode?[safe: index] ?? 0
@@ -333,11 +333,11 @@ final class OpenMeteoProvider: WeatherProviding {
                 windSpeedMaxMetersPerSecond: value(at: index, in: source.windSpeed10MMax).map { $0 / 3.6 },
                 windDirectionDegrees: value(at: index, in: source.windDirection10MDominant),
                 uvIndexMax: value(at: index, in: source.uvIndexMax).map { Int(round($0)) },
-                sunrise: sunriseDates[safe: index],
-                sunset: sunsetDates[safe: index],
+                sunrise: sunriseDates[safe: index].flatMap { $0 },
+                sunset: sunsetDates[safe: index].flatMap { $0 },
                 moonPhase: MoonPhaseHelper.moonPhase(for: date),
-                moonrise: moonriseDates[safe: index],
-                moonset: moonsetDates[safe: index]
+                moonrise: moonriseDates[safe: index].flatMap { $0 },
+                moonset: moonsetDates[safe: index].flatMap { $0 }
             )
         }
     }
@@ -348,6 +348,16 @@ final class OpenMeteoProvider: WeatherProviding {
         formatter.timeZone = timezone
 
         return values.compactMap { formatter.date(from: $0) }
+    }
+
+    /// Sun/moon events where null entries mean "doesn't happen today" — indices
+    /// must line up with the daily arrays, so nils are preserved positionally.
+    private func parseOptionalEventDates(_ values: [String?]?, timezone: TimeZone) -> [Date?] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        formatter.timeZone = timezone
+
+        return (values ?? []).map { $0.flatMap { formatter.date(from: $0) } }
     }
 
     private func parseCurrentDate(_ value: String, timezone: TimeZone) -> Date {
@@ -645,10 +655,13 @@ private struct OpenMeteoDailyBlock: Decodable {
     let weatherCode: [Int]?
     let temperature2MMax: [Double]?
     let temperature2MMin: [Double]?
-    let sunrise: [String]?
-    let sunset: [String]?
-    let moonrise: [String]?
-    let moonset: [String]?
+    // Sun/moon event arrays tolerate null entries — Open-Meteo returns null
+    // for a day when the event doesn't occur, and one null inside a
+    // non-optional element array would fail the entire forecast decode.
+    let sunrise: [String?]?
+    let sunset: [String?]?
+    let moonrise: [String?]?
+    let moonset: [String?]?
     let precipitationProbabilityMax: [Double?]?
     let precipitationSum: [Double?]?
     let windSpeed10MMax: [Double?]?

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os.log
 
 final class WeatherProviderManager {
     static let shared = WeatherProviderManager()
@@ -46,6 +47,9 @@ final class WeatherProviderManager {
                 return result
             } catch {
                 lastBothProvidersFailedAt = Date()
+                #if DEBUG
+                Logger(subsystem: "com.breezy.weather", category: "fetch").error("fallback to \(alternate.rawValue, privacy: .public) also failed: \(String(describing: error), privacy: .public)")
+                #endif
                 // Surface the primary's error — that's the provider the user picked.
                 throw primaryError
             }
