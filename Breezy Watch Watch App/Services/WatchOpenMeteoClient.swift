@@ -23,10 +23,14 @@ final class WatchOpenMeteoClient {
         city: String,
         units: (temperature: WatchTemperatureUnit, wind: WindSpeedUnit, pressure: PressureUnit, visibility: VisibilityUnit)
     ) async throws -> WatchWeatherData {
+        // AQI rides along in parallel; failure just means no AQI.
+        async let aqiTask = fetchAirQualityIndex(latitude: latitude, longitude: longitude)
         let response = try await fetchForecast(latitude: latitude, longitude: longitude)
         let timezone = TimeZone(identifier: response.timezone) ?? .current
         let hourly = makeHourly(from: response.hourly, timezone: timezone, temperatureUnit: units.temperature, windUnit: units.wind)
         let daily = makeDaily(from: response.daily, timezone: timezone, temperatureUnit: units.temperature, windUnit: units.wind)
+        let minuteForecast = makeMinuteForecast(from: response.minutely15, timezone: timezone)
+        let aqiValue = await aqiTask
         let condition = WatchOpenMeteoCondition.description(from: response.current.weatherCode)
         let currentTimestamp = parseTimestamp(response.current.time, timezone: timezone) ?? Date()
 
@@ -84,7 +88,10 @@ final class WatchOpenMeteoClient {
                 longitude: longitude
             ),
             sunriseDate: parseTimestamp(response.daily.sunrise.first ?? "", timezone: timezone),
-            sunsetDate: parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone)
+            sunsetDate: parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone),
+            minuteForecast: minuteForecast,
+            aqi: aqiValue,
+            aqiCategory: aqiValue.map(WatchAQIHelper.category(forUSIndex:))
         )
     }
 
@@ -129,10 +136,35 @@ final class WatchOpenMeteoClient {
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,cloud_cover,wind_speed_10m,wind_direction_10m,visibility,dew_point_2m"),
             URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weather_code,uv_index,relative_humidity_2m,wind_speed_10m"),
-            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,uv_index_max"),
+            URLQueryItem(name: "minutely_15", value: "precipitation,precipitation_probability"),
+            URLQueryItem(name: "forecast_minutely_15", value: "8"),
+            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,uv_index_max,moon_phase,moonrise,moonset"),
             URLQueryItem(name: "forecast_days", value: "10")
         ]
         return try await fetch(url: components?.url)
+    }
+
+    /// Optional air-quality current fetch (US AQI) — best-effort, never blocks
+    /// the forecast.
+    private func fetchAirQualityIndex(latitude: Double, longitude: Double) async -> Int? {
+        var components = URLComponents(string: "https://air-quality-api.open-meteo.com/v1/air-quality")
+        components?.queryItems = [
+            URLQueryItem(name: "latitude", value: String(latitude)),
+            URLQueryItem(name: "longitude", value: String(longitude)),
+            URLQueryItem(name: "current", value: "us_aqi")
+        ]
+        struct AirQualityResponse: Decodable {
+            struct CurrentBlock: Decodable {
+                let usAQI: Int?
+                enum CodingKeys: String, CodingKey { case usAQI = "us_aqi" }
+            }
+            let current: CurrentBlock
+        }
+        guard let url = components?.url,
+              let response: AirQualityResponse = try? await fetch(url: url) else {
+            return nil
+        }
+        return response.current.usAQI
     }
 
     private func fetchArchive(latitude: Double, longitude: Double, startDate: Date, endDate: Date) async throws -> ArchiveResponse {
@@ -221,11 +253,30 @@ final class WatchOpenMeteoClient {
                 uvIndex: block.uvIndexMax?[safe: index].flatMap { $0 }.map { Int(round($0)).description } ?? "0",
                 sunrise: sunrise[safe: index].map(WatchDateFormatterHelper.formatTime),
                 sunset: sunset[safe: index].map(WatchDateFormatterHelper.formatTime),
-                hourlyForecast: []
+                hourlyForecast: [],
+                moonPhaseName: block.moonPhase?[safe: index].flatMap { $0 }.map { WatchMoonPhaseHelper.name(forFraction: $0) },
+                moonIllumination: block.moonPhase?[safe: index].flatMap { $0 },
+                moonrise: block.moonrise?[safe: index].flatMap { $0 }.flatMap { parseTimestamp($0, timezone: timezone) },
+                moonset: block.moonset?[safe: index].flatMap { $0 }.flatMap { parseTimestamp($0, timezone: timezone) }
             ))
         }
 
         return forecasts
+    }
+
+    /// 15-minute precipitation steps → minute forecast (intensity = mm × 4/h).
+    private func makeMinuteForecast(from block: Minutely15Block?, timezone: TimeZone) -> [WatchMinuteForecast]? {
+        guard let block else { return nil }
+        let dates = block.time.compactMap { parseTimestamp($0, timezone: timezone) }
+        let steps = dates.enumerated().compactMap { index, date -> WatchMinuteForecast? in
+            let mm = block.precipitation?[safe: index].flatMap { $0 } ?? 0
+            return WatchMinuteForecast(
+                date: date,
+                intensityMillimetersPerHour: mm * 4,
+                isPrecipitating: mm > 0
+            )
+        }
+        return steps.isEmpty ? nil : steps
     }
 
     private func formattedTemperature(_ celsius: Double, unit: WatchTemperatureUnit) -> String {
@@ -328,12 +379,26 @@ private struct ForecastResponse: Decodable {
     let current: CurrentBlock
     let hourly: HourlyBlock
     let daily: DailyBlock
+    let minutely15: Minutely15Block?
 }
 
 private struct ArchiveResponse: Decodable {
     let timezone: String
     let hourly: HourlyBlock
     let daily: DailyBlock
+}
+
+/// 15-minute precipitation steps (mm per step, % chance).
+private struct Minutely15Block: Decodable {
+    let time: [String]
+    let precipitation: [Double?]?
+    let precipitationProbability: [Double?]?
+
+    enum CodingKeys: String, CodingKey {
+        case time
+        case precipitation
+        case precipitationProbability = "precipitation_probability"
+    }
 }
 
 private struct CurrentBlock: Decodable {
@@ -396,6 +461,9 @@ private struct DailyBlock: Decodable {
     let precipitationProbabilityMax: [Double]?
     let windSpeed10MMax: [Double]?
     let uvIndexMax: [Double?]?
+    let moonPhase: [Double?]?
+    let moonrise: [String?]?
+    let moonset: [String?]?
 
     enum CodingKeys: String, CodingKey {
         case time
@@ -407,6 +475,9 @@ private struct DailyBlock: Decodable {
         case precipitationProbabilityMax = "precipitation_probability_max"
         case windSpeed10MMax = "wind_speed_10m_max"
         case uvIndexMax = "uv_index_max"
+        case moonPhase = "moon_phase"
+        case moonrise
+        case moonset
     }
 }
 

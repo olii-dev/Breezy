@@ -217,6 +217,25 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                     if let sunset = weather.dailyForecast.first?.sunsetDate {
                         reply["sunset"] = sunset.timeIntervalSince1970
                     }
+                    if let aqi = weather.metrics?.airQuality?.aqi {
+                        reply["aqi"] = aqi
+                    }
+
+                    // Next ~2 hours of 15-minute precipitation steps for the
+                    // watch's rain countdown banner.
+                    if let minutes = weather.metrics?.minuteForecast {
+                        let minuteData = minutes.prefix(8).compactMap { (minute: MinuteForecast) -> [String: Any]? in
+                            guard minute.time >= Date() else { return nil }
+                            return [
+                                "time": minute.time.timeIntervalSince1970,
+                                "mmh": minute.precipitationIntensity,
+                                "precip": minute.isPrecipitating
+                            ]
+                        }
+                        if !minuteData.isEmpty {
+                            reply["minute"] = Array(minuteData)
+                        }
+                    }
 
                     let hourlyData = (weather.allHourlyData ?? weather.hourlyForecast)
                         .filter { hour in
@@ -247,7 +266,7 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                     reply["hourly"] = hourlyData
                     
                     let dailyData = weather.dailyForecast.prefix(10).map { d -> [String: Any] in
-                        return [
+                        var entry: [String: Any] = [
                             "time": DateFormatterHelper.dateFormatter.date(from: d.date)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970,
                             "low_c": parseCelsius(from: d.lowTemp) ?? 0,
                             "high_c": parseCelsius(from: d.highTemp) ?? 0,
@@ -258,6 +277,11 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                             "sunrise": d.sunriseDate?.timeIntervalSince1970 ?? 0,
                             "sunset": d.sunsetDate?.timeIntervalSince1970 ?? 0
                         ]
+                        if let moon = d.moonPhase {
+                            entry["moonPhase"] = moon.phase
+                            entry["moonIllum"] = moon.illumination
+                        }
+                        return entry
                     }
                     reply["daily"] = dailyData
                     

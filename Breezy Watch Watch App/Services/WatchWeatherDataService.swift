@@ -242,6 +242,15 @@ final class WatchWeatherDataService {
         let temperatures = currentTemperatures(from: weather.currentWeather, temperatureUnit: units.temperature)
         let condition = WatchWeatherConditionConverter.description(from: weather.currentWeather.condition)
 
+        // Next-hour minute precipitation — no extra request, already fetched.
+        let minuteForecast = weather.minuteForecast?.forecast.map { minute in
+            WatchMinuteForecast(
+                date: minute.date,
+                intensityMillimetersPerHour: minute.precipitationIntensity.value,
+                isPrecipitating: minute.precipitationChance > 0
+            )
+        }
+
         return WatchWeatherData(
             city: city,
             temperature: formattedTemperature(temperatures.temp, unit: units.temperature),
@@ -273,7 +282,8 @@ final class WatchWeatherDataService {
                 longitude: longitude
             ),
             sunriseDate: weather.dailyForecast.first?.sun.sunrise,
-            sunsetDate: weather.dailyForecast.first?.sun.sunset
+            sunsetDate: weather.dailyForecast.first?.sun.sunset,
+            minuteForecast: minuteForecast
         )
     }
 
@@ -351,9 +361,27 @@ final class WatchWeatherDataService {
                 uvIndex: String(format: "%d", Int((day["uv"] as? Double) ?? 0)),
                 sunrise: (day["sunrise"] as? TimeInterval).map { WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: $0)) },
                 sunset: (day["sunset"] as? TimeInterval).map { WatchDateFormatterHelper.formatTime(Date(timeIntervalSince1970: $0)) },
-                hourlyForecast: []
+                hourlyForecast: [],
+                moonPhaseName: day["moonPhase"] as? String,
+                moonIllumination: day["moonIllum"] as? Double
             )
         }
+
+        // 15-minute precipitation steps for the rain countdown banner.
+        let minuteSteps: [WatchMinuteForecast] = (data["minute"] as? [[String: Any]] ?? []).compactMap { (step: [String: Any]) -> WatchMinuteForecast? in
+            guard let timestamp = step["time"] as? TimeInterval,
+                  let intensity = step["mmh"] as? Double else {
+                return nil
+            }
+            return WatchMinuteForecast(
+                date: Date(timeIntervalSince1970: timestamp),
+                intensityMillimetersPerHour: intensity,
+                isPrecipitating: (step["precip"] as? Bool) ?? (intensity > 0)
+            )
+        }
+        let minuteForecast = minuteSteps.isEmpty ? nil : minuteSteps
+
+        let aqiValue = data["aqi"] as? Int
 
         return WatchWeatherData(
             city: city,
@@ -403,7 +431,10 @@ final class WatchWeatherDataService {
                 longitude: longitude
             ),
             sunriseDate: (data["sunrise"] as? TimeInterval).map(Date.init(timeIntervalSince1970:)),
-            sunsetDate: (data["sunset"] as? TimeInterval).map(Date.init(timeIntervalSince1970:))
+            sunsetDate: (data["sunset"] as? TimeInterval).map(Date.init(timeIntervalSince1970:)),
+            minuteForecast: minuteForecast,
+            aqi: aqiValue,
+            aqiCategory: aqiValue.map(WatchAQIHelper.category(forUSIndex:))
         )
     }
 
@@ -500,8 +531,28 @@ final class WatchWeatherDataService {
                 uvIndex: String(Int(day.uvIndex.value)),
                 sunrise: day.sun.sunrise.map(WatchDateFormatterHelper.formatTime),
                 sunset: day.sun.sunset.map(WatchDateFormatterHelper.formatTime),
-                hourlyForecast: hourlyForecast.filter { calendar.isDate($0.date, inSameDayAs: day.date) }
+                hourlyForecast: hourlyForecast.filter { calendar.isDate($0.date, inSameDayAs: day.date) },
+                moonPhaseName: Self.moonNameAndIllumination(from: day.moon.phase).name,
+                moonIllumination: Self.moonNameAndIllumination(from: day.moon.phase).illumination,
+                moonrise: day.moon.moonrise,
+                moonset: day.moon.moonset
             )
+        }
+    }
+
+    /// WeatherKit's moon-phase enum, named and given a rough illumination for
+    /// display (exact percent isn't provided).
+    private static func moonNameAndIllumination(from phase: WeatherKit.MoonPhase) -> (name: String, illumination: Double) {
+        switch phase {
+        case .new: return ("New Moon", 0.03)
+        case .waxingCrescent: return ("Waxing Crescent", 0.2)
+        case .firstQuarter: return ("First Quarter", 0.5)
+        case .waxingGibbous: return ("Waxing Gibbous", 0.8)
+        case .full: return ("Full Moon", 0.97)
+        case .waningGibbous: return ("Waning Gibbous", 0.8)
+        case .lastQuarter: return ("Last Quarter", 0.5)
+        case .waningCrescent: return ("Waning Crescent", 0.2)
+        @unknown default: return ("Moon", 0.5)
         }
     }
 

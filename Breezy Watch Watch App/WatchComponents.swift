@@ -8,12 +8,15 @@ struct MetricPill: View {
     let isSystemImage: Bool
     var textColor: Color = .white
     var backgroundColor: Color = Color.white.opacity(0.1)
-    
+    /// Optional category tint for the icon (e.g. AQI band color).
+    var iconColor: Color? = nil
+
     var body: some View {
         VStack(spacing: 2) {
             if isSystemImage {
                 Image(systemName: icon)
                     .font(.caption2)
+                    .foregroundStyle(iconColor ?? textColor.opacity(0.9))
             } else {
                 Text(icon)
                     .font(.caption2)
@@ -22,8 +25,8 @@ struct MetricPill: View {
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+                .foregroundStyle(textColor.opacity(0.9))
         }
-        .foregroundColor(textColor.opacity(0.9))
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
         .background(backgroundColor)
@@ -202,11 +205,18 @@ struct MetricsPillsWatchView: View {
     let weather: WatchWeatherData
     @EnvironmentObject var viewModel: WatchWeatherViewModel
     @Environment(\.colorScheme) var colorScheme
-    
+
+    private struct Pill {
+        let icon: String
+        let title: String
+        let value: String
+        var iconColorHex: String? = nil
+    }
+
     var body: some View {
         let isMinimalist = viewModel.useMinimalistIcons
         let pills = buildPills()
-        
+
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
             ForEach(pills, id: \.title) { pill in
                 MetricPill(
@@ -214,66 +224,90 @@ struct MetricsPillsWatchView: View {
                     value: pill.value,
                     isSystemImage: isMinimalist,
                     textColor: viewModel.currentTheme(isSystemDark: colorScheme == .dark).textColor,
-                    backgroundColor: viewModel.currentTheme(isSystemDark: colorScheme == .dark).textColor.opacity(0.1)
+                    backgroundColor: viewModel.currentTheme(isSystemDark: colorScheme == .dark).textColor.opacity(0.1),
+                    iconColor: pill.iconColorHex.flatMap { Color(hexString: $0) }
                 )
             }
         }
     }
-    
-    private func buildPills() -> [(icon: String, title: String, value: String)] {
-        var pills: [(String, String, String)] = []
-        
+
+    private func buildPills() -> [Pill] {
+        var pills: [Pill] = []
+
         for metric in WeatherMetric.allCases {
             guard viewModel.visibleMetrics.contains(metric) else { continue }
-            
+
             switch metric {
             case .wind:
                 if let val = weather.windSpeed {
-                    pills.append((isMinimalist ? "wind" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "wind" : metric.emoji, title: metric.rawValue, value: val))
                 }
             case .humidity:
                 if let val = weather.humidity {
-                    pills.append((isMinimalist ? "humidity.fill" : metric.emoji, metric.rawValue, "\(val)%"))
+                    pills.append(Pill(icon: isMinimalist ? "humidity.fill" : metric.emoji, title: metric.rawValue, value: "\(val)%"))
                 }
             case .uvIndex:
                 if let val = weather.uvIndex {
-                    pills.append((isMinimalist ? "sun.max.fill" : metric.emoji, metric.rawValue, "UV \(val)"))
+                    pills.append(Pill(icon: isMinimalist ? "sun.max.fill" : metric.emoji, title: metric.rawValue, value: "UV \(val)"))
                 }
             case .rain:
                 if let val = weather.rainChance {
-                    pills.append((isMinimalist ? "cloud.rain.fill" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "cloud.rain.fill" : metric.emoji, title: metric.rawValue, value: val))
                 }
             case .visibility:
                 if let val = weather.visibility {
-                    pills.append((isMinimalist ? "eye.fill" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "eye.fill" : metric.emoji, title: metric.rawValue, value: val))
                 }
             case .pressure:
                 if let val = weather.pressure {
-                    pills.append((isMinimalist ? "gauge" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "gauge" : metric.emoji, title: metric.rawValue, value: val))
                 }
             case .dewPoint:
                 if let val = weather.dewPoint {
-                    pills.append((isMinimalist ? "drop.fill" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "drop.fill" : metric.emoji, title: metric.rawValue, value: val))
                 }
             case .cloudCover:
                 if let val = weather.cloudCover {
-                    pills.append((isMinimalist ? "cloud.fill" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "cloud.fill" : metric.emoji, title: metric.rawValue, value: val))
                 }
             case .feelsLike:
                 if let val = weather.feelsLike {
-                    pills.append((isMinimalist ? "thermometer" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "thermometer" : metric.emoji, title: metric.rawValue, value: val))
                 }
             case .sunset:
                 if let val = weather.sunset {
-                    pills.append((isMinimalist ? "sunset.fill" : metric.emoji, metric.rawValue, val))
+                    pills.append(Pill(icon: isMinimalist ? "sunset.fill" : metric.emoji, title: metric.rawValue, value: val))
+                }
+            case .airQuality:
+                if let val = weather.aqi {
+                    let short = weather.aqiCategory == "Unhealthy for Sensitive Groups" ? "Sensitive" : (weather.aqiCategory ?? "")
+                    pills.append(Pill(
+                        icon: isMinimalist ? "aqi.medium" : metric.emoji,
+                        title: metric.rawValue,
+                        value: "AQI \(val) · \(short)",
+                        iconColorHex: WatchAQIHelper.colorHex(forUSIndex: val)
+                    ))
                 }
             }
         }
-        
-        return pills.prefix(6).map { $0 } // Limit to 6 for space
+
+        return Array(pills.prefix(6)) // Limit to 6 for space
     }
-    
+
     private var isMinimalist: Bool { viewModel.useMinimalistIcons }
+}
+
+extension Color {
+    /// Hex string ("RRGGBB", 6 digits) → Color.
+    init?(hexString: String) {
+        var value: UInt64 = 0
+        guard hexString.count == 6, Scanner(string: hexString).scanHexInt64(&value) else { return nil }
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
 }
 
 struct SunScheduleView: View {
@@ -478,13 +512,52 @@ struct DayDetailView: View {
                         value: rise,
                         isSystemImage: viewModel.useMinimalistIcons
                     )
-                    
+
                     DetailRow(
                         icon: viewModel.useMinimalistIcons ? "sunset.fill" : "🌇",
                         title: "Sunset",
                         value: set,
                         isSystemImage: viewModel.useMinimalistIcons
                     )
+                }
+                .listRowBackground(Color.clear)
+            }
+
+            // Moon Section
+            if let phase = day.moonPhaseName {
+                Section("MOON") {
+                    HStack(spacing: 10) {
+                        Image(systemName: Self.moonSymbol(forIllumination: day.moonIllumination))
+                            .font(.title3)
+                            .foregroundStyle(.yellow)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(phase)
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            if let illumination = day.moonIllumination {
+                                Text("\(Int((illumination * 100).rounded()))% illuminated")
+                                    .font(.system(size: 11, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    if let moonrise = day.moonrise {
+                        DetailRow(
+                            icon: viewModel.useMinimalistIcons ? "moonrise.fill" : "🌙",
+                            title: "Moonrise",
+                            value: WatchDateFormatterHelper.formatTime(moonrise),
+                            isSystemImage: viewModel.useMinimalistIcons
+                        )
+                    }
+                    if let moonset = day.moonset {
+                        DetailRow(
+                            icon: viewModel.useMinimalistIcons ? "moonset.fill" : "🌘",
+                            title: "Moonset",
+                            value: WatchDateFormatterHelper.formatTime(moonset),
+                            isSystemImage: viewModel.useMinimalistIcons
+                        )
+                    }
                 }
                 .listRowBackground(Color.clear)
             }
@@ -500,6 +573,18 @@ struct DayDetailView: View {
             .ignoresSafeArea()
         )
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Moon symbol approximated by illuminated fraction.
+    private static func moonSymbol(forIllumination illumination: Double?) -> String {
+        guard let illumination else { return "moonphase.mixed" }
+        switch illumination {
+        case ..<0.1: return "moonphase.new.mixed"
+        case ..<0.35: return "moonphase.waxing.crescent"
+        case ..<0.65: return "moonphase.first.quarter"
+        case ..<0.9: return "moonphase.waxing.gibbous"
+        default: return "moonphase.full.moon"
+        }
     }
 }
 

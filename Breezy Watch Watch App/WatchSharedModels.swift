@@ -37,9 +37,10 @@ enum WeatherMetric: String, CaseIterable, Identifiable, Codable {
     case cloudCover = "Cloud Cover"
     case feelsLike = "Feels Like"
     case sunset = "Sunset"
-    
+    case airQuality = "Air Quality"
+
     var id: String { rawValue }
-    
+
     var icon: String {
         switch self {
         case .humidity: return "humidity"
@@ -52,9 +53,10 @@ enum WeatherMetric: String, CaseIterable, Identifiable, Codable {
         case .cloudCover: return "cloud.fill"
         case .feelsLike: return "thermometer.medium"
         case .sunset: return "sunset.fill"
+        case .airQuality: return "aqi.medium"
         }
     }
-    
+
     var emoji: String {
         switch self {
         case .humidity: return "💧" // Not sf symbol
@@ -67,6 +69,7 @@ enum WeatherMetric: String, CaseIterable, Identifiable, Codable {
         case .cloudCover: return "☁️"
         case .feelsLike: return "🌡"
         case .sunset: return "🌇"
+        case .airQuality: return "🌫"
         }
     }
 }
@@ -187,6 +190,57 @@ struct WatchWeatherMetadata: Codable {
     let longitude: Double?
 }
 
+/// 15-minute precipitation step — feeds the rain countdown banner.
+struct WatchMinuteForecast: Codable, Equatable, Identifiable {
+    var id: Date { date }
+    let date: Date
+    /// mm/h equivalent for the 15-min step.
+    let intensityMillimetersPerHour: Double
+    let isPrecipitating: Bool
+}
+
+enum WatchMoonPhaseHelper {
+    /// Open-Meteo's moon_phase fraction (0 = new, 0.5 = full) bucketed to a name.
+    static func name(forFraction fraction: Double) -> String {
+        switch fraction {
+        case ..<0.0625, 0.9375...: return "New Moon"
+        case ..<0.1875: return "Waxing Crescent"
+        case ..<0.3125: return "First Quarter"
+        case ..<0.4375: return "Waxing Gibbous"
+        case ..<0.5625: return "Full Moon"
+        case ..<0.6875: return "Waning Gibbous"
+        case ..<0.8125: return "Last Quarter"
+        default: return "Waning Crescent"
+        }
+    }
+}
+
+enum WatchAQIHelper {
+    /// US EPA category for a US AQI index value.
+    static func category(forUSIndex index: Int) -> String {
+        switch index {
+        case ...50: return "Good"
+        case ...100: return "Moderate"
+        case ...150: return "Unhealthy for Sensitive Groups"
+        case ...200: return "Unhealthy"
+        case ...300: return "Very Unhealthy"
+        default: return "Hazardous"
+        }
+    }
+
+    /// Green → yellow → orange → red → purple → maroon by US EPA bands.
+    static func colorHex(forUSIndex index: Int) -> String {
+        switch index {
+        case ...50: return "4CD964"
+        case ...100: return "F5D94B"
+        case ...150: return "FF9F45"
+        case ...200: return "F05B5B"
+        case ...300: return "A070D6"
+        default: return "8C3A3A"
+        }
+    }
+}
+
 struct WatchWeatherData: Codable {
     let city: String
     let temperature: String
@@ -215,6 +269,11 @@ struct WatchWeatherData: Codable {
     /// and Smart Stack relevance around sunrise/sunset.
     var sunriseDate: Date? = nil
     var sunsetDate: Date? = nil
+    /// Next ~hour of 15-minute precipitation steps, when the source serves them.
+    var minuteForecast: [WatchMinuteForecast]? = nil
+    /// US EPA AQI scale, when available.
+    var aqi: Int? = nil
+    var aqiCategory: String? = nil
 }
 
 struct WatchHourlyForecast: Identifiable, Codable {
@@ -251,6 +310,12 @@ struct WatchDailyForecast: Identifiable, Codable {
     let sunrise: String?
     let sunset: String?
     let hourlyForecast: [WatchHourlyForecast]
+    /// Moon phase for the evening of this day.
+    var moonPhaseName: String? = nil
+    /// 0…1 illuminated fraction.
+    var moonIllumination: Double? = nil
+    var moonrise: Date? = nil
+    var moonset: Date? = nil
 }
 
 struct WatchHistoricalDay {

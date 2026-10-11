@@ -103,6 +103,9 @@ struct CurrentOverviewView: View {
 
     private var scrollSectionIDs: [String] {
         var ids = ["header"]
+        if WatchRainCountdownBanner.summary(minutes: weather.minuteForecast ?? [], now: Date()) != nil {
+            ids.append("rainbanner")
+        }
         for section in viewModel.layoutSections {
             switch section {
             case .hourly:
@@ -117,7 +120,7 @@ struct CurrentOverviewView: View {
         ids.append("settings")
         return ids
     }
-    
+
     var body: some View {
         let theme = viewModel.theme(for: weather.condition, isSystemDark: colorScheme == .dark)
 
@@ -127,7 +130,13 @@ struct CurrentOverviewView: View {
                     // Pinned Header
                     MainInfoSection(weather: weather, theme: theme, viewModel: viewModel)
                         .id("header")
-                    
+
+                    // Rain countdown — pinned above the reorderable sections.
+                    if WatchRainCountdownBanner.summary(minutes: weather.minuteForecast ?? [], now: Date()) != nil {
+                        WatchRainCountdownBanner(weather: weather, theme: theme)
+                            .id("rainbanner")
+                    }
+
                     // Reorderable Sections
                     ForEach(viewModel.layoutSections) { section in
                         switch section {
@@ -198,6 +207,74 @@ struct CurrentOverviewView: View {
         doubleTapSectionIndex = nextIndex
         withAnimation(.easeInOut(duration: 0.28)) {
             proxy.scrollTo(scrollSectionIDs[nextIndex], anchor: .top)
+        }
+    }
+}
+
+// MARK: - Rain Countdown Banner
+
+/// "Rain in ~23 min · for about 40 min" — driven by 15-minute precipitation
+/// steps; refreshes its minute math on a light timer.
+struct WatchRainCountdownBanner: View {
+    let weather: WatchWeatherData
+    let theme: WatchWeatherTheme
+
+    /// Pure summary: onset within 90 min, or raining with an easing time.
+    static func summary(minutes: [WatchMinuteForecast], now: Date) -> (title: String, detail: String?)? {
+        guard !minutes.isEmpty else { return nil }
+        let future = minutes.filter { $0.date > now }
+        let currently = minutes.last(where: { $0.date <= now })?.isPrecipitating ?? false
+
+        if currently {
+            if let end = future.first(where: { !$0.isPrecipitating }) {
+                return ("Raining now", "easing ~\(WatchDateFormatterHelper.formatTime(end.date))")
+            }
+            return ("Raining now", "through the next hour")
+        }
+
+        guard let onset = future.first(where: { $0.isPrecipitating }) else { return nil }
+        let minutesUntil = Int((onset.date.timeIntervalSince(now) / 60).rounded())
+        guard minutesUntil <= 90 else { return nil }
+
+        let window = future.filter { $0.date >= onset.date }
+        if let end = window.first(where: { !$0.isPrecipitating }) {
+            let duration = max(15, Int((end.date.timeIntervalSince(onset.date) / 60).rounded()))
+            return ("Rain in ~\(max(1, minutesUntil)) min", "for about \(duration) min")
+        }
+        return ("Rain in ~\(max(1, minutesUntil)) min", nil)
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 15)) { timeline in
+            if let summary = Self.summary(minutes: weather.minuteForecast ?? [], now: timeline.date) {
+                HStack(spacing: 8) {
+                    Image(systemName: "cloud.rain.fill")
+                        .font(.title3)
+                        .foregroundStyle(.cyan)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(summary.title)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(theme.textColor)
+                        if let detail = summary.detail {
+                            Text(detail)
+                                .font(.system(size: 10, design: .rounded))
+                                .foregroundStyle(theme.textColor.opacity(0.65))
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.cyan.opacity(0.18))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.cyan.opacity(0.4), lineWidth: 0.5)
+                )
+            }
         }
     }
 }

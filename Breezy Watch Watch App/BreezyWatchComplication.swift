@@ -1908,6 +1908,149 @@ struct BreezySunWidget: Widget {
     }
 }
 
+// MARK: - Moon Complication
+
+struct BreezyMoonWidgetEntryView: View {
+    var entry: WatchComplicationProvider.Entry
+    @Environment(\.widgetFamily) var family
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            AccessoryCircularMoonView(entry: entry)
+        case .accessoryInline:
+            AccessoryInlineMoonView(entry: entry)
+        #if os(watchOS)
+        case .accessoryCorner:
+            AccessoryCornerMoonView(entry: entry)
+        #endif
+        default:
+            AccessoryRectangularMoonView(entry: entry)
+        }
+    }
+}
+
+private extension WatchWeatherData {
+    var tonightMoon: WatchDailyForecast? {
+        dailyForecast.first { $0.moonPhaseName != nil } ?? dailyForecast.first
+    }
+}
+
+struct AccessoryCircularMoonView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        if let moon = entry.weather.tonightMoon, let illumination = moon.moonIllumination {
+            Gauge(value: illumination) {
+                Image(systemName: "moonphase.waxing.crescent")
+            } currentValueLabel: {
+                Text("\(Int((illumination * 100).rounded()))")
+                    .font(.headline)
+                    .minimumScaleFactor(0.6)
+            }
+            .gaugeStyle(.accessoryCircular)
+            .tint(.yellow)
+            .containerBackground(for: .widget) { Color.clear }
+        } else {
+            Image(systemName: "moonphase.mixed")
+                .font(.headline)
+                .containerBackground(for: .widget) { Color.clear }
+        }
+    }
+}
+
+struct AccessoryRectangularMoonView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        if let moon = entry.weather.tonightMoon {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "moonphase.waxing.crescent")
+                        .foregroundStyle(.yellow)
+                    Text(moon.moonPhaseName ?? "Moon")
+                        .font(.headline)
+                        .lineLimit(1)
+                }
+                if let illumination = moon.moonIllumination {
+                    Text("\(Int((illumination * 100).rounded()))% illuminated")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if let moonrise = moon.moonrise {
+                    Label(WatchDateFormatterHelper.formatTime(moonrise), systemImage: "moonrise.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .containerBackground(for: .widget) { Color.clear }
+        } else {
+            Label("Moon", systemImage: "moonphase.mixed")
+                .containerBackground(for: .widget) { Color.clear }
+        }
+    }
+}
+
+struct AccessoryInlineMoonView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        if let moon = entry.weather.tonightMoon, let illumination = moon.moonIllumination {
+            Label("\(moon.moonPhaseName ?? "Moon") \(Int((illumination * 100).rounded()))%", systemImage: "moonphase.waxing.crescent")
+        } else {
+            Label("Moon", systemImage: "moonphase.mixed")
+        }
+    }
+}
+
+struct AccessoryCornerMoonView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        Image(systemName: "moonphase.waxing.crescent")
+            .foregroundStyle(.yellow)
+            .widgetLabel {
+                if let moon = entry.weather.tonightMoon, let illumination = moon.moonIllumination {
+                    Text("\(Int((illumination * 100).rounded()))%")
+                }
+            }
+    }
+}
+
+/// Moon ranks high on clear nights (stargazing conditions).
+final class MoonComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard weather.sunriseDate != nil, weather.sunsetDate != nil,
+              weather.sunsetDate.map({ $0 < date }) == true || weather.sunriseDate.map({ $0 > date }) == true else {
+            return TimelineEntryRelevance(score: 0.08, duration: 3600)
+        }
+        let lowered = weather.condition.lowercased()
+        let clear = lowered.contains("clear") || lowered.contains("sunny") || lowered.contains("mostly clear")
+        let illumination = weather.tonightMoon?.moonIllumination ?? 0
+        if clear {
+            return TimelineEntryRelevance(score: Float(0.5 + illumination * 0.4), duration: 3600)
+        }
+        return TimelineEntryRelevance(score: 0.2, duration: 3600)
+    }
+}
+
+struct BreezyMoonWidget: Widget {
+    let kind: String = "BreezyMoonWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: MoonComplicationProvider()) { entry in
+            BreezyMoonWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Moon")
+        .description("Moon phase, illumination, and moonrise.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
 @main
 struct BreezyWatchWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -1919,5 +2062,6 @@ struct BreezyWatchWidgetBundle: WidgetBundle {
         BreezyPressureWidget()
         BreezyTempTrendWidget()
         BreezySunWidget()
+        BreezyMoonWidget()
     }
 }
