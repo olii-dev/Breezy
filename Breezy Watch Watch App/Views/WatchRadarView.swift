@@ -43,6 +43,19 @@ struct WatchRadarView: View {
     @State private var isPlaying: Bool = false
     @State private var crownValue: Double = 0
 
+    // Zoom cycle: Region → City → Close.
+    @State private var zoomIndex: Int = 1
+    private static let zoomLevels: [(label: String, zoom: Int)] = [("Region", 5), ("City", 7), ("Close", 9)]
+
+    /// Rendered composited frames keyed by path|zoom|layer|dark — scrubbing and
+    /// animation hit memory, never the network twice.
+    @State private var frameCache: [String: PlatformImage] = [:]
+    private let frameCacheLimit = 24
+
+    private var cacheKeyPrefix: String {
+        "\(Self.zoomLevels[zoomIndex].zoom)|\(selectedLayerRaw)|\(colorScheme == .dark)|\(showBaseMap)"
+    }
+
     private var selectedLayer: WatchRadarLayer {
         WatchRadarLayer(rawValue: selectedLayerRaw) ?? .precipitation
     }
@@ -65,24 +78,22 @@ struct WatchRadarView: View {
         let theme = viewModel.currentTheme(isSystemDark: colorScheme == .dark)
 
         ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [theme.topColor, theme.bottomColor]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            Color.black.ignoresSafeArea()
 
-            VStack(spacing: 6) {
+            // Edge-to-edge radar — the image IS the page.
+            radarImage(theme: theme)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+
+            // Overlaid chrome
+            VStack(spacing: 4) {
                 headerRow(theme: theme)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(.black.opacity(0.35), in: Capsule())
+                    .padding(.top, 2)
 
-                radarImage(theme: theme)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 140)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(theme.textColor.opacity(0.15), lineWidth: 0.5)
-                    )
+                Spacer()
 
                 if showLegend {
                     WatchRadarLegendBar(
@@ -90,14 +101,17 @@ struct WatchRadarView: View {
                         source: selectedSource,
                         textColor: theme.textColor
                     )
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.black.opacity(0.35), in: Capsule())
                     .transition(.opacity)
                 }
 
                 if animationEnabled && !frames.isEmpty {
                     playbackControls(theme: theme)
+                        .padding(.bottom, 4)
                 }
             }
-            .padding(.horizontal, 6)
         }
         .navigationTitle {
             Text("Radar")
@@ -129,6 +143,14 @@ struct WatchRadarView: View {
             await loadRadar()
         }
         .onChange(of: selectedLayerRaw) { _, _ in
+            frameCache.removeAll()
+            Task { await loadRadar() }
+        }
+        .onChange(of: zoomIndex) { _, _ in
+            Task { await loadRadar() }
+        }
+        .onChange(of: showBaseMap) { _, _ in
+            frameCache.removeAll()
             Task { await loadRadar() }
         }
         .onChange(of: radarCenter?.latitude) { _, _ in
@@ -225,46 +247,63 @@ struct WatchRadarView: View {
 
     @ViewBuilder
     private func playbackControls(theme: WatchWeatherTheme) -> some View {
-        HStack(spacing: 8) {
+        VStack(spacing: 6) {
+            // Zoom stepper — crown stays bound to frame scrubbing.
             Button {
                 viewModel.playHaptic(.click)
-                togglePlayback()
+                zoomIndex = (zoomIndex + 1) % Self.zoomLevels.count
             } label: {
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 12, weight: .bold))
+                Label(Self.zoomLevels[zoomIndex].label, systemImage: "minus.magnifyingplus")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textColor)
-                    .frame(width: 28, height: 28)
-                    .background(theme.textColor.opacity(0.15), in: Circle())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.black.opacity(0.35), in: Capsule())
             }
             .buttonStyle(.plain)
 
-            // Frame scrubber
-            HStack(spacing: 3) {
-                ForEach(Array(frames.enumerated()), id: \.element.id) { index, frame in
-                    Capsule()
-                        .fill(index == currentFrameIndex ? theme.textColor : theme.textColor.opacity(0.25))
-                        .frame(height: 12)
+            HStack(spacing: 8) {
+                Button {
+                    viewModel.playHaptic(.click)
+                    togglePlayback()
+                } label: {
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(theme.textColor)
+                        .frame(width: 28, height: 28)
+                        .background(.black.opacity(0.45), in: Circle())
+                }
+                .buttonStyle(.plain)
+
+                // Frame scrubber
+                HStack(spacing: 3) {
+                    ForEach(Array(frames.enumerated()), id: \.element.id) { index, frame in
+                        Capsule()
+                            .fill(index == currentFrameIndex ? theme.textColor : theme.textColor.opacity(0.35))
+                            .frame(height: 12)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 14)
+                .padding(.horizontal, 4)
+                .background(.black.opacity(0.45), in: Capsule())
+                .digitalCrownRotation(
+                    $crownValue,
+                    from: 0,
+                    through: Double(max(frames.count - 1, 0)),
+                    by: 1,
+                    sensitivity: .medium,
+                    isContinuous: false,
+                    isHapticFeedbackEnabled: true
+                )
+                .onChange(of: crownValue) { _, newValue in
+                    let newIndex = Int(newValue.rounded())
+                    guard newIndex != currentFrameIndex else { return }
+                    currentFrameIndex = newIndex
+                    Task { await renderFrame(at: newIndex) }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 14)
-            .padding(.horizontal, 4)
-            .background(theme.textColor.opacity(0.08), in: Capsule())
-            .digitalCrownRotation(
-                $crownValue,
-                from: 0,
-                through: Double(max(frames.count - 1, 0)),
-                by: 1,
-                sensitivity: .medium,
-                isContinuous: false,
-                isHapticFeedbackEnabled: true
-            )
-            .onChange(of: crownValue) { _, newValue in
-                let newIndex = Int(newValue.rounded())
-                guard newIndex != currentFrameIndex else { return }
-                currentFrameIndex = newIndex
-                Task { await renderFrame(at: newIndex) }
-            }
+            .padding(.horizontal, 6)
         }
     }
 
@@ -289,23 +328,33 @@ struct WatchRadarView: View {
             }
 
             let framePath = animationEnabled ? frames.last?.path : nil
-            let image = try await WatchRadarService.shared.fetchRadarComposite(
-                center: center,
-                layer: selectedLayer,
-                source: selectedSource,
-                isDark: colorScheme == .dark,
-                includeBaseMap: showBaseMap,
-                framePath: framePath
-            )
-
-            await MainActor.run {
-                self.compositeImage = image
-                self.isLoading = false
-
-                if animationEnabled && !frames.isEmpty && !isPlaying {
-                    startAnimation()
+            if let framePath,
+               let cached = frameCache["\(cacheKeyPrefix)|\(framePath)"] {
+                compositeImage = cached
+                isLoading = false
+            } else {
+                let image = try await WatchRadarService.shared.fetchRadarComposite(
+                    center: center,
+                    layer: selectedLayer,
+                    source: selectedSource,
+                    zoom: Self.zoomLevels[zoomIndex].zoom,
+                    isDark: colorScheme == .dark,
+                    includeBaseMap: showBaseMap,
+                    framePath: framePath
+                )
+                if let framePath {
+                    storeInCache(image, key: "\(cacheKeyPrefix)|\(framePath)")
+                }
+                await MainActor.run {
+                    self.compositeImage = image
+                    self.isLoading = false
                 }
             }
+
+            if animationEnabled && !frames.isEmpty && !isPlaying {
+                startAnimation()
+            }
+            prefetchNeighbors()
         } catch {
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
@@ -319,20 +368,75 @@ struct WatchRadarView: View {
               frames.indices.contains(index) else { return }
 
         let framePath = frames[index].path
+        let key = "\(cacheKeyPrefix)|\(framePath)"
+
+        // Cache hit: instant frame, no network.
+        if let cached = frameCache[key] {
+            compositeImage = cached
+            prefetchNeighbors()
+            return
+        }
+
         do {
             let image = try await WatchRadarService.shared.fetchRadarComposite(
                 center: center,
                 layer: selectedLayer,
                 source: selectedSource,
+                zoom: Self.zoomLevels[zoomIndex].zoom,
                 isDark: colorScheme == .dark,
                 includeBaseMap: showBaseMap,
                 framePath: framePath
             )
+            storeInCache(image, key: key)
             await MainActor.run {
                 self.compositeImage = image
             }
+            prefetchNeighbors()
         } catch {
             // Silent fail on individual frames
+        }
+    }
+
+    private func storeInCache(_ image: PlatformImage, key: String) {
+        frameCache[key] = image
+        if frameCache.count > frameCacheLimit {
+            // Drop the oldest entries — insertion order approximates age.
+            let excess = frameCache.count - frameCacheLimit
+            for staleKey in frameCache.keys.prefix(excess) {
+                frameCache.removeValue(forKey: staleKey)
+            }
+        }
+    }
+
+    /// Warm the next two frames so scrubbing and playback never blank.
+    private func prefetchNeighbors() {
+        guard frames.count > 1, let center = radarCenter else { return }
+        let prefix = cacheKeyPrefix
+        let baseIndex = currentFrameIndex
+        let zoom = Self.zoomLevels[zoomIndex].zoom
+        let isDark = colorScheme == .dark
+        let layer = selectedLayer
+        let source = selectedSource
+        let includeBase = showBaseMap
+
+        Task { @MainActor in
+            for offset in 1...2 {
+                let index = (baseIndex + offset) % frames.count
+                let path = frames[index].path
+                let key = "\(prefix)|\(path)"
+                guard frameCache[key] == nil else { continue }
+                if let image = try? await WatchRadarService.shared.fetchRadarComposite(
+                    center: center,
+                    layer: layer,
+                    source: source,
+                    zoom: zoom,
+                    isDark: isDark,
+                    includeBaseMap: includeBase,
+                    framePath: path
+                ) {
+                    storeInCache(image, key: key)
+                }
+            }
         }
     }
 
@@ -357,7 +461,7 @@ struct WatchRadarView: View {
 
         animationTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                try? await Task.sleep(nanoseconds: 350_000_000)
                 if Task.isCancelled { break }
 
                 await MainActor.run {

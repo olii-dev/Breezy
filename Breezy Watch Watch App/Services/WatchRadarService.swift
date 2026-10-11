@@ -61,7 +61,9 @@ actor WatchRadarService {
     // RainViewer endpoints and constants
     private let rainViewerMetadataURL = URL(string: "https://api.rainviewer.com/public/weather-maps.json")!
     private let rainViewerDefaultHost = "https://tilecache.rainviewer.com"
-    private let rainViewerTileSize = 256
+    // 512px tiles: same tile geometry as 256, twice the resolution — the
+    // 1536px composite downsamples to a visibly sharper wrist display.
+    private let rainViewerTileSize = 512
     private let rainViewerColorScheme = 6
     private let rainViewerTileOptions = "1_1"
 
@@ -71,7 +73,7 @@ actor WatchRadarService {
     // Tile grid size (3x3)
     static let gridExtent: Int = 1
     static let gridSize: Int = (gridExtent * 2 + 1)
-    static let tileSize: Int = 256
+    static let tileSize: Int = 512
     static let compositeSize: Int = tileSize * gridSize
 
     // Default radar zoom level for watch
@@ -194,7 +196,7 @@ actor WatchRadarService {
             span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
         )
         options.size = CGSize(width: Self.compositeSize, height: Self.compositeSize)
-        options.scale = 2.0
+        options.scale = 1.0
 
         let snapshotter = MKMapSnapshotter(options: options)
 
@@ -373,7 +375,7 @@ actor WatchRadarService {
 
     nonisolated private func rainViewerTileURL(x: Int, y: Int, zoom: Int, framePath: String) -> URL? {
         let path = framePath.hasPrefix("/") ? framePath : "/\(framePath)"
-        let urlString = "https://tilecache.rainviewer.com\(path)/256/\(zoom)/\(x)/\(y)/6/1_1.png"
+        let urlString = "https://tilecache.rainviewer.com\(path)/512/\(zoom)/\(x)/\(y)/6/1_1.png"
         return URL(string: urlString)
     }
 
@@ -440,8 +442,8 @@ actor WatchRadarService {
     // MARK: - Transparent Fallback Tile
 
     static let transparentTile: PlatformImage = {
-        let width = 256
-        let height = 256
+        let width = tileSize
+        let height = tileSize
         guard let ctx = CGContext(
             data: nil,
             width: width,
