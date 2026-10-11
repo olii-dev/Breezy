@@ -229,7 +229,7 @@ final class WatchWeatherDataService {
         let location = CLLocation(latitude: latitude, longitude: longitude)
         let weather = try await weatherService.weather(for: location)
         let units = currentUnits()
-        let hourly = parseHourlyForecast(from: weather.hourlyForecast, temperatureUnit: units.temperature)
+        let hourly = parseHourlyForecast(from: weather.hourlyForecast, temperatureUnit: units.temperature, windUnit: units.wind)
         let daily = parseDailyForecast(from: weather.dailyForecast, hourlyForecast: hourly, temperatureUnit: units.temperature, windUnit: units.wind)
         let metrics = extractMetrics(
             from: weather.currentWeather,
@@ -271,7 +271,9 @@ final class WatchWeatherDataService {
                 isStale: false,
                 latitude: latitude,
                 longitude: longitude
-            )
+            ),
+            sunriseDate: weather.dailyForecast.first?.sun.sunrise,
+            sunsetDate: weather.dailyForecast.first?.sun.sunset
         )
     }
 
@@ -317,7 +319,10 @@ final class WatchWeatherDataService {
                 emoji: WatchWeatherIconHelper.emoji(for: hourCondition),
                 iconName: WatchWeatherIconHelper.minimalistIcon(for: hourCondition),
                 condition: hourCondition,
-                precipitationChance: (hour["rain"] as? Double).map { String(format: "%.0f%%", $0 * 100) }
+                precipitationChance: (hour["rain"] as? Double).map { String(format: "%.0f%%", $0 * 100) },
+                uvValue: hour["uv"] as? Int,
+                windSpeedText: (hour["wind_mps"] as? Double).map { formatWindSpeed($0, unit: units.wind) },
+                humidityPercent: hour["humidity"] as? Int
             )
         }
 
@@ -396,7 +401,9 @@ final class WatchWeatherDataService {
                 isStale: isStale,
                 latitude: latitude,
                 longitude: longitude
-            )
+            ),
+            sunriseDate: (data["sunrise"] as? TimeInterval).map(Date.init(timeIntervalSince1970:)),
+            sunsetDate: (data["sunset"] as? TimeInterval).map(Date.init(timeIntervalSince1970:))
         )
     }
 
@@ -440,7 +447,7 @@ final class WatchWeatherDataService {
         )
     }
 
-    private func parseHourlyForecast(from hourlyForecast: Forecast<HourWeather>, temperatureUnit: WatchTemperatureUnit) -> [WatchHourlyForecast] {
+    private func parseHourlyForecast(from hourlyForecast: Forecast<HourWeather>, temperatureUnit: WatchTemperatureUnit, windUnit: WindSpeedUnit) -> [WatchHourlyForecast] {
         hourlyForecast.forecast.map { hour in
             let temperature = temperatureUnit == .fahrenheit
                 ? hour.temperature.converted(to: .fahrenheit).value
@@ -454,7 +461,10 @@ final class WatchWeatherDataService {
                 emoji: WatchWeatherIconHelper.emoji(for: condition),
                 iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
                 condition: condition,
-                precipitationChance: String(format: "%.0f%%", hour.precipitationChance * 100)
+                precipitationChance: String(format: "%.0f%%", hour.precipitationChance * 100),
+                uvValue: Int(hour.uvIndex.value),
+                windSpeedText: formatWindSpeed(hour.wind.speed.converted(to: .metersPerSecond).value, unit: windUnit),
+                humidityPercent: Int(hour.humidity * 100)
             )
         }
     }

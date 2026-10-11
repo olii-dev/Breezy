@@ -25,7 +25,7 @@ final class WatchOpenMeteoClient {
     ) async throws -> WatchWeatherData {
         let response = try await fetchForecast(latitude: latitude, longitude: longitude)
         let timezone = TimeZone(identifier: response.timezone) ?? .current
-        let hourly = makeHourly(from: response.hourly, timezone: timezone, temperatureUnit: units.temperature)
+        let hourly = makeHourly(from: response.hourly, timezone: timezone, temperatureUnit: units.temperature, windUnit: units.wind)
         let daily = makeDaily(from: response.daily, timezone: timezone, temperatureUnit: units.temperature, windUnit: units.wind)
         let condition = WatchOpenMeteoCondition.description(from: response.current.weatherCode)
         let currentTimestamp = parseTimestamp(response.current.time, timezone: timezone) ?? Date()
@@ -57,7 +57,10 @@ final class WatchOpenMeteoClient {
                     emoji: $0.emoji,
                     iconName: $0.iconName,
                     condition: $0.condition,
-                    precipitationChance: $0.rainChance
+                    precipitationChance: $0.rainChance,
+                    uvValue: $0.uvValue,
+                    windSpeedText: $0.windSpeedText,
+                    humidityPercent: $0.humidityPercent
                 )
             },
             dailyForecast: daily,
@@ -79,7 +82,9 @@ final class WatchOpenMeteoClient {
                 isStale: false,
                 latitude: latitude,
                 longitude: longitude
-            )
+            ),
+            sunriseDate: parseTimestamp(response.daily.sunrise.first ?? "", timezone: timezone),
+            sunsetDate: parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone)
         )
     }
 
@@ -93,7 +98,7 @@ final class WatchOpenMeteoClient {
         let response = try await fetchArchive(latitude: latitude, longitude: longitude, startDate: date, endDate: date)
         let timezone = TimeZone(identifier: response.timezone) ?? .current
         let daily = makeDaily(from: response.daily, timezone: timezone, temperatureUnit: temperatureUnit, windUnit: windUnit)
-        let hourly = makeHourly(from: response.hourly, timezone: timezone, temperatureUnit: temperatureUnit)
+        let hourly = makeHourly(from: response.hourly, timezone: timezone, temperatureUnit: temperatureUnit, windUnit: windUnit)
 
         guard let day = daily.first else {
             throw NSError(domain: "WatchOpenMeteo", code: 404, userInfo: [NSLocalizedDescriptionKey: "No data"])
@@ -123,7 +128,7 @@ final class WatchOpenMeteoClient {
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,cloud_cover,wind_speed_10m,wind_direction_10m,visibility,dew_point_2m"),
-            URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weather_code,uv_index"),
+            URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weather_code,uv_index,relative_humidity_2m,wind_speed_10m"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,uv_index_max"),
             URLQueryItem(name: "forecast_days", value: "10")
         ]
@@ -161,12 +166,12 @@ final class WatchOpenMeteoClient {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private func makeHourly(from block: HourlyBlock, timezone: TimeZone, temperatureUnit: WatchTemperatureUnit) -> [OpenMeteoWatchHourly] {
+    private func makeHourly(from block: HourlyBlock, timezone: TimeZone, temperatureUnit: WatchTemperatureUnit, windUnit: WindSpeedUnit) -> [OpenMeteoWatchHourly] {
         let dates = block.time.compactMap { parseTimestamp($0, timezone: timezone) }
         return dates.enumerated().map { index, date in
             let condition = WatchOpenMeteoCondition.description(from: block.weatherCode[safe: index] ?? 0)
             let temperatureC = block.temperature2M[safe: index] ?? 0
-            return OpenMeteoWatchHourly(
+            var hourly = OpenMeteoWatchHourly(
                 date: date,
                 time: WatchDateFormatterHelper.formatHour(Calendar.current.component(.hour, from: date)),
                 temperatureValue: convertTemperature(temperatureC, unit: temperatureUnit),
@@ -177,6 +182,14 @@ final class WatchOpenMeteoClient {
                 uvValue: block.uvIndex?[safe: index].map { Int(round($0)) },
                 rainChance: block.precipitationProbability?[safe: index].map { String(format: "%.0f%%", $0) }
             )
+            // Open-Meteo wind is km/h.
+            if let windKmh = block.windSpeed10M?[safe: index].flatMap({ $0 }) {
+                hourly.windSpeedText = formatWindSpeed(kilometersPerHour: windKmh, unit: windUnit)
+            }
+            if let humidity = block.relativeHumidity2M?[safe: index].flatMap({ $0 }) {
+                hourly.humidityPercent = Int(round(humidity))
+            }
+            return hourly
         }
     }
 
@@ -280,6 +293,8 @@ private struct OpenMeteoWatchHourly {
     let iconName: String
     let uvValue: Int?
     let rainChance: String?
+    var windSpeedText: String? = nil
+    var humidityPercent: Int? = nil
 }
 
 private enum WatchOpenMeteoCondition {
@@ -357,6 +372,8 @@ private struct HourlyBlock: Decodable {
     let precipitationProbability: [Double]?
     let weatherCode: [Int]
     let uvIndex: [Double]?
+    let relativeHumidity2M: [Double?]?
+    let windSpeed10M: [Double?]?
 
     enum CodingKeys: String, CodingKey {
         case time
@@ -364,6 +381,8 @@ private struct HourlyBlock: Decodable {
         case precipitationProbability = "precipitation_probability"
         case weatherCode = "weather_code"
         case uvIndex = "uv_index"
+        case relativeHumidity2M = "relative_humidity_2m"
+        case windSpeed10M = "wind_speed_10m"
     }
 }
 

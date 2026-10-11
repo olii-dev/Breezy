@@ -211,6 +211,10 @@ struct WatchWeatherData: Codable {
     let sunrise: String?
     let sunset: String?
     var metadata: WatchWeatherMetadata
+    /// Sun events as instants — complications use them for day-progress arcs
+    /// and Smart Stack relevance around sunrise/sunset.
+    var sunriseDate: Date? = nil
+    var sunsetDate: Date? = nil
 }
 
 struct WatchHourlyForecast: Identifiable, Codable {
@@ -224,6 +228,11 @@ struct WatchHourlyForecast: Identifiable, Codable {
     let condition: String
     /// e.g. "45%" — nil when the source didn't provide one.
     var precipitationChance: String? = nil
+    /// Per-hour values so complication timeline entries stay accurate for
+    /// hours between refreshes.
+    var uvValue: Int? = nil
+    var windSpeedText: String? = nil
+    var humidityPercent: Int? = nil
 }
 
 struct WatchDailyForecast: Identifiable, Codable {

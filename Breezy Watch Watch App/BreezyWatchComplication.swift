@@ -63,8 +63,15 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
 
 // MARK: - Timeline Provider
 
-struct WatchComplicationProvider: TimelineProvider {
+class WatchComplicationProvider: TimelineProvider {
     typealias Entry = WatchWeatherEntry
+
+    /// Smart Stack scoring hook — subclasses score their own metric per hour.
+    /// Scores are 0…1; watchOS ranks the Smart Stack by them.
+    func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        // Baseline: the general weather card is always faintly interesting.
+        TimelineEntryRelevance(score: 0.15, duration: 3600)
+    }
 
     func placeholder(in context: Context) -> WatchWeatherEntry {
         WatchWeatherEntry(
@@ -101,19 +108,29 @@ struct WatchComplicationProvider: TimelineProvider {
         func createEntries(from data: WatchWeatherData) -> [WatchWeatherEntry] {
             var entries: [WatchWeatherEntry] = []
             let now = Date()
-            entries.append(WatchWeatherEntry(date: now, weather: data))
+            entries.append(WatchWeatherEntry(
+                date: now,
+                weather: data,
+                relevance: relevance(for: data, at: now)
+            ))
 
-            // Real hourly dates from the full-forecast cache/feed: each entry
-            // carries the matching hour's conditions.
-            for offset in 1...4 {
+            // Per-hour entries carry that hour's real values — rain chance, UV,
+            // wind, humidity — so complications stay accurate for hours even
+            // between refreshes, and each hour scores its own Smart Stack
+            // relevance.
+            for offset in 1...7 {
                 guard let futureDate = Calendar.current.date(byAdding: .hour, value: offset, to: now) else { continue }
                 let futureWeather: WatchWeatherData
                 if let matching = data.hourlyForecast.first(where: { Calendar.current.isDate($0.date, equalTo: futureDate, toGranularity: .hour) }) {
-                    futureWeather = data.withCurrent(temperature: matching.temperature, condition: matching.condition, emoji: matching.emoji)
+                    futureWeather = data.forHour(matching)
                 } else {
                     futureWeather = data
                 }
-                entries.append(WatchWeatherEntry(date: futureDate, weather: futureWeather))
+                entries.append(WatchWeatherEntry(
+                    date: futureDate,
+                    weather: futureWeather,
+                    relevance: relevance(for: futureWeather, at: futureDate)
+                ))
             }
             return entries
         }
@@ -333,6 +350,98 @@ struct WatchComplicationProvider: TimelineProvider {
 struct WatchWeatherEntry: TimelineEntry {
     let date: Date
     let weather: WatchWeatherData
+    var relevance: TimelineEntryRelevance? = nil
+}
+
+// MARK: - Per-kind Smart Stack scoring
+
+private func complicationRainChanceFraction(_ weather: WatchWeatherData) -> Double {
+    guard let rainChance = weather.rainChance else { return 0 }
+    return min(max((Double(rainChance.replacingOccurrences(of: "%", with: "")) ?? 0) / 100, 0), 1)
+}
+
+private func complicationWindMetersPerSecond(_ weather: WatchWeatherData) -> Double? {
+    guard let text = weather.windSpeed else { return nil }
+    let lowered = text.lowercased()
+    let digits = lowered.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+    guard let value = Double(digits), value > 0 else { return nil }
+    if lowered.contains("km/h") { return value / 3.6 }
+    if lowered.contains("mph") { return value / 2.23694 }
+    if lowered.contains("knot") { return value / 1.94384 }
+    return value
+}
+
+/// Rain ranks high exactly when it's going to rain that hour.
+final class RainComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        let chance = complicationRainChanceFraction(weather)
+        guard chance > 0.1 else { return TimelineEntryRelevance(score: 0.05, duration: 3600) }
+        return TimelineEntryRelevance(score: Float(0.3 + chance * 0.7), duration: 3600)
+    }
+}
+
+/// UV ranks with the index itself, daylight hours only.
+final class UVComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard let uv = weather.uvIndex, uv > 0 else { return TimelineEntryRelevance(score: 0.03, duration: 3600) }
+        return TimelineEntryRelevance(score: Float(0.2 + Double(uv) / 12 * 0.7), duration: 3600)
+    }
+}
+
+/// Wind ranks with speed.
+final class WindComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard let mps = complicationWindMetersPerSecond(weather) else { return TimelineEntryRelevance(score: 0.05, duration: 3600) }
+        return TimelineEntryRelevance(score: Float(0.1 + min(mps / 20, 1) * 0.6), duration: 3600)
+    }
+}
+
+/// The sun card spikes around sunrise and sunset.
+final class SunComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        for event in [weather.sunriseDate, weather.sunsetDate].compactMap({ $0 }) {
+            let delta = abs(event.timeIntervalSince(date))
+            if delta <= 45 * 60 {
+                return TimelineEntryRelevance(score: 0.85, duration: 3600)
+            }
+            if delta <= 2 * 3600 {
+                return TimelineEntryRelevance(score: 0.4, duration: 3600)
+            }
+        }
+        return TimelineEntryRelevance(score: 0.08, duration: 3600)
+    }
+}
+
+/// Temperature trend matters most at day-part transitions.
+final class TempTrendComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        let hour = Calendar.current.component(.hour, from: date)
+        if (6...10).contains(hour) || (17...21).contains(hour) {
+            return TimelineEntryRelevance(score: 0.45, duration: 3600)
+        }
+        return TimelineEntryRelevance(score: 0.2, duration: 3600)
+    }
+}
+
+final class HumidityComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard let humidity = weather.humidity else { return TimelineEntryRelevance(score: 0.05, duration: 3600) }
+        return TimelineEntryRelevance(score: Float(0.05 + max(0, Double(humidity - 70)) / 100 * 0.5), duration: 3600)
+    }
+}
+
+final class PressureComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        TimelineEntryRelevance(score: 0.08, duration: 3600)
+    }
+}
+
+/// General weather: modest baseline that perks up when precipitation nears.
+final class GeneralComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        let chance = complicationRainChanceFraction(weather)
+        return TimelineEntryRelevance(score: Float(0.15 + chance * 0.5), duration: 3600)
+    }
 }
 
 // MARK: - Complication conveniences on the shared model
@@ -383,33 +492,36 @@ extension WatchWeatherData {
         )
     }
 
-    /// Copy with a different "current" hour — used when building timeline
-    /// entries from the hourly series.
-    func withCurrent(temperature: String, condition: String, emoji: String) -> WatchWeatherData {
+    /// Copy with a different hour's values — used when building timeline
+    /// entries from the hourly series. Each metric falls back to the current
+    /// value when that hour didn't provide one.
+    func forHour(_ hour: WatchHourlyForecast) -> WatchWeatherData {
         WatchWeatherData(
             city: city,
-            temperature: temperature,
+            temperature: hour.temperature,
             feelsLike: feelsLike,
-            condition: condition,
-            emoji: emoji,
-            iconName: iconName,
+            condition: hour.condition,
+            emoji: hour.emoji,
+            iconName: hour.iconName,
             highTemp: highTemp,
             lowTemp: lowTemp,
             hourlyForecast: hourlyForecast,
             dailyForecast: dailyForecast,
-            windSpeed: windSpeed,
+            windSpeed: hour.windSpeedText ?? windSpeed,
             windDirection: windDirection,
             windDirectionDegrees: windDirectionDegrees,
-            uvIndex: uvIndex,
-            rainChance: rainChance,
-            humidity: humidity,
+            uvIndex: hour.uvValue ?? uvIndex,
+            rainChance: hour.precipitationChance ?? rainChance,
+            humidity: hour.humidityPercent ?? humidity,
             pressure: pressure,
             visibility: visibility,
             dewPoint: dewPoint,
             cloudCover: cloudCover,
             sunrise: sunrise,
             sunset: sunset,
-            metadata: metadata
+            metadata: metadata,
+            sunriseDate: sunriseDate,
+            sunsetDate: sunsetDate
         )
     }
 
@@ -993,26 +1105,43 @@ struct AccessoryCornerUVView: View {
 
 struct AccessoryRectangularUVView: View {
     let entry: WatchWeatherEntry
-    
+
+    /// Today's UV peak from the hourly series, when available.
+    private var peak: (value: Int, time: String)? {
+        let upcoming = entry.weather.hourlyForecast
+            .filter { $0.date >= entry.date }
+            .compactMap { hour -> (value: Int, time: String)? in
+                guard let uv = hour.uvValue else { return nil }
+                return (uv, hour.time)
+            }
+        return upcoming.max(by: { $0.value < $1.value })
+    }
+
     var body: some View {
-        let uv = Double(entry.weather.uvIndex ?? 0)
-        
-        Gauge(value: uv, in: 0...12) {
-            Text("UV Index")
-        } currentValueLabel: {
-            Text("\(Int(uv))")
-                .font(.headline)
-        } minimumValueLabel: {
-            Text("Low")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        } maximumValueLabel: {
-            Text("High")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            Gauge(value: Double(entry.weather.uvIndex ?? 0), in: 0...12) {
+                Text("UV Index")
+            } currentValueLabel: {
+                Text("\(entry.weather.uvIndex ?? 0)")
+                    .font(.headline)
+            } minimumValueLabel: {
+                Text("Low")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } maximumValueLabel: {
+                Text("High")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .gaugeStyle(.accessoryLinear)
+            .tint(Gradient(colors: [.green, .yellow, .orange, .red, .purple]))
+
+            if let peak, peak.value > (entry.weather.uvIndex ?? 0) {
+                Text("Peaks \(peak.value) at \(peak.time)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .gaugeStyle(.accessoryLinear)
-        .tint(Gradient(colors: [.green, .yellow, .orange, .red, .purple]))
         .containerBackground(for: .widget) { Color.clear }
     }
 }
@@ -1408,7 +1537,7 @@ struct BreezyGeneralWeatherWidget: Widget {
     let kind: String = "BreezyGeneralWeatherWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: GeneralComplicationProvider()) { entry in
             BreezyGeneralWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Weather (General)")
@@ -1425,7 +1554,7 @@ struct BreezyRainWidget: Widget {
     let kind: String = "BreezyRainWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: RainComplicationProvider()) { entry in
             BreezyRainWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Rain Chance")
@@ -1442,7 +1571,7 @@ struct BreezyUVWidget: Widget {
     let kind: String = "BreezyUVWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: UVComplicationProvider()) { entry in
             BreezyUVWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("UV Index")
@@ -1459,7 +1588,7 @@ struct BreezyWindWidget: Widget {
     let kind: String = "BreezyWindWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: WindComplicationProvider()) { entry in
             BreezyWindWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Wind")
@@ -1476,7 +1605,7 @@ struct BreezyHumidityWidget: Widget {
     let kind: String = "BreezyHumidityWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: HumidityComplicationProvider()) { entry in
             BreezyHumidityWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Humidity")
@@ -1493,7 +1622,7 @@ struct BreezyPressureWidget: Widget {
     let kind: String = "BreezyPressureWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: PressureComplicationProvider()) { entry in
             BreezyPressureWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Pressure")
@@ -1575,7 +1704,7 @@ struct BreezyTempTrendWidget: Widget {
     let kind: String = "BreezyTempTrendWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: TempTrendComplicationProvider()) { entry in
             BreezyTempTrendWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Temperature Trend")
@@ -1656,6 +1785,129 @@ struct AccessoryInlineTempTrendView: View {
     }
 }
 
+// MARK: - Sun Complication
+
+struct BreezySunWidgetEntryView: View {
+    var entry: WatchComplicationProvider.Entry
+    @Environment(\.widgetFamily) var family
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            AccessoryCircularSunView(entry: entry)
+        case .accessoryInline:
+            AccessoryInlineSunView(entry: entry)
+        #if os(watchOS)
+        case .accessoryCorner:
+            AccessoryCornerSunView(entry: entry)
+        #endif
+        default:
+            AccessoryRectangularSunView(entry: entry)
+        }
+    }
+}
+
+/// Fraction of daylight elapsed, 0…1 (nil at night).
+private func daylightProgress(now: Date, sunrise: Date?, sunset: Date?) -> Double? {
+    guard let sunrise, let sunset, sunset > sunrise else { return nil }
+    guard now >= sunrise, now <= sunset else { return nil }
+    return now.timeIntervalSince(sunrise) / sunset.timeIntervalSince(sunrise)
+}
+
+struct AccessoryCircularSunView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        if let progress = daylightProgress(now: entry.date, sunrise: entry.weather.sunriseDate, sunset: entry.weather.sunsetDate) {
+            Gauge(value: progress) {
+                Image(systemName: "sun.max.fill")
+            } currentValueLabel: {
+                Text("\(Int(progress * 100))%")
+                    .font(.headline)
+            }
+            .gaugeStyle(.accessoryCircular)
+            .tint(.orange)
+            .containerBackground(for: .widget) { Color.clear }
+        } else {
+            Image(systemName: "moon.stars.fill")
+                .font(.headline)
+                .containerBackground(for: .widget) { Color.clear }
+        }
+    }
+}
+
+struct AccessoryRectangularSunView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if daylightProgress(now: entry.date, sunrise: entry.weather.sunriseDate, sunset: entry.weather.sunsetDate) != nil {
+                Label("Daylight", systemImage: "sun.max.fill")
+                    .font(.headline)
+            } else {
+                Label("Night", systemImage: "moon.stars.fill")
+                    .font(.headline)
+            }
+            HStack {
+                if let sunrise = entry.weather.sunrise {
+                    Label(sunrise, systemImage: "sunrise.fill")
+                }
+                Spacer()
+                if let sunset = entry.weather.sunset {
+                    Label(sunset, systemImage: "sunset.fill")
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .containerBackground(for: .widget) { Color.clear }
+    }
+}
+
+struct AccessoryInlineSunView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        let now = entry.date
+        if let sunrise = entry.weather.sunriseDate, now < sunrise {
+            Label("Sunrise \(entry.weather.sunrise ?? "")", systemImage: "sunrise.fill")
+        } else if let sunset = entry.weather.sunsetDate, now < sunset {
+            Label("Sunset \(entry.weather.sunset ?? "")", systemImage: "sunset.fill")
+        } else {
+            Label("Sunrise \(entry.weather.sunrise ?? "--")", systemImage: "sunrise.fill")
+        }
+    }
+}
+
+struct AccessoryCornerSunView: View {
+    let entry: WatchWeatherEntry
+
+    var body: some View {
+        Image(systemName: daylightProgress(now: entry.date, sunrise: entry.weather.sunriseDate, sunset: entry.weather.sunsetDate) != nil ? "sun.max.fill" : "moon.stars.fill")
+            .foregroundStyle(.orange)
+            .widgetLabel {
+                Text(entry.weather.sunset ?? entry.weather.sunrise ?? "")
+            }
+    }
+}
+
+struct BreezySunWidget: Widget {
+    let kind: String = "BreezySunWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SunComplicationProvider()) { entry in
+            BreezySunWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Sun")
+        .description("Sunrise, sunset, and daylight progress.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
 @main
 struct BreezyWatchWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -1666,5 +1918,6 @@ struct BreezyWatchWidgetBundle: WidgetBundle {
         BreezyHumidityWidget()
         BreezyPressureWidget()
         BreezyTempTrendWidget()
+        BreezySunWidget()
     }
 }

@@ -232,6 +232,16 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                         if let chance = h.precipitationChance {
                             entry["rain"] = chance
                         }
+                        if let uv = h.uvIndex {
+                            entry["uv"] = uv
+                        }
+                        let windMps = parseWindMetersPerSecond(from: h.windSpeed)
+                        if windMps > 0 {
+                            entry["wind_mps"] = windMps
+                        }
+                        if let humidity = h.humidity {
+                            entry["humidity"] = humidity
+                        }
                         return entry
                     }
                     reply["hourly"] = hourlyData

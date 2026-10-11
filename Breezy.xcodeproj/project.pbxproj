@@ -114,9 +114,9 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				BreezyWatchComplication.swift,
+				Services/WatchOpenMeteoClient.swift,
 				WatchSharedModels.swift,
 				WatchWeatherHelpers.swift,
-				Services/WatchOpenMeteoClient.swift,
 			);
 			target = 8613FBD62EED447D007683C4 /* BreezyWatchWidgetExtensionExtension */;
 		};
