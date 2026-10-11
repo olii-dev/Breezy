@@ -62,6 +62,7 @@ struct DailySummaryLiveActivityWidget: Widget {
                     .font(.caption.weight(.bold))
                     .monospacedDigit()
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(maxWidth: 64)
             } minimal: {
                 Image(systemName: "sun.horizon.fill")

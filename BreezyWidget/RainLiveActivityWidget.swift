@@ -53,9 +53,13 @@ struct RainLiveActivityWidget: Widget {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text("From \(context.state.rainStart.formatted(date: .omitted, time: .shortened))")
+                        Text(context.state.rainEnd.map { end in
+                            "From \(context.state.rainStart.formatted(date: .omitted, time: .shortened)) until \(end.formatted(date: .omitted, time: .shortened))"
+                        } ?? "From \(context.state.rainStart.formatted(date: .omitted, time: .shortened))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                 }
             } compactLeading: {

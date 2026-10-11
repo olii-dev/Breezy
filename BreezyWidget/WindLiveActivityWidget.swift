@@ -49,9 +49,19 @@ struct WindLiveActivityWidget: Widget {
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text("Take care outdoors — secure loose items.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        if let direction = context.state.directionText {
+                            Text(direction)
+                                .font(.caption)
+                                .foregroundStyle(.teal)
+                        }
+                        Spacer()
+                        Text("Take care outdoors — secure loose items")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: "wind")
