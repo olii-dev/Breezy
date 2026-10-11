@@ -102,7 +102,8 @@ struct WatchTemperatureChartView: View {
     }
     
     @State private var selectedIndex: Int? = nil
-    
+    @State private var crownValue: Double = 0
+
     private var selectedPoint: TempPoint? {
         guard let idx = selectedIndex, temps.indices.contains(idx) else { return nil }
         return temps[idx]
@@ -198,6 +199,25 @@ struct WatchTemperatureChartView: View {
         .padding(10)
         .background(textColor.opacity(0.12))
         .cornerRadius(12)
+        // The crown walks the curve alongside tap selection.
+        .digitalCrownRotation(
+            $crownValue,
+            from: 0,
+            through: Double(max(temps.count - 1, 0)),
+            by: 1,
+            sensitivity: .medium,
+            isContinuous: false,
+            isHapticFeedbackEnabled: true
+        )
+        .focusable()
+        .onChange(of: crownValue) { _, newValue in
+            let index = Int(newValue.rounded())
+            guard temps.indices.contains(index), temps[index].index != selectedIndex else { return }
+            selectedIndex = temps[index].index
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.75) {
+                selectedIndex = nil
+            }
+        }
     }
 
     private func selectPoint(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {

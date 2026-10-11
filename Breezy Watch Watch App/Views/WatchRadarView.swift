@@ -16,6 +16,7 @@ import UIKit
 struct WatchRadarView: View {
     @EnvironmentObject var viewModel: WatchWeatherViewModel
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var compositeImage: PlatformImage?
     @State private var frames: [WatchRadarFrame] = []
@@ -24,6 +25,8 @@ struct WatchRadarView: View {
     @State private var errorMessage: String?
     @State private var showLayerPicker: Bool = false
     @State private var animationTask: Task<Void, Never>?
+    /// Whether playback should resume when the wrist comes back up.
+    @State private var resumePlaybackOnActive: Bool = false
 
     @AppStorage(WatchAppStorageKey.radarLayer, store: UserDefaults(suiteName: WatchAppStorageKey.appGroup))
     private var selectedLayerRaw: String = WatchRadarLayer.precipitation.rawValue
@@ -134,6 +137,21 @@ struct WatchRadarView: View {
         .onDisappear {
             stopAnimation()
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .inactive:
+                // Wrist down: pause playback (AOD) and remember intent.
+                resumePlaybackOnActive = isPlaying
+                if isPlaying { stopAnimation() }
+            case .active:
+                if resumePlaybackOnActive {
+                    resumePlaybackOnActive = false
+                    startAnimation()
+                }
+            default:
+                break
+            }
+        }
     }
 
     // MARK: - Header
@@ -198,7 +216,7 @@ struct WatchRadarView: View {
 
             // Location dot at center
             if compositeImage != nil {
-                WatchRadarLocationDot(color: theme.textColor)
+                WatchRadarLocationDot(color: theme.textColor, pulsing: scenePhase == .active)
             }
         }
     }
@@ -362,13 +380,16 @@ struct WatchRadarView: View {
 
 private struct WatchRadarLocationDot: View {
     let color: Color
+    var pulsing: Bool = true
     @State private var animatePulse = false
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(color.opacity(animatePulse ? 0.0 : 0.35))
-                .frame(width: animatePulse ? 22 : 10, height: animatePulse ? 22 : 10)
+            if pulsing {
+                Circle()
+                    .fill(color.opacity(animatePulse ? 0.0 : 0.35))
+                    .frame(width: animatePulse ? 22 : 10, height: animatePulse ? 22 : 10)
+            }
 
             Circle()
                 .fill(color)
@@ -380,9 +401,22 @@ private struct WatchRadarLocationDot: View {
                 .frame(width: 8, height: 8)
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: true)) {
-                animatePulse = true
+            startPulse()
+        }
+        .onChange(of: pulsing) { _, isPulsing in
+            if isPulsing {
+                startPulse()
+            } else {
+                withAnimation(.none) {
+                    animatePulse = false
+                }
             }
+        }
+    }
+
+    private func startPulse() {
+        withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: true)) {
+            animatePulse = true
         }
     }
 }

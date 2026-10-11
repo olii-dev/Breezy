@@ -15,7 +15,9 @@ struct ContentView: View {
     @EnvironmentObject var viewModel: WatchWeatherViewModel
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.colorScheme) var colorScheme
-    
+    /// Wrist down (.inactive) — swap to the dim always-on glance.
+    @State private var isAlwaysOn = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -74,6 +76,12 @@ struct ContentView: View {
                 } else {
                     NoDataView().environmentObject(viewModel)
                 }
+
+                // Always-on glance: wrist down → minimal, black, high-contrast.
+                if isAlwaysOn {
+                    AlwaysOnGlanceView(weather: viewModel.weather)
+                        .transition(.opacity)
+                }
             }
             .refreshable {
                 await viewModel.refresh()
@@ -85,11 +93,79 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isAlwaysOn = newPhase == .inactive
+            }
             if newPhase == .active {
                 Task {
                     await viewModel.loadWeather()
                 }
             }
+        }
+    }
+}
+
+// MARK: - Always-On Glance
+
+/// Minimal wrist-down readout: time, temperature, condition, rain countdown.
+/// Black background (OLED + AOD convention), no interactive controls.
+struct AlwaysOnGlanceView: View {
+    let weather: WatchWeatherData?
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter
+    }()
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { timeline in
+            VStack(spacing: 6) {
+                Text(Self.timeFormatter.string(from: timeline.date))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .monospacedDigit()
+
+                if let weather {
+                    Text(weather.temperature)
+                        .font(.system(size: 44, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white)
+                        .monospacedDigit()
+
+                    HStack(spacing: 6) {
+                        Image(systemName: weather.iconName)
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.8))
+                        Text(weather.condition)
+                            .font(.system(size: 12, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+
+                    Text(weather.city)
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .lineLimit(1)
+
+                    if let summary = WatchRainCountdownBanner.summary(minutes: weather.minuteForecast ?? [], now: timeline.date) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "cloud.rain.fill")
+                                .font(.caption2)
+                            Text(summary.title)
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundStyle(Color.cyan.opacity(0.9))
+                    }
+                } else {
+                    Image(systemName: "cloud.sun.fill")
+                        .font(.title)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
         }
     }
 }

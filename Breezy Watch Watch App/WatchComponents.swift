@@ -141,21 +141,93 @@ struct HourlyForecastHorizontalView: View {
     let hourly: [WatchHourlyForecast]
     let isMinimalist: Bool
     var textColor: Color = .white
-    
+
+    @State private var crownValue: Double = 0
+    @State private var selectedID: Date?
+    @State private var autoHideTask: Task<Void, Never>?
+
+    private var selectedHour: WatchHourlyForecast? {
+        guard let selectedID else { return nil }
+        return hourly.first { $0.date == selectedID }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("HOURLY")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(textColor.opacity(0.6))
                 .padding(.horizontal)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(hourly) { hour in
-                        HourlyCard(hour: hour, isMinimalist: isMinimalist, textColor: textColor)
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(hourly) { hour in
+                            HourlyCard(
+                                hour: hour,
+                                isMinimalist: isMinimalist,
+                                textColor: textColor,
+                                isHighlighted: selectedID == hour.date
+                            )
+                            .id(hour.date)
+                            .scaleEffect(selectedID == hour.date ? 1.12 : 1)
+                            .animation(.easeInOut(duration: 0.15), value: selectedID)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                // The crown walks the hours; the selected card enlarges and the
+                // detail line beneath shows that hour's numbers.
+                .digitalCrownRotation(
+                    $crownValue,
+                    from: 0,
+                    through: Double(max(hourly.count - 1, 0)),
+                    by: 1,
+                    sensitivity: .medium,
+                    isContinuous: false,
+                    isHapticFeedbackEnabled: true
+                )
+                .focusable()
+                .onChange(of: crownValue) { _, newValue in
+                    let index = Int(newValue.rounded())
+                    guard hourly.indices.contains(index) else { return }
+                    selectedID = hourly[index].date
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(hourly[index].date, anchor: .center)
+                    }
+                    scheduleSelectionHide()
+                }
+            }
+
+            if let selected = selectedHour {
+                HStack(spacing: 6) {
+                    Text(selected.condition)
+                    if let chance = selected.precipitationChance {
+                        Text("· \(chance)")
+                    }
+                    if let wind = selected.windSpeedText {
+                        Text("· \(wind)")
                     }
                 }
+                .font(.system(size: 10, design: .rounded))
+                .foregroundColor(textColor.opacity(0.7))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .padding(.horizontal)
+                .transition(.opacity)
+            }
+        }
+        .onDisappear {
+            autoHideTask?.cancel()
+        }
+    }
+
+    private func scheduleSelectionHide() {
+        autoHideTask?.cancel()
+        autoHideTask = Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) {
+                selectedID = nil
             }
         }
     }
@@ -165,7 +237,8 @@ struct HourlyCard: View {
     let hour: WatchHourlyForecast
     let isMinimalist: Bool
     var textColor: Color = .white
-    
+    var isHighlighted: Bool = false
+
     var body: some View {
         VStack(spacing: 6) {
             Text(hour.time)
@@ -173,7 +246,7 @@ struct HourlyCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundColor(.white.opacity(0.7))
-            
+
             if isMinimalist {
                 Image(systemName: hour.iconName)
                     .symbolRenderingMode(.multicolor)
@@ -182,7 +255,7 @@ struct HourlyCard: View {
                 Text(hour.emoji)
                     .font(.system(size: 16))
             }
-            
+
             Text(hour.temperature)
                 .font(.system(size: 14, weight: .semibold))
                 .lineLimit(1)
@@ -192,8 +265,12 @@ struct HourlyCard: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .foregroundColor(textColor)
-        .background(textColor.opacity(0.1))
+        .background(isHighlighted ? Color.cyan.opacity(0.3) : textColor.opacity(0.1))
         .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.cyan.opacity(isHighlighted ? 0.8 : 0), lineWidth: 1)
+        )
     }
 }
 
