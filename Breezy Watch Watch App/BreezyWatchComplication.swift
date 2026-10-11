@@ -7,6 +7,7 @@
 
 import WidgetKit
 import SwiftUI
+import Charts
 import WeatherKit
 import CoreLocation
 
@@ -64,99 +65,82 @@ class WatchWidgetLocationManager: NSObject, CLLocationManagerDelegate, @unchecke
 
 struct WatchComplicationProvider: TimelineProvider {
     typealias Entry = WatchWeatherEntry
-    
+
     func placeholder(in context: Context) -> WatchWeatherEntry {
         WatchWeatherEntry(
             date: Date(),
-            weather: WatchWeatherData(
+            weather: WatchWeatherData.complication(
                 city: "San Francisco",
-                temperature: "72°F",
+                temperature: "72°",
                 condition: "Sunny",
                 emoji: "☀️",
-                highTemp: "75°F",
-                lowTemp: "68°F",
-                hourlyForecast: [],
+                highTemp: "75°",
+                lowTemp: "68°",
                 uvIndex: 5,
                 windSpeed: "12 mph",
                 windDirectionDegrees: 180,
                 rainChance: "0%",
-                humidity: "45%",
+                humidity: 45,
                 pressure: "1013 hPa"
             )
         )
     }
-    
+
     func getSnapshot(in context: Context, completion: @escaping (WatchWeatherEntry) -> Void) {
         if let cachedData = loadCachedWeatherData() {
-            let entry = WatchWeatherEntry(date: Date(), weather: cachedData)
-            completion(entry)
+            completion(WatchWeatherEntry(date: Date(), weather: cachedData))
         } else {
             completion(placeholder(in: context))
         }
     }
-    
+
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchWeatherEntry>) -> Void) {
         let cachedData = loadCachedWeatherData()
-        let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
-        
+        let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup)
+
         func createEntries(from data: WatchWeatherData) -> [WatchWeatherEntry] {
-            var ent: [WatchWeatherEntry] = []
+            var entries: [WatchWeatherEntry] = []
             let now = Date()
-            ent.append(WatchWeatherEntry(date: now, weather: data))
-            
-            for i in 1...4 {
-                if let futureDate = Calendar.current.date(byAdding: .hour, value: i, to: now) {
-                    let hourComp = Calendar.current.component(.hour, from: futureDate)
-                    var futureWeather = data
-                    
-                    if let matching = data.hourlyForecast.first(where: { h in
-                        h.time == complicationHourString(hourComp)
-                    }) {
-                        futureWeather = WatchWeatherData(
-                            city: data.city,
-                            temperature: matching.temperature,
-                            condition: matching.condition,
-                            emoji: matching.emoji,
-                            highTemp: data.highTemp,
-                            lowTemp: data.lowTemp,
-                            hourlyForecast: data.hourlyForecast,
-                            uvIndex: data.uvIndex,
-                            windSpeed: data.windSpeed,
-                            windDirectionDegrees: data.windDirectionDegrees,
-                            rainChance: data.rainChance,
-                            humidity: data.humidity,
-                            pressure: data.pressure
-                        )
-                    }
-                    ent.append(WatchWeatherEntry(date: futureDate, weather: futureWeather))
+            entries.append(WatchWeatherEntry(date: now, weather: data))
+
+            // Real hourly dates from the full-forecast cache/feed: each entry
+            // carries the matching hour's conditions.
+            for offset in 1...4 {
+                guard let futureDate = Calendar.current.date(byAdding: .hour, value: offset, to: now) else { continue }
+                let futureWeather: WatchWeatherData
+                if let matching = data.hourlyForecast.first(where: { Calendar.current.isDate($0.date, equalTo: futureDate, toGranularity: .hour) }) {
+                    futureWeather = data.withCurrent(temperature: matching.temperature, condition: matching.condition, emoji: matching.emoji)
+                } else {
+                    futureWeather = data
                 }
+                entries.append(WatchWeatherEntry(date: futureDate, weather: futureWeather))
             }
-            return ent
+            return entries
         }
-    
+
         Task {
             struct Coord { let lat: Double; let lon: Double; let name: String? }
-            
+
             struct LocalSavedLocation: Decodable {
                 let id: UUID
                 let name: String
                 let latitude: Double
                 let longitude: Double
             }
-            
+
             var targetLocation: Coord? = nil
-            
+
             if let idStr = defaults?.string(forKey: "WatchSelectedLocationID"),
                let savedData = defaults?.data(forKey: "WatchSavedLocations"),
                let savedLocs = try? JSONDecoder().decode([LocalSavedLocation].self, from: savedData),
                let match = savedLocs.first(where: { $0.id.uuidString == idStr }) {
-                
+
                 targetLocation = Coord(lat: match.latitude, lon: match.longitude, name: match.name)
             }
-            
+
             if targetLocation == nil {
                 let shouldFollowGPS = defaults?.bool(forKey: "Breezy.shouldFollowGPS") ?? true
-                
+
                 if shouldFollowGPS {
                     do {
                         let loc = try await WatchWidgetLocationManager.shared.requestLocation()
@@ -167,96 +151,54 @@ struct WatchComplicationProvider: TimelineProvider {
                     }
                 }
             }
-            
+
             if targetLocation == nil {
-                let lat = defaults?.double(forKey: "WatchLastLatitude") ?? defaults?.double(forKey: "LastLatitude")
-                let lon = defaults?.double(forKey: "WatchLastLongitude") ?? defaults?.double(forKey: "LastLongitude")
-                if let lat = lat, let lon = lon, lat != 0, lon != 0 {
+                let lat = defaults?.object(forKey: "WatchLastLatitude") as? Double
+                let lon = defaults?.object(forKey: "WatchLastLongitude") as? Double
+                if let lat, let lon, lat != 0, lon != 0 {
                     targetLocation = Coord(lat: lat, lon: lon, name: nil)
                 }
             }
-            
+
             guard let coords = targetLocation else {
                 if let data = cachedData {
-                    let entries = createEntries(from: data)
-                    completion(Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60))))
+                    completion(Timeline(entries: createEntries(from: data), policy: .after(Date().addingTimeInterval(30 * 60))))
                 } else {
                     completion(Timeline(entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(30 * 60))))
                 }
                 return
             }
-            
-            do {
-                let location = CLLocation(latitude: coords.lat, longitude: coords.lon)
-                let weather = try await WeatherService.shared.weather(for: location)
-                
-                let tempUnitStr = defaults?.string(forKey: "Breezy.temperatureUnit") ?? "Celsius"
-                let isFahrenheit = tempUnitStr == "Fahrenheit"
-                
-                let currentTempVal = isFahrenheit ? weather.currentWeather.temperature.converted(to: .fahrenheit).value : weather.currentWeather.temperature.converted(to: .celsius).value
-                let tempStr = String(format: "%.0f°", currentTempVal)
-                let cond = weather.currentWeather.condition.description
-                
-                let daily = weather.dailyForecast.first
-                let highVal = isFahrenheit ? daily?.highTemperature.converted(to: .fahrenheit).value : daily?.highTemperature.converted(to: .celsius).value
-                let lowVal = isFahrenheit ? daily?.lowTemperature.converted(to: .fahrenheit).value : daily?.lowTemperature.converted(to: .celsius).value
-                
-                let highStr = highVal.map { String(format: "%.0f°", $0) }
-                let lowStr = lowVal.map { String(format: "%.0f°", $0) }
-                
-                var hourlyItems: [WatchHourlyForecast] = []
-                let next12 = weather.hourlyForecast.filter { $0.date >= Date() }.prefix(12)
-                for h in next12 {
-                    let hVal = isFahrenheit ? h.temperature.converted(to: .fahrenheit).value : h.temperature.converted(to: .celsius).value
-                    let hStr = String(format: "%.0f°", hVal)
-                    let timeStr = complicationHourString(Calendar.current.component(.hour, from: h.date))
-                    
-                    hourlyItems.append(WatchHourlyForecast(
-                        time: timeStr,
-                        temperature: hStr,
-                        emoji: "☀️",
-                        condition: h.condition.description
-                    ))
-                }
-                
-                var finalCity: String
-                
-                if let manualName = coords.name {
-                    finalCity = manualName
-                } else {
-                    var geocodedCity = cachedData?.city
-                    if let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
-                       let city = placemarks.first?.locality {
-                        geocodedCity = city
-                    }
-                    finalCity = geocodedCity ?? "My Location"
-                }
 
-                let freshData = WatchWeatherData(
-                    city: finalCity,
-                    temperature: tempStr,
-                    condition: cond,
-                    emoji: "🌡️",
-                    highTemp: highStr,
-                    lowTemp: lowStr,
-                    hourlyForecast: hourlyItems,
-                    uvIndex: Int(weather.currentWeather.uvIndex.value),
-                    windSpeed: "\(Int(weather.currentWeather.wind.speed.value)) \(isFahrenheit ? "mph" : "km/h")",
-                    windDirectionDegrees: weather.currentWeather.wind.direction.converted(to: .degrees).value,
-                    rainChance: "\(Int((weather.dailyForecast.first?.precipitationChance ?? 0) * 100))%",
-                    humidity: "\(Int(weather.currentWeather.humidity * 100))%",
-                    pressure: nil
-                )
-                
-                let entries = createEntries(from: freshData)
-                let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60)))
-                completion(timeline)
-                
+            // City: saved name, else reverse geocode, else the cache's.
+            let city: String
+            if let manualName = coords.name {
+                city = manualName
+            } else if let placemarks = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: coords.lat, longitude: coords.lon)),
+                      let locality = placemarks.first?.locality {
+                city = locality
+            } else {
+                city = cachedData?.city ?? "My Location"
+            }
+
+            // Honor the source selection — Open-Meteo fetches no longer fall
+            // back to WeatherKit data the user didn't ask for.
+            let fetched: WatchWeatherData
+            do {
+                switch selectedSource() {
+                case .openMeteo:
+                    fetched = try await WatchOpenMeteoClient.shared.fetchWeather(
+                        latitude: coords.lat,
+                        longitude: coords.lon,
+                        city: city,
+                        units: currentUnits()
+                    )
+                case .weatherKit:
+                    fetched = try await fetchFromWeatherKit(lat: coords.lat, lon: coords.lon, city: city)
+                }
+                completion(Timeline(entries: createEntries(from: fetched), policy: .after(Date().addingTimeInterval(30 * 60))))
             } catch {
                 if let data = cachedData {
-                    let entries = createEntries(from: data)
-                    let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(30 * 60)))
-                    completion(timeline)
+                    completion(Timeline(entries: createEntries(from: data), policy: .after(Date().addingTimeInterval(30 * 60))))
                 } else {
                     completion(Timeline(entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(15 * 60))))
                 }
@@ -264,40 +206,92 @@ struct WatchComplicationProvider: TimelineProvider {
         }
     }
 
-    private func loadCachedWeatherData() -> WatchWeatherData? {
-        guard let defaults = UserDefaults(suiteName: "group.com.breezy.weather") else {
-            return nil
+    private func selectedSource() -> WatchSelectedWeatherSource {
+        let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup)
+        return defaults?.string(forKey: WatchAppStorageKey.weatherSource).flatMap(WatchSelectedWeatherSource.init(rawValue:))
+            ?? defaults?.string(forKey: WatchAppStorageKey.phoneWeatherSource).flatMap(WatchSelectedWeatherSource.init(rawValue:))
+            ?? .weatherKit
+    }
+
+    private func currentUnits() -> (temperature: WatchTemperatureUnit, wind: WindSpeedUnit, pressure: PressureUnit, visibility: VisibilityUnit) {
+        let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup)
+        let wind = defaults?.string(forKey: WatchAppStorageKey.windSpeedUnit).flatMap(WindSpeedUnit.init(rawValue:)) ?? .metersPerSecond
+        let pressure = defaults?.string(forKey: WatchAppStorageKey.pressureUnit).flatMap(PressureUnit.init(rawValue:)) ?? .hectopascals
+        let visibility = defaults?.string(forKey: WatchAppStorageKey.visibilityUnit).flatMap(VisibilityUnit.init(rawValue:)) ?? .kilometers
+        return (WatchTemperatureUnit.fromUserDefaults(), wind, pressure, visibility)
+    }
+
+    private func fetchFromWeatherKit(lat: Double, lon: Double, city: String) async throws -> WatchWeatherData {
+        let weather = try await WeatherService.shared.weather(for: CLLocation(latitude: lat, longitude: lon))
+        let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup)
+        // The value may be "Fahrenheit" (phone push) or "fahrenheit" (watch).
+        let isFahrenheit = (defaults?.string(forKey: WatchAppStorageKey.temperatureUnit) ?? "celsius").lowercased().hasPrefix("f")
+
+        func temp(_ measurement: Measurement<UnitTemperature>) -> String {
+            let value = isFahrenheit ? measurement.converted(to: .fahrenheit).value : measurement.converted(to: .celsius).value
+            return String(format: "%.0f°", value)
         }
-        
-        if let sharedData = defaults.data(forKey: "BreezyWidgetData"),
-           let decoded = try? JSONDecoder().decode(SharedWeatherData.self, from: sharedData) {
-            
-            let hourlyForecast = decoded.hourlyForecast.map { hour in
+
+        let condition = weather.currentWeather.condition.description
+        let daily = weather.dailyForecast.first
+        let hourly: [WatchHourlyForecast] = weather.hourlyForecast
+            .filter { $0.date >= Date() }
+            .prefix(12)
+            .map { h in
                 WatchHourlyForecast(
-                    time: hour.time,
-                    temperature: hour.temperature,
-                    emoji: hour.emoji,
-                    condition: hour.condition ?? ""
+                    date: h.date,
+                    time: complicationHourString(Calendar.current.component(.hour, from: h.date)),
+                    temperature: temp(h.temperature),
+                    emoji: "☀️",
+                    iconName: WatchWeatherIconHelper.minimalistIcon(for: h.condition.description),
+                    condition: h.condition.description,
+                    precipitationChance: String(format: "%.0f%%", h.precipitationChance * 100)
                 )
             }
-            
-            return WatchWeatherData(
-                city: decoded.city,
-                temperature: decoded.temperature,
-                condition: decoded.condition,
-                emoji: decoded.emoji,
-                highTemp: decoded.highTemp,
-                lowTemp: decoded.lowTemp,
-                hourlyForecast: hourlyForecast,
-                uvIndex: decoded.uvIndex,
-                windSpeed: decoded.windSpeed,
-                windDirectionDegrees: nil,
-                rainChance: decoded.rainChance,
-                humidity: nil,
-                pressure: decoded.pressure
-            )
+
+        let windUnit = currentUnits().wind
+        let windMps = weather.currentWeather.wind.speed.converted(to: .metersPerSecond).value
+
+        return WatchWeatherData(
+            city: city,
+            temperature: temp(weather.currentWeather.temperature),
+            feelsLike: temp(weather.currentWeather.apparentTemperature),
+            condition: condition,
+            emoji: "🌡️",
+            iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
+            highTemp: daily.map { temp($0.highTemperature) },
+            lowTemp: daily.map { temp($0.lowTemperature) },
+            hourlyForecast: Array(hourly),
+            dailyForecast: [],
+            windSpeed: String(format: "%.0f %@", windUnit.convert(windMps), windUnit.displayName),
+            windDirection: WatchWindDirectionHelper.cardinalDirection(from: weather.currentWeather.wind.direction.converted(to: .degrees).value),
+            windDirectionDegrees: weather.currentWeather.wind.direction.converted(to: .degrees).value,
+            uvIndex: Int(weather.currentWeather.uvIndex.value),
+            rainChance: daily.map { String(format: "%.0f%%", $0.precipitationChance * 100) },
+            humidity: Int(weather.currentWeather.humidity * 100),
+            pressure: String(format: "%.0f hPa", weather.currentWeather.pressure.converted(to: .hectopascals).value),
+            visibility: nil,
+            dewPoint: temp(weather.currentWeather.dewPoint),
+            cloudCover: String(format: "%.0f%%", weather.currentWeather.cloudCover * 100),
+            sunrise: nil,
+            sunset: nil,
+            metadata: WatchWeatherMetadata(source: .weatherKit, fetchedAt: Date(), isStale: false, latitude: lat, longitude: lon)
+        )
+    }
+
+    /// Full-forecast blob first (complete data), then the legacy scalar cache.
+    private func loadCachedWeatherData() -> WatchWeatherData? {
+        guard let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup) else {
+            return nil
         }
-        
+
+        if let data = defaults.data(forKey: WatchAppStorageKey.lastForecast),
+           let decoded = try? JSONDecoder().decode(WatchWeatherData.self, from: data) {
+            var weather = decoded
+            weather.metadata.isStale = false
+            return weather
+        }
+
         if let city = defaults.string(forKey: "WatchLastCity"),
            let temp = defaults.string(forKey: "WatchLastTemperature"),
            let condition = defaults.string(forKey: "WatchLastCondition"),
@@ -306,20 +300,30 @@ struct WatchComplicationProvider: TimelineProvider {
             return WatchWeatherData(
                 city: city,
                 temperature: temp,
+                feelsLike: nil,
                 condition: condition,
                 emoji: emoji,
+                iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
                 highTemp: defaults.string(forKey: "WatchLastHighTemp"),
                 lowTemp: defaults.string(forKey: "WatchLastLowTemp"),
                 hourlyForecast: [],
-                uvIndex: nil,
+                dailyForecast: [],
                 windSpeed: nil,
+                windDirection: nil,
                 windDirectionDegrees: nil,
+                uvIndex: nil,
                 rainChance: nil,
                 humidity: nil,
-                pressure: nil
+                pressure: nil,
+                visibility: nil,
+                dewPoint: nil,
+                cloudCover: nil,
+                sunrise: nil,
+                sunset: nil,
+                metadata: WatchWeatherMetadata(source: .cache, fetchedAt: Date(), isStale: false, latitude: nil, longitude: nil)
             )
         }
-        
+
         return nil
     }
 }
@@ -331,30 +335,88 @@ struct WatchWeatherEntry: TimelineEntry {
     let weather: WatchWeatherData
 }
 
-// MARK: - Watch Weather Data Model
+// MARK: - Complication conveniences on the shared model
 
-struct WatchWeatherData {
-    let city: String
-    let temperature: String
-    let condition: String
-    let emoji: String
-    let highTemp: String?
-    let lowTemp: String?
-    let hourlyForecast: [WatchHourlyForecast]
-    let uvIndex: Int?
-    let windSpeed: String?
-    let windDirectionDegrees: Double?
-    let rainChance: String?
-    let humidity: String?
-    let pressure: String?
-}
+extension WatchWeatherData {
+    /// Compact initializer for complication construction sites.
+    static func complication(
+        city: String,
+        temperature: String,
+        condition: String,
+        emoji: String,
+        iconName: String? = nil,
+        highTemp: String? = nil,
+        lowTemp: String? = nil,
+        hourly: [WatchHourlyForecast] = [],
+        uvIndex: Int? = nil,
+        windSpeed: String? = nil,
+        windDirectionDegrees: Double? = nil,
+        rainChance: String? = nil,
+        humidity: Int? = nil,
+        pressure: String? = nil,
+        source: WatchWeatherDataSource = .cache
+    ) -> WatchWeatherData {
+        WatchWeatherData(
+            city: city,
+            temperature: temperature,
+            feelsLike: nil,
+            condition: condition,
+            emoji: emoji,
+            iconName: iconName ?? WatchWeatherIconHelper.minimalistIcon(for: condition),
+            highTemp: highTemp,
+            lowTemp: lowTemp,
+            hourlyForecast: hourly,
+            dailyForecast: [],
+            windSpeed: windSpeed,
+            windDirection: nil,
+            windDirectionDegrees: windDirectionDegrees,
+            uvIndex: uvIndex,
+            rainChance: rainChance,
+            humidity: humidity,
+            pressure: pressure,
+            visibility: nil,
+            dewPoint: nil,
+            cloudCover: nil,
+            sunrise: nil,
+            sunset: nil,
+            metadata: WatchWeatherMetadata(source: source, fetchedAt: Date(), isStale: false, latitude: nil, longitude: nil)
+        )
+    }
 
-struct WatchHourlyForecast: Identifiable {
-    let id = UUID()
-    let time: String
-    let temperature: String
-    let emoji: String
-    let condition: String
+    /// Copy with a different "current" hour — used when building timeline
+    /// entries from the hourly series.
+    func withCurrent(temperature: String, condition: String, emoji: String) -> WatchWeatherData {
+        WatchWeatherData(
+            city: city,
+            temperature: temperature,
+            feelsLike: feelsLike,
+            condition: condition,
+            emoji: emoji,
+            iconName: iconName,
+            highTemp: highTemp,
+            lowTemp: lowTemp,
+            hourlyForecast: hourlyForecast,
+            dailyForecast: dailyForecast,
+            windSpeed: windSpeed,
+            windDirection: windDirection,
+            windDirectionDegrees: windDirectionDegrees,
+            uvIndex: uvIndex,
+            rainChance: rainChance,
+            humidity: humidity,
+            pressure: pressure,
+            visibility: visibility,
+            dewPoint: dewPoint,
+            cloudCover: cloudCover,
+            sunrise: sunrise,
+            sunset: sunset,
+            metadata: metadata
+        )
+    }
+
+    /// Humidity formatted the way complication views render it.
+    var humidityPercent: String? {
+        humidity.map { "\($0)%" }
+    }
 }
 
 /// 12/24-hour hour labels that match the format used across the watch app.
@@ -367,31 +429,6 @@ private func complicationHourString(_ hour: Int) -> String {
     case 12: return "12PM"
     case 1..<12: return "\(hour)AM"
     default: return "\(hour - 12)PM"
-    }
-}
-
-// MARK: - Shared Data Model (from iOS app)
-
-private struct SharedWeatherData: Codable {
-    let city: String
-    let temperature: String
-    let condition: String
-    let emoji: String
-    let highTemp: String?
-    let lowTemp: String?
-    let hourlyForecast: [SharedHourlyForecast]
-    let timestamp: Date
-    let useMinimalistIcons: Bool?
-    let uvIndex: Int?
-    let pressure: String?
-    let windSpeed: String?
-    let rainChance: String?
-    
-    struct SharedHourlyForecast: Codable {
-        let time: String
-        let temperature: String
-        let emoji: String
-        let condition: String?
     }
 }
 
@@ -1063,7 +1100,7 @@ struct AccessoryCircularHumidityView: View {
     let entry: WatchWeatherEntry
     
     var body: some View {
-        let humidityStr = entry.weather.humidity ?? "0%"
+        let humidityStr = entry.weather.humidityPercent ?? "0%"
         let humidityVal = Double(humidityStr.replacingOccurrences(of: "%", with: "")) ?? 0
         
         Gauge(value: humidityVal, in: 0...100) {
@@ -1083,7 +1120,7 @@ struct AccessoryRectangularHumidityView: View {
     let entry: WatchWeatherEntry
     
     var body: some View {
-        let humidityStr = entry.weather.humidity ?? "0%"
+        let humidityStr = entry.weather.humidityPercent ?? "0%"
         let humidityVal = Double(humidityStr.replacingOccurrences(of: "%", with: "")) ?? 0
         
         Gauge(value: humidityVal, in: 0...100) {
@@ -1113,11 +1150,11 @@ struct AccessoryInlineHumidityView: View {
         ViewThatFits {
             HStack {
                 Image(systemName: "drop.fill")
-                Text("Humidity: \(entry.weather.humidity ?? "0%")")
+                Text("Humidity: \(entry.weather.humidityPercent ?? "0%")")
             }
             HStack {
                 Image(systemName: "drop.fill")
-                Text(entry.weather.humidity ?? "0%")
+                Text(entry.weather.humidityPercent ?? "0%")
             }
         }
     }
@@ -1127,7 +1164,7 @@ struct AccessoryCornerHumidityView: View {
     let entry: WatchWeatherEntry
     
     var body: some View {
-        let humidityStr = entry.weather.humidity ?? "0%"
+        let humidityStr = entry.weather.humidityPercent ?? "0%"
         let humidityVal = Double(humidityStr.replacingOccurrences(of: "%", with: "")) ?? 0
         
         Gauge(value: humidityVal, in: 0...100) {
@@ -1238,15 +1275,19 @@ struct AccessoryCornerPressureView: View {
 struct BreezyRainWidgetEntryView: View {
     var entry: WatchComplicationProvider.Entry
     @Environment(\.widgetFamily) var family
-    
+
     var body: some View {
         switch family {
         case .accessoryCircular:
             AccessoryCircularRainView(entry: entry)
         case .accessoryRectangular:
-            AccessoryRectangularRainView(entry: entry)
+            AccessoryRectangularRainChartView(entry: entry)
         case .accessoryInline:
             AccessoryInlineRainView(entry: entry)
+        #if os(watchOS)
+        case .accessoryCorner:
+            AccessoryCornerRainView(entry: entry)
+        #endif
         default:
             AccessoryCircularRainView(entry: entry)
         }
@@ -1256,7 +1297,7 @@ struct BreezyRainWidgetEntryView: View {
 struct BreezyUVWidgetEntryView: View {
     var entry: WatchComplicationProvider.Entry
     @Environment(\.widgetFamily) var family
-    
+
     var body: some View {
         switch family {
         case .accessoryCircular:
@@ -1265,6 +1306,10 @@ struct BreezyUVWidgetEntryView: View {
             AccessoryRectangularUVView(entry: entry)
         case .accessoryInline:
             AccessoryInlineUVView(entry: entry)
+        #if os(watchOS)
+        case .accessoryCorner:
+            AccessoryCornerUVView(entry: entry)
+        #endif
         default:
             AccessoryCircularUVView(entry: entry)
         }
@@ -1274,7 +1319,7 @@ struct BreezyUVWidgetEntryView: View {
 struct BreezyWindWidgetEntryView: View {
     var entry: WatchComplicationProvider.Entry
     @Environment(\.widgetFamily) var family
-    
+
     var body: some View {
         switch family {
         case .accessoryCircular:
@@ -1283,6 +1328,10 @@ struct BreezyWindWidgetEntryView: View {
             AccessoryRectangularWindView(entry: entry)
         case .accessoryInline:
             AccessoryInlineWindView(entry: entry)
+        #if os(watchOS)
+        case .accessoryCorner:
+            AccessoryCornerWindView(entry: entry)
+        #endif
         default:
             AccessoryCircularWindView(entry: entry)
         }
@@ -1292,7 +1341,7 @@ struct BreezyWindWidgetEntryView: View {
 struct BreezyHumidityWidgetEntryView: View {
     var entry: WatchComplicationProvider.Entry
     @Environment(\.widgetFamily) var family
-    
+
     var body: some View {
         switch family {
         case .accessoryCircular:
@@ -1301,6 +1350,10 @@ struct BreezyHumidityWidgetEntryView: View {
             AccessoryRectangularHumidityView(entry: entry)
         case .accessoryInline:
             AccessoryInlineHumidityView(entry: entry)
+        #if os(watchOS)
+        case .accessoryCorner:
+            AccessoryCornerHumidityView(entry: entry)
+        #endif
         default:
             AccessoryCircularHumidityView(entry: entry)
         }
@@ -1310,7 +1363,7 @@ struct BreezyHumidityWidgetEntryView: View {
 struct BreezyPressureWidgetEntryView: View {
     var entry: WatchComplicationProvider.Entry
     @Environment(\.widgetFamily) var family
-    
+
     var body: some View {
         switch family {
         case .accessoryCircular:
@@ -1319,6 +1372,10 @@ struct BreezyPressureWidgetEntryView: View {
             AccessoryRectangularPressureView(entry: entry)
         case .accessoryInline:
             AccessoryInlinePressureView(entry: entry)
+        #if os(watchOS)
+        case .accessoryCorner:
+            AccessoryCornerPressureView(entry: entry)
+        #endif
         default:
             AccessoryCircularPressureView(entry: entry)
         }
@@ -1328,7 +1385,7 @@ struct BreezyPressureWidgetEntryView: View {
 struct BreezyGeneralWidgetEntryView: View {
     var entry: WatchComplicationProvider.Entry
     @Environment(\.widgetFamily) var family
-    
+
     var body: some View {
         switch family {
         case .accessoryCircular:
@@ -1349,7 +1406,7 @@ struct BreezyGeneralWidgetEntryView: View {
 
 struct BreezyGeneralWeatherWidget: Widget {
     let kind: String = "BreezyGeneralWeatherWidget"
-    
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
             BreezyGeneralWidgetEntryView(entry: entry)
@@ -1366,66 +1423,236 @@ struct BreezyGeneralWeatherWidget: Widget {
 
 struct BreezyRainWidget: Widget {
     let kind: String = "BreezyRainWidget"
-    
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
             BreezyRainWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Rain Chance")
         .description("Precipitation probability.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
     }
 }
 
 struct BreezyUVWidget: Widget {
     let kind: String = "BreezyUVWidget"
-    
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
             BreezyUVWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("UV Index")
         .description("Current UV intensity.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
     }
 }
 
 struct BreezyWindWidget: Widget {
     let kind: String = "BreezyWindWidget"
-    
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
             BreezyWindWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Wind")
         .description("Wind speed.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
     }
 }
 
 struct BreezyHumidityWidget: Widget {
     let kind: String = "BreezyHumidityWidget"
-    
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
             BreezyHumidityWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Humidity")
         .description("Relative humidity percentage.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
     }
 }
 
 struct BreezyPressureWidget: Widget {
     let kind: String = "BreezyPressureWidget"
-    
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
             BreezyPressureWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Pressure")
         .description("Atmospheric pressure.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
+// MARK: - Chart Complications (watchOS 10+)
+
+/// Rain chance as a bar chart over the next hours (rectangular family).
+struct AccessoryRectangularRainChartView: View {
+    var entry: WatchComplicationProvider.Entry
+
+    private struct Bar: Identifiable {
+        let id = UUID()
+        let label: String
+        let value: Double
+    }
+
+    private var bars: [Bar] {
+        entry.weather.hourlyForecast
+            .filter { $0.date >= entry.date }
+            .prefix(6)
+            .map { hour in
+                let chance = hour.precipitationChance
+                    .flatMap { Double($0.replacingOccurrences(of: "%", with: "")) }
+                return Bar(label: hour.time, value: chance ?? 0)
+            }
+    }
+
+    var body: some View {
+        if bars.isEmpty {
+            AccessoryRectangularRainView(entry: entry)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "cloud.rain.fill")
+                        .font(.caption2)
+                    Text("Rain next \(bars.count)h")
+                        .font(.caption2)
+                    Spacer()
+                    Text("\(entry.weather.rainChance ?? "0%")")
+                        .font(.caption2.weight(.bold))
+                }
+                Chart(bars) { bar in
+                    BarMark(
+                        x: .value("Hour", bar.label),
+                        y: .value("Chance", bar.value)
+                    )
+                    .foregroundStyle(.cyan.gradient)
+                }
+                .chartYScale(domain: 0...100)
+            }
+        }
+    }
+}
+
+/// Temperature trend chart — the watch-native heart of the overhaul.
+struct BreezyTempTrendWidgetEntryView: View {
+    var entry: WatchComplicationProvider.Entry
+    @Environment(\.widgetFamily) var family
+
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            AccessoryInlineTempTrendView(entry: entry)
+        default:
+            AccessoryRectangularTempTrendView(entry: entry)
+        }
+    }
+}
+
+struct BreezyTempTrendWidget: Widget {
+    let kind: String = "BreezyTempTrendWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: WatchComplicationProvider()) { entry in
+            BreezyTempTrendWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Temperature Trend")
+        .description("Temperature curve for the next hours.")
+        .supportedFamilies([.accessoryRectangular, .accessoryInline])
+    }
+}
+
+struct AccessoryRectangularTempTrendView: View {
+    var entry: WatchComplicationProvider.Entry
+
+    private struct Point: Identifiable {
+        let id = UUID()
+        let date: Date
+        let temp: Double
+    }
+
+    private var series: [Point] {
+        entry.weather.hourlyForecast
+            .filter { $0.date >= entry.date }
+            .prefix(12)
+            .compactMap { hour in
+                let digits = hour.temperature.replacingOccurrences(of: "°", with: "").replacingOccurrences(of: "F", with: "").replacingOccurrences(of: "C", with: "")
+                guard let value = Double(digits) else { return nil }
+                return Point(date: hour.date, temp: value)
+            }
+    }
+
+    var body: some View {
+        if series.count < 2 {
+            AccessoryRectangularComplicationView(entry: entry)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text("\(entry.weather.temperature)")
+                        .font(.headline)
+                    Text("next \(series.count)h")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                Chart(series) { point in
+                    LineMark(
+                        x: .value("Time", point.date),
+                        y: .value("Temp", point.temp)
+                    )
+                    .foregroundStyle(.orange.gradient)
+                    .interpolationMethod(.catmullRom)
+                    AreaMark(
+                        x: .value("Time", point.date),
+                        y: .value("Temp", point.temp)
+                    )
+                    .foregroundStyle(.orange.opacity(0.2).gradient)
+                    .interpolationMethod(.catmullRom)
+                }
+            }
+        }
+    }
+}
+
+struct AccessoryInlineTempTrendView: View {
+    var entry: WatchComplicationProvider.Entry
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "thermometer.medium")
+            Text(entry.weather.temperature)
+            if let high = entry.weather.highTemp, let low = entry.weather.lowTemp {
+                Text("(\(low)–\(high))")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .widgetLabel {
+            if entry.weather.hourlyForecast.filter({ $0.date >= entry.date }).count >= 2 {
+                Text("Trend available")
+            }
+        }
     }
 }
 
@@ -1438,5 +1665,6 @@ struct BreezyWatchWidgetBundle: WidgetBundle {
         BreezyWindWidget()
         BreezyHumidityWidget()
         BreezyPressureWidget()
+        BreezyTempTrendWidget()
     }
 }
