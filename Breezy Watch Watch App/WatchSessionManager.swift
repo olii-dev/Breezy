@@ -33,24 +33,29 @@ class WatchSessionManager: NSObject, WCSessionDelegate {
     
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
         DispatchQueue.main.async {
-            let defaults = UserDefaults.standard
-            
+            // Watch-local mirror, consistent with the watch's own settings writes.
+            let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup) ?? .standard
+
             if let useMinimalistIcons = applicationContext["useMinimalistIcons"] as? Bool {
                 defaults.set(useMinimalistIcons, forKey: "Breezy.useMinimalistIcons")
             }
-            
+
             if let tempRaw = applicationContext["Breezy.temperatureUnit"] as? String {
-                defaults.set(tempRaw, forKey: "Breezy.temperatureUnit")
+                // The phone pushes "Celsius"/"Fahrenheit" rawValues; the watch's
+                // TemperatureUnit uses lowercase — normalize or the value never parses.
+                let normalized = tempRaw.lowercased()
+                let mapped = normalized == "fahrenheit" || normalized == "f" ? "fahrenheit" : "celsius"
+                defaults.set(mapped, forKey: "Breezy.temperatureUnit")
             }
-            
+
             if let windRaw = applicationContext["Breezy.windSpeedUnit"] as? String {
                 defaults.set(windRaw, forKey: "Breezy.windSpeedUnit")
             }
-            
+
             if let pressureRaw = applicationContext["Breezy.pressureUnit"] as? String {
                 defaults.set(pressureRaw, forKey: "Breezy.pressureUnit")
             }
-            
+
             if let visRaw = applicationContext["Breezy.visibilityUnit"] as? String {
                 defaults.set(visRaw, forKey: "Breezy.visibilityUnit")
             }
@@ -58,7 +63,15 @@ class WatchSessionManager: NSObject, WCSessionDelegate {
             if let precipRaw = applicationContext["Breezy.precipitationUnit"] as? String {
                 defaults.set(precipRaw, forKey: "Breezy.precipitationUnit")
             }
-            
+
+            // Forwarded notification preferences (used by WatchNotificationManager).
+            if let forecastHour = applicationContext["Breezy.dailyForecastHour"] as? Int {
+                defaults.set(forecastHour, forKey: "WatchPhoneForecastHour")
+            }
+            if let forecastMinute = applicationContext["Breezy.dailyForecastMinute"] as? Int {
+                defaults.set(forecastMinute, forKey: "WatchPhoneForecastMinute")
+            }
+
             // Notify view model to reload
             NotificationCenter.default.post(name: NSNotification.Name("WatchContextUpdated"), object: nil)
             NotificationCenter.default.post(name: NSNotification.Name("WatchTemperatureUnitChanged"), object: nil)

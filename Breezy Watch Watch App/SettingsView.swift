@@ -467,6 +467,7 @@ struct DataSettingsView: View {
     @State private var visibilityUnit: VisibilityUnit = .kilometers
     @State private var precipitationUnit: PrecipitationUnit = .millimeters
     @State private var weatherSource: WatchSelectedWeatherSource = .weatherKit
+    @State private var refreshIntervalMinutes: Int = 15
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -589,21 +590,41 @@ struct DataSettingsView: View {
                     }
 
                     SettingsCard(title: "DATA", textColor: theme.textColor) {
-                        Button {
-                            viewModel.playHaptic(.success)
-                            viewModel.clearCachedWeather()
-                        } label: {
-                            HStack {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red.opacity(0.9))
-                                Text("Clear Cached Weather")
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .foregroundColor(theme.textColor)
-                                Spacer()
+                        VStack(spacing: 4) {
+                            SettingsDestinationRow(
+                                icon: "clock.arrow.circlepath",
+                                title: "Background Refresh",
+                                subtitle: refreshIntervalMinutes == 60 ? "Every hour" : "Every \(refreshIntervalMinutes) min",
+                                textColor: theme.textColor,
+                                destination: RefreshIntervalSelectionView(
+                                    textColor: theme.textColor,
+                                    selected: refreshIntervalMinutes,
+                                    onSelect: { minutes in
+                                        refreshIntervalMinutes = minutes
+                                        if let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup) {
+                                            defaults.set(minutes, forKey: "WatchRefreshInterval")
+                                        }
+                                        viewModel.playHaptic(.success)
+                                    }
+                                )
+                            )
+
+                            Button {
+                                viewModel.playHaptic(.success)
+                                viewModel.clearCachedWeather()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red.opacity(0.9))
+                                    Text("Clear Cached Weather")
+                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                        .foregroundColor(theme.textColor)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 6)
                             }
-                            .padding(.vertical, 6)
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding()
@@ -620,6 +641,8 @@ struct DataSettingsView: View {
             pressureUnit = defaults?.string(forKey: WatchAppStorageKey.pressureUnit).flatMap(PressureUnit.init(rawValue:)) ?? .hectopascals
             visibilityUnit = defaults?.string(forKey: WatchAppStorageKey.visibilityUnit).flatMap(VisibilityUnit.init(rawValue:)) ?? .kilometers
             precipitationUnit = defaults?.string(forKey: "Breezy.precipitationUnit").flatMap(PrecipitationUnit.init(rawValue:)) ?? .millimeters
+            let storedInterval = defaults?.integer(forKey: "WatchRefreshInterval") ?? 0
+            refreshIntervalMinutes = storedInterval > 0 ? storedInterval : 15
         }
     }
 
@@ -699,6 +722,41 @@ struct EnumSelectionView<Option: Hashable & Identifiable>: View {
             }
         }
         .navigationTitle(title)
+    }
+}
+
+/// Int-backed variant of EnumSelectionView (Int isn't Identifiable).
+struct RefreshIntervalSelectionView: View {
+    let textColor: Color
+    let selected: Int
+    let onSelect: (Int) -> Void
+
+    private static let options = [5, 10, 15, 30, 60]
+
+    private func label(_ minutes: Int) -> String {
+        minutes == 60 ? "Every hour" : "Every \(minutes) min"
+    }
+
+    var body: some View {
+        List {
+            ForEach(Self.options, id: \.self) { minutes in
+                Button {
+                    onSelect(minutes)
+                } label: {
+                    HStack {
+                        Text(label(minutes))
+                            .foregroundColor(textColor)
+                        Spacer()
+                        if minutes == selected {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(textColor)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .navigationTitle("Background Refresh")
     }
 }
 

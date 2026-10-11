@@ -340,59 +340,6 @@ struct DailyForecastView: View {
     }
 }
 
-// MARK: - Hour Detail View
-struct HourDetailView: View {
-    let hour: WatchHourlyForecast
-    @EnvironmentObject var viewModel: WatchWeatherViewModel
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        let theme = viewModel.theme(for: hour.condition, isSystemDark: colorScheme == .dark)
-        ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [theme.topColor, theme.bottomColor]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            ScrollView {
-                VStack(spacing: 16) {
-                    Text(hour.time)
-                        .font(.title3.weight(.medium))
-                        .foregroundColor(theme.textColor.opacity(0.9))
-                        .padding(.top, 16)
-                    
-                    if viewModel.useMinimalistIcons {
-                        Image(systemName: hour.iconName)
-                            .symbolRenderingMode(.multicolor)
-                            .font(.system(size: 70))
-                            .padding(.vertical, 12)
-                    } else {
-                        Text(hour.emoji)
-                            .font(.system(size: 60))
-                            .padding(.vertical, 12)
-                    }
-                    
-                    Text(hour.temperature)
-                        .font(.system(size: 40, weight: .thin))
-                        .fontDesign(viewModel.typography.design)
-                        .foregroundColor(theme.textColor)
-                    
-                    Text(hour.condition)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundColor(theme.textColor.opacity(0.9))
-                        .padding(.top, 4)
-                }
-                .padding()
-            }
-            .focusable()
-        }
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-// MARK: - Helper Views (State)
 
 struct LocationPermissionView: View {
     @ObservedObject var viewModel: WatchWeatherViewModel

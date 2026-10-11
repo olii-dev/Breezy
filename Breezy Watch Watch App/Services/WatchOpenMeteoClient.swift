@@ -68,7 +68,7 @@ final class WatchOpenMeteoClient {
             humidity: humidity,
             pressure: pressure,
             visibility: visibility,
-            dewPoint: nil,
+            dewPoint: response.current.dewPoint2M.map { formattedTemperature($0, unit: units.temperature) },
             cloudCover: cloudCover,
             sunrise: today?.sunrise,
             sunset: today?.sunset,
@@ -121,9 +121,10 @@ final class WatchOpenMeteoClient {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,cloud_cover,wind_speed_10m,wind_direction_10m,visibility"),
+            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,cloud_cover,wind_speed_10m,wind_direction_10m,visibility,dew_point_2m"),
             URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weather_code,uv_index"),
-            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max")
+            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max,uv_index_max"),
+            URLQueryItem(name: "forecast_days", value: "10")
         ]
         return try await fetch(url: components?.url)
     }
@@ -203,7 +204,7 @@ final class WatchOpenMeteoClient {
                 condition: condition,
                 precipitationChance: block.precipitationProbabilityMax?[safe: index].map { String(format: "%.0f%%", $0) } ?? "0%",
                 maxWindSpeed: formatWindSpeed(kilometersPerHour: block.windSpeed10MMax?[safe: index], unit: windUnit) ?? "0 \(windUnit.displayName)",
-                uvIndex: "0",
+                uvIndex: block.uvIndexMax?[safe: index].flatMap { $0 }.map { Int(round($0)).description } ?? "0",
                 sunrise: sunrise[safe: index].map(WatchDateFormatterHelper.formatTime),
                 sunset: sunset[safe: index].map(WatchDateFormatterHelper.formatTime),
                 hourlyForecast: []
@@ -331,6 +332,7 @@ private struct CurrentBlock: Decodable {
     let windSpeed10M: Double
     let windDirection10M: Double?
     let visibility: Double?
+    let dewPoint2M: Double?
 
     enum CodingKeys: String, CodingKey {
         case time
@@ -344,6 +346,7 @@ private struct CurrentBlock: Decodable {
         case windSpeed10M = "wind_speed_10m"
         case windDirection10M = "wind_direction_10m"
         case visibility
+        case dewPoint2M = "dew_point_2m"
     }
 }
 
@@ -372,6 +375,7 @@ private struct DailyBlock: Decodable {
     let sunset: [String]
     let precipitationProbabilityMax: [Double]?
     let windSpeed10MMax: [Double]?
+    let uvIndexMax: [Double?]?
 
     enum CodingKeys: String, CodingKey {
         case time
@@ -382,6 +386,7 @@ private struct DailyBlock: Decodable {
         case sunset
         case precipitationProbabilityMax = "precipitation_probability_max"
         case windSpeed10MMax = "wind_speed_10m_max"
+        case uvIndexMax = "uv_index_max"
     }
 }
 

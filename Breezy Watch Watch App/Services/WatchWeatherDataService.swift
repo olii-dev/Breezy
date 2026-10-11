@@ -88,15 +88,24 @@ final class WatchWeatherDataService {
         }
 
         let selectedSource = selectedWeatherSource()
-        if let cachedSourceRaw = defaults.string(forKey: WatchAppStorageKey.lastWeatherSource),
-           let cachedSource = WatchWeatherDataSource(rawValue: cachedSourceRaw) {
-            let matchesSelection = (selectedSource == .weatherKit && cachedSource == .weatherKit)
-                || (selectedSource == .openMeteo && cachedSource == .openMeteo)
-                || cachedSource == .phone
-                || cachedSource == .cache
-            guard matchesSelection else { return nil }
+
+        func sourceMatches(_ cached: WatchWeatherDataSource) -> Bool {
+            (selectedSource == .weatherKit && cached == .weatherKit)
+                || (selectedSource == .openMeteo && cached == .openMeteo)
+                || cached == .phone
+                || cached == .cache
         }
 
+        // Full-forecast blob — the complete app works offline / phone-less.
+        if let data = defaults.data(forKey: WatchAppStorageKey.lastForecast),
+           let decoded = try? JSONDecoder().decode(WatchWeatherData.self, from: data),
+           sourceMatches(decoded.metadata.source) {
+            var weather = decoded
+            weather.metadata.isStale = markStale
+            return weather
+        }
+
+        // Legacy scalar cache (pre-blob installs): current conditions only.
         guard let city = defaults.string(forKey: WatchAppStorageKey.lastCity),
               let temperature = defaults.string(forKey: WatchAppStorageKey.lastTemperature),
               let condition = defaults.string(forKey: WatchAppStorageKey.lastCondition),
@@ -106,6 +115,11 @@ final class WatchWeatherDataService {
               !condition.isEmpty,
               !emoji.isEmpty else {
             return nil
+        }
+
+        if let cachedSourceRaw = defaults.string(forKey: WatchAppStorageKey.lastWeatherSource),
+           let cachedSource = WatchWeatherDataSource(rawValue: cachedSourceRaw) {
+            guard sourceMatches(cachedSource) else { return nil }
         }
 
         let timestamp = defaults.object(forKey: WatchAppStorageKey.lastCacheTimestamp) as? Date ?? .distantPast
@@ -165,6 +179,12 @@ final class WatchWeatherDataService {
             return
         }
 
+        // Full payload — the whole app renders from this offline.
+        if let data = try? JSONEncoder().encode(weather) {
+            defaults.set(data, forKey: WatchAppStorageKey.lastForecast)
+        }
+
+        // Scalar mirror kept for the complication's legacy fallback.
         defaults.set(weather.metadata.latitude, forKey: WatchAppStorageKey.lastLatitude)
         defaults.set(weather.metadata.longitude, forKey: WatchAppStorageKey.lastLongitude)
         defaults.set(weather.city, forKey: WatchAppStorageKey.lastCity)
@@ -175,7 +195,6 @@ final class WatchWeatherDataService {
         defaults.set(weather.lowTemp, forKey: WatchAppStorageKey.lastLowTemp)
         defaults.set(weather.metadata.fetchedAt, forKey: WatchAppStorageKey.lastCacheTimestamp)
         defaults.set(weather.metadata.source.rawValue, forKey: WatchAppStorageKey.lastWeatherSource)
-        defaults.synchronize()
     }
 
     private func selectedWeatherSource() -> WatchSelectedWeatherSource {
@@ -446,7 +465,7 @@ final class WatchWeatherDataService {
     ) -> [WatchDailyForecast] {
         let calendar = Calendar.current
 
-        return dailyForecast.forecast.prefix(7).map { day in
+        return dailyForecast.forecast.prefix(10).map { day in
             let lowValue = temperatureUnit == .fahrenheit
                 ? day.lowTemperature.converted(to: .fahrenheit).value
                 : day.lowTemperature.converted(to: .celsius).value

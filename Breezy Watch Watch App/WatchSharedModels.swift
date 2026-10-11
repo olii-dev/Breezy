@@ -179,15 +179,15 @@ enum WatchSelectedWeatherSource: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct WatchWeatherMetadata {
+struct WatchWeatherMetadata: Codable {
     let source: WatchWeatherDataSource
     let fetchedAt: Date
-    let isStale: Bool
+    var isStale: Bool
     let latitude: Double?
     let longitude: Double?
 }
 
-struct WatchWeatherData {
+struct WatchWeatherData: Codable {
     let city: String
     let temperature: String
     let feelsLike: String?
@@ -210,10 +210,10 @@ struct WatchWeatherData {
     let cloudCover: String?
     let sunrise: String?
     let sunset: String?
-    let metadata: WatchWeatherMetadata
+    var metadata: WatchWeatherMetadata
 }
 
-struct WatchHourlyForecast: Identifiable {
+struct WatchHourlyForecast: Identifiable, Codable {
     var id: Date { date }
 
     let date: Date
@@ -224,7 +224,7 @@ struct WatchHourlyForecast: Identifiable {
     let condition: String
 }
 
-struct WatchDailyForecast: Identifiable {
+struct WatchDailyForecast: Identifiable, Codable {
     let id = UUID()
     let dayName: String
     let iconName: String
@@ -387,6 +387,7 @@ enum WatchAppStorageKey {
     static let temperatureUnit = "Breezy.temperatureUnit"
     static let selectedLocationID = "WatchSelectedLocationID"
     static let savedLocations = "WatchSavedLocations"
+    static let lastForecast = "WatchLastForecast"
     static let lastLatitude = "WatchLastLatitude"
     static let lastLongitude = "WatchLastLongitude"
     static let lastCity = "WatchLastCity"
