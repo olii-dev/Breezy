@@ -25,6 +25,12 @@ class WatchSessionManager: NSObject, WCSessionDelegate {
             session?.activate()
         }
     }
+
+    /// True when the paired iPhone is connected and answerable — the watch
+    /// defers its own alerts in that case (the phone's notifications mirror).
+    var isPhoneReachable: Bool {
+        session?.activationState == .activated && session?.isReachable == true
+    }
     
     // MARK: - WCSessionDelegate
     

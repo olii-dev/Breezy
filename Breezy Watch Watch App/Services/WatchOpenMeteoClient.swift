@@ -56,7 +56,8 @@ final class WatchOpenMeteoClient {
                     temperature: $0.temperature,
                     emoji: $0.emoji,
                     iconName: $0.iconName,
-                    condition: $0.condition
+                    condition: $0.condition,
+                    precipitationChance: $0.rainChance
                 )
             },
             dailyForecast: daily,

@@ -101,6 +101,12 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         context["Breezy.pressureUnit"] = pressureUnit.rawValue
         context["Breezy.visibilityUnit"] = visibilityUnit.rawValue
         context["Breezy.precipitationUnit"] = precipitationUnit.rawValue
+
+        // Daily forecast time — lets the watch schedule its own (opt-in)
+        // wrist forecast at the same hour the phone delivers its notification.
+        let notificationSettings = UserDefaults.standard.notificationSettings
+        context["Breezy.dailyForecastHour"] = notificationSettings.dailyForecastTimes.first?.hour ?? notificationSettings.dailyForecastHour
+        context["Breezy.dailyForecastMinute"] = notificationSettings.dailyForecastTimes.first?.minute ?? notificationSettings.dailyForecastMinute
         
         // Critical: Try to use sendMessage for INSTANT sync if reachable
         if session.isReachable {
@@ -218,11 +224,15 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
                             return date >= Date().addingTimeInterval(-1800)
                         }
                         .prefix(24).map { h -> [String: Any] in
-                        return [
+                        var entry: [String: Any] = [
                             "time": (h.sourceDate ?? Date()).timeIntervalSince1970,
                             "temp_c": temperatureUnitToCelsius(h.temperatureRaw, from: weather.temperature),
                             "condition": h.condition ?? weather.condition
                         ]
+                        if let chance = h.precipitationChance {
+                            entry["rain"] = chance
+                        }
+                        return entry
                     }
                     reply["hourly"] = hourlyData
                     

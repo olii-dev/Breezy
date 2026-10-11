@@ -55,8 +55,18 @@ class BackgroundRefreshManager {
     #endif
     
     private func refreshWeatherData() async {
-        _ = try? await WatchWeatherDataService.shared.refreshStoredSelectionWeather()
-        
+        do {
+            let data = try await WatchWeatherDataService.shared.refreshStoredSelectionWeather()
+            // Wrist alerts: only when the iPhone can't mirror its own.
+            WatchNotificationManager.shared.runChecks(
+                weather: data,
+                phoneReachable: WatchSessionManager.shared.isPhoneReachable
+            )
+            WatchNotificationManager.shared.refreshDailyForecastSchedule(weather: data)
+        } catch {
+            // Keep the cached forecast; the next refresh retries.
+        }
+
         // Reload widget timelines
         WidgetCenter.shared.reloadAllTimelines()
     }

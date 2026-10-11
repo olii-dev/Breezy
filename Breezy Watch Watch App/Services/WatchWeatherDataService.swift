@@ -316,7 +316,8 @@ final class WatchWeatherDataService {
                 temperature: formatPhoneTemperature(tempC),
                 emoji: WatchWeatherIconHelper.emoji(for: hourCondition),
                 iconName: WatchWeatherIconHelper.minimalistIcon(for: hourCondition),
-                condition: hourCondition
+                condition: hourCondition,
+                precipitationChance: (hour["rain"] as? Double).map { String(format: "%.0f%%", $0 * 100) }
             )
         }
 
@@ -452,7 +453,8 @@ final class WatchWeatherDataService {
                 temperature: formattedTemperature(temperature, unit: temperatureUnit),
                 emoji: WatchWeatherIconHelper.emoji(for: condition),
                 iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
-                condition: condition
+                condition: condition,
+                precipitationChance: String(format: "%.0f%%", hour.precipitationChance * 100)
             )
         }
     }

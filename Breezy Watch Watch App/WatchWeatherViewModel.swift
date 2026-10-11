@@ -340,11 +340,19 @@ class WatchWeatherViewModel: ObservableObject {
                 savedLocations.first(where: { $0.id == selectedID })
             }
 
-            self.weather = try await weatherDataService.fetchWeather(selectedLocation: selectedLocation)
-            
+            let fetched = try await weatherDataService.fetchWeather(selectedLocation: selectedLocation)
+            self.weather = fetched
+
             // Reload complications
             reloadComplications()
-            
+
+            // Wrist-local alerts (deferred to the phone when it's reachable).
+            WatchNotificationManager.shared.runChecks(
+                weather: fetched,
+                phoneReachable: WatchSessionManager.shared.isPhoneReachable
+            )
+            WatchNotificationManager.shared.refreshDailyForecastSchedule(weather: fetched)
+
             isLoading = false
             if playHaptics {
                 playHaptic(.success)

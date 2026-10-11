@@ -222,6 +222,8 @@ struct WatchHourlyForecast: Identifiable, Codable {
     let emoji: String
     let iconName: String
     let condition: String
+    /// e.g. "45%" — nil when the source didn't provide one.
+    var precipitationChance: String? = nil
 }
 
 struct WatchDailyForecast: Identifiable, Codable {

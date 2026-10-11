@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject var viewModel: WatchWeatherViewModel
@@ -57,6 +58,16 @@ struct SettingsView: View {
                                 textColor: theme.textColor,
                                 destination: DataSettingsView().environmentObject(viewModel)
                             )
+
+                            Divider().background(theme.textColor.opacity(0.2))
+
+                            SettingsDestinationRow(
+                                icon: "bell.fill",
+                                title: "Notifications",
+                                subtitle: notificationsSummary,
+                                textColor: theme.textColor,
+                                destination: WatchNotificationSettingsView().environmentObject(viewModel)
+                            )
                         }
                     }
                     
@@ -107,6 +118,140 @@ struct SettingsView: View {
             ?? defaults?.string(forKey: WatchAppStorageKey.phoneWeatherSource).flatMap(WatchSelectedWeatherSource.init(rawValue:))
             ?? .weatherKit
         return "\(source.displayName) • \(unit) • \(viewModel.visibleMetrics.count) metrics"
+    }
+
+    private var notificationsSummary: String {
+        let manager = WatchNotificationManager.shared
+        if !manager.rainEnabled && !manager.severeEnabled && !manager.dailyEnabled {
+            return "Off"
+        }
+        var parts: [String] = []
+        if manager.rainEnabled { parts.append("Rain") }
+        if manager.severeEnabled { parts.append("Severe") }
+        if manager.dailyEnabled { parts.append("Forecast") }
+        return parts.joined(separator: " • ")
+    }
+}
+
+// MARK: - Watch Notification Settings
+
+struct WatchNotificationSettingsView: View {
+    @EnvironmentObject var viewModel: WatchWeatherViewModel
+    @Environment(\.colorScheme) var colorScheme
+
+    @State private var rainEnabled = true
+    @State private var severeEnabled = true
+    @State private var dailyEnabled = false
+    @State private var authorized = false
+
+    var body: some View {
+        let theme = viewModel.currentTheme(isSystemDark: colorScheme == .dark)
+
+        ScrollView {
+            VStack(spacing: 14) {
+                Text("Watch alerts fire only when your iPhone isn't reachable — otherwise its own notifications mirror to the watch.")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundColor(theme.textColor.opacity(0.7))
+
+                if !authorized {
+                    Button {
+                        Task {
+                            authorized = await WatchNotificationManager.shared.requestAuthorization()
+                        }
+                    } label: {
+                        Label("Allow Notifications", systemImage: "bell.badge.fill")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.blue.opacity(0.7))
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                SettingsCard(title: "ALERTS", textColor: theme.textColor) {
+                    VStack(spacing: 4) {
+                        alertToggle(
+                            "Rain Alerts",
+                            icon: "cloud.rain.fill",
+                            isOn: $rainEnabled,
+                            caption: "Rain likely in the next 3 hours",
+                            theme: theme
+                        )
+
+                        Divider().background(theme.textColor.opacity(0.2))
+
+                        alertToggle(
+                            "Severe Weather",
+                            icon: "exclamationmark.triangle.fill",
+                            isOn: $severeEnabled,
+                            caption: "Storms, hail, heavy rain and the like",
+                            theme: theme
+                        )
+
+                        Divider().background(theme.textColor.opacity(0.2))
+
+                        alertToggle(
+                            "Daily Forecast",
+                            icon: "sunrise.fill",
+                            isOn: $dailyEnabled,
+                            caption: "Today's summary at your phone's forecast time (off by default to avoid double alerts)",
+                            theme: theme
+                        )
+                    }
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Notifications")
+        .onAppear {
+            let manager = WatchNotificationManager.shared
+            rainEnabled = manager.rainEnabled
+            severeEnabled = manager.severeEnabled
+            dailyEnabled = manager.dailyEnabled
+            Task {
+                let settings = await UNUserNotificationCenter.current().notificationSettings()
+                authorized = settings.authorizationStatus == .authorized
+            }
+        }
+    }
+
+    private func alertToggle(_ title: String, icon: String, isOn: Binding<Bool>, caption: String, theme: WatchWeatherTheme) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
+            viewModel.playHaptic(.click)
+            guard authorized || isOn.wrappedValue == false else {
+                Task {
+                    let granted = await WatchNotificationManager.shared.requestAuthorization()
+                    authorized = granted
+                    if !granted { isOn.wrappedValue = false }
+                }
+                return
+            }
+            WatchNotificationManager.shared.rainEnabled = rainEnabled
+            WatchNotificationManager.shared.severeEnabled = severeEnabled
+            WatchNotificationManager.shared.dailyEnabled = dailyEnabled
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .foregroundColor(theme.textColor.opacity(0.8))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.textColor)
+                    Text(caption)
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundColor(theme.textColor.opacity(0.55))
+                }
+                Spacer()
+                Toggle("", isOn: isOn)
+                    .labelsHidden()
+                    .tint(.blue)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
     }
 }
 
