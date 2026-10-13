@@ -251,6 +251,11 @@ struct WatchNotificationSettingsView: View {
             }
             .padding(.vertical, 4)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn.wrappedValue ? "On" : "Off")
+        .accessibilityHint("Double tap to toggle")
+        .accessibilityAddTraits(.isButton)
         .buttonStyle(.plain)
     }
 }

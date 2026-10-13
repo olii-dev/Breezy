@@ -85,6 +85,7 @@ struct WatchRadarView: View {
             radarImage(theme: theme)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
+                .accessibilityLabel("Radar map for \(viewModel.weather?.city ?? "your location")")
 
             // Overlaid chrome
             VStack(spacing: 4) {
@@ -285,6 +286,8 @@ struct WatchRadarView: View {
                         .frame(width: 28, height: 28)
                         .background(.black.opacity(0.45), in: Circle())
                 }
+                .accessibilityLabel("Radar playback")
+                .accessibilityValue(isPlaying ? "Playing" : "Paused")
                 .buttonStyle(.plain)
 
                 // Frame scrubber — forecast frames tinted cyan behind a "now"
@@ -318,6 +321,10 @@ struct WatchRadarView: View {
                     isContinuous: false,
                     isHapticFeedbackEnabled: true
                 )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Radar timeline")
+                .accessibilityValue(currentFrame().map { "Frame at \($0.time.formatted(date: .omitted, time: .shortened))\($0.isNowcast ? ", forecast" : "")" } ?? "No frame")
+                .accessibilityHint("Turn the crown to scrub frames")
                 .onChange(of: crownValue) { _, newValue in
                     let newIndex = Int(newValue.rounded())
                     guard newIndex != currentFrameIndex else { return }

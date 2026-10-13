@@ -310,6 +310,16 @@ struct WatchDailyForecast: Identifiable, Codable {
     let sunrise: String?
     let sunset: String?
     let hourlyForecast: [WatchHourlyForecast]
+    /// VoiceOver: "Monday, high 24, low 14, rain 30%" — the low temp lives in
+    /// bar geometry visually, so it must be spoken explicitly.
+    var a11yDescription: String {
+        var text = "\(dayName), high \(highTemp), low \(lowTemp)"
+        if precipitationChance != "0%" {
+            text += ", rain \(precipitationChance)"
+        }
+        return text
+    }
+
     /// Moon phase for the evening of this day.
     var moonPhaseName: String? = nil
     /// 0…1 illuminated fraction.

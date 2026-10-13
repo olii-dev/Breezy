@@ -46,6 +46,7 @@ struct WatchCitySearchView: View {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(theme.textColor.opacity(0.6))
                         }
+                        .accessibilityLabel("Clear search")
                         .buttonStyle(.plain)
                     }
                 }

@@ -47,7 +47,7 @@ struct WatchTimeMachineView: View {
                     
                     VStack(spacing: 10) {
                         HStack(spacing: 10) {
-                            dateStepperButton(systemName: "chevron.left", disabled: isAtEarliestDate) {
+                            dateStepperButton(a11yLabel: "Previous day", systemName: "chevron.left", disabled: isAtEarliestDate) {
                                 shiftDate(by: -1)
                             }
 
@@ -64,7 +64,7 @@ struct WatchTimeMachineView: View {
                             }
                             .frame(maxWidth: .infinity)
 
-                            dateStepperButton(systemName: "chevron.right", disabled: isAtLatestDate) {
+                            dateStepperButton(a11yLabel: "Next day", systemName: "chevron.right", disabled: isAtLatestDate) {
                                 shiftDate(by: 1)
                             }
                         }
@@ -270,7 +270,7 @@ struct WatchTimeMachineView: View {
         selectedDate = min(max(shifted, minDate), latest)
     }
 
-    private func dateStepperButton(systemName: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+    private func dateStepperButton(a11yLabel: String = "Change date", systemName: String, disabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .bold))
@@ -279,6 +279,7 @@ struct WatchTimeMachineView: View {
                 .background(theme.textColor.opacity(disabled ? 0.06 : 0.12))
                 .clipShape(Circle())
         }
+        .accessibilityLabel(a11yLabel)
         .buttonStyle(.plain)
         .disabled(disabled)
     }

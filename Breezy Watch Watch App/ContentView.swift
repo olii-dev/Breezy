@@ -258,6 +258,7 @@ struct CurrentOverviewView: View {
                             .background(theme.textColor.opacity(0.1))
                             .clipShape(Circle())
                     }
+                    .accessibilityLabel("Settings")
                     .buttonStyle(.plain)
                     .simultaneousGesture(TapGesture().onEnded {
                         viewModel.playHaptic(.click)
@@ -461,6 +462,10 @@ struct DailyForecastView: View {
                             NavigationLink(destination: DayDetailView(day: day).environmentObject(viewModel)) {
                                 WatchDailyForecastRow(day: day, rangeLow: globalMin, rangeHigh: globalMax, isMinimalist: viewModel.useMinimalistIcons, textColor: theme.textColor)
                             }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(day.a11yDescription)
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint("Opens day details")
                             .buttonStyle(.plain)
                             .simultaneousGesture(TapGesture().onEnded {
                                 viewModel.playHaptic(.click)

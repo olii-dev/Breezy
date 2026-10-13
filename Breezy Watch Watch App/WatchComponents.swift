@@ -10,6 +10,8 @@ struct MetricPill: View {
     var backgroundColor: Color = Color.white.opacity(0.1)
     /// Optional category tint for the icon (e.g. AQI band color).
     var iconColor: Color? = nil
+    /// Metric name for VoiceOver ("Wind, 15 km/h") — not rendered visually.
+    var a11yTitle: String? = nil
 
     var body: some View {
         VStack(spacing: 2) {
@@ -31,6 +33,13 @@ struct MetricPill: View {
         .padding(.vertical, 8)
         .background(backgroundColor)
         .cornerRadius(12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(a11yText)
+    }
+
+    /// "Wind, 15 km/h" — icon/emoji stays decorative.
+    private var a11yText: String {
+        [a11yTitle, value].compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -89,7 +98,8 @@ struct WatchDailyForecastRow: View {
             .frame(height: 5)
             .padding(.horizontal, 4)
             
-            // High Temp
+            // High Temp (low temp lives in the bar geometry — carried into
+            // the accessibility label below)
             Text(day.highTemp)
                 .font(.system(size: 15, weight: .semibold))
                 .lineLimit(1)
@@ -271,6 +281,14 @@ struct HourlyCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.cyan.opacity(isHighlighted ? 0.8 : 0), lineWidth: 1)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(hour.a11yDescription)
+    }
+}
+
+extension WatchHourlyForecast {
+    var a11yDescription: String {
+        "\(time), \(temperature)\(condition.isEmpty ? "" : ", \(condition)")"
     }
 }
 
@@ -302,7 +320,8 @@ struct MetricsPillsWatchView: View {
                     isSystemImage: isMinimalist,
                     textColor: viewModel.currentTheme(isSystemDark: colorScheme == .dark).textColor,
                     backgroundColor: viewModel.currentTheme(isSystemDark: colorScheme == .dark).textColor.opacity(0.1),
-                    iconColor: pill.iconColorHex.flatMap { Color(hexString: $0) }
+                    iconColor: pill.iconColorHex.flatMap { Color(hexString: $0) },
+                    a11yTitle: pill.title
                 )
             }
         }
