@@ -336,6 +336,9 @@ struct RadarWidgetEntryView: View {
         }
         .containerBackground(for: .widget) { Color.clear }
         .widgetURL(URL(string: "breezy://radar"))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Radar for \(entry.city ?? "your location")\(entry.frameTime != nil ? ", frame as of \(entry.frameTime!.formatted(date: .omitted, time: .shortened))" : "")")
+        .accessibilityHint(entry.image == nil ? "Radar unavailable" : "Opens the full radar")
         .clipShape(RoundedRectangle(cornerRadius: family == .systemLarge ? 22 : 16, style: .continuous))
     }
 }

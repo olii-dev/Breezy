@@ -50,6 +50,61 @@ struct RadarCardView: View {
     }
     
     var body: some View {
+        cardContent
+            .softGlassCard(padding: 0)
+            .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
+            .accessibilityHint("Double tap to open full screen radar")
+            .accessibilityAction {
+                HapticsManager.shared.impact(style: .light)
+                showFullScreen = true
+            }
+            .onTapGesture {
+                HapticsManager.shared.impact(style: .light)
+                showFullScreen = true
+            }
+            .fullScreenCover(isPresented: $showFullScreen) {
+                FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
+            }
+            .sheet(isPresented: $showLayerMenu) {
+                RadarLayerMenuView(
+                    selectedLayer: $selectedLayer,
+                    precipitationSource: precipitationSource,
+                    showLightning: $showLightning,
+                    strikeOrigin: CLLocationCoordinate2D(
+                        latitude: viewModel.currentLocation?.latitude ?? 0,
+                        longitude: viewModel.currentLocation?.longitude ?? 0
+                    )
+                )
+            }
+            .onChange(of: selectedLayer) { oldValue, newValue in
+                HapticsManager.shared.impact(style: .light)
+                withAnimation { isLoading = true }
+            }
+            .onChange(of: precipitationSource) { _, _ in
+                withAnimation { isLoading = true }
+            }
+            .onChange(of: viewModel.currentLocation) { oldValue, newLocation in
+                if let location = newLocation {
+                    withAnimation {
+                        region.center = CLLocationCoordinate2D(
+                            latitude: location.latitude,
+                            longitude: location.longitude
+                        )
+                    }
+                }
+            }
+            .onAppear {
+                if showLightning {
+                    LightningService.shared.start(reason: .radar)
+                }
+            }
+            .onDisappear {
+                // The websocket only lives while a radar surface is on screen.
+                LightningService.shared.stop(reason: .radar)
+            }
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Standard Header
             HStack {
@@ -86,6 +141,7 @@ struct RadarCardView: View {
                 RadarMapView(
                     region: $region,
                     layer: selectedLayer,
+                    cityName: viewModel.currentLocation?.city,
                     precipitationSource: precipitationSource,
                     isLoading: $isLoading,
                     coordinate: CLLocationCoordinate2D(
@@ -144,6 +200,9 @@ struct RadarCardView: View {
                         .background(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                         .clipShape(Circle())
                 }
+                .accessibilityLabel("Map style")
+                .accessibilityValue(viewModel.mapStyle.rawValue)
+                .accessibilityHint("Cycles map style")
                 .padding(.trailing, 20)
                 .padding(.bottom, 20)
                 
@@ -153,52 +212,6 @@ struct RadarCardView: View {
                         .padding(20)
                 }
             }
-        }
-        .softGlassCard(padding: 0)
-        .shadow(color: Color.black.opacity(0.15), radius: 18, x: 0, y: 10)
-        .onTapGesture {
-            HapticsManager.shared.impact(style: .light)
-            showFullScreen = true
-        }
-        .fullScreenCover(isPresented: $showFullScreen) {
-            FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
-        }
-        .sheet(isPresented: $showLayerMenu) {
-            RadarLayerMenuView(
-                selectedLayer: $selectedLayer,
-                precipitationSource: precipitationSource,
-                showLightning: $showLightning,
-                strikeOrigin: CLLocationCoordinate2D(
-                    latitude: viewModel.currentLocation?.latitude ?? 0,
-                    longitude: viewModel.currentLocation?.longitude ?? 0
-                )
-            )
-        }
-        .onChange(of: selectedLayer) { oldValue, newValue in
-            HapticsManager.shared.impact(style: .light)
-            withAnimation { isLoading = true }
-        }
-        .onChange(of: precipitationSource) { _, _ in
-            withAnimation { isLoading = true }
-        }
-        .onChange(of: viewModel.currentLocation) { oldValue, newLocation in
-            if let location = newLocation {
-                withAnimation {
-                    region.center = CLLocationCoordinate2D(
-                        latitude: location.latitude,
-                        longitude: location.longitude
-                    )
-                }
-            }
-        }
-        .onAppear {
-            if showLightning {
-                LightningService.shared.start(reason: .radar)
-            }
-        }
-        .onDisappear {
-            // The websocket only lives while a radar surface is on screen.
-            LightningService.shared.stop(reason: .radar)
         }
     }
 
@@ -213,6 +226,8 @@ struct RadarCardView: View {
 struct RadarMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let layer: RadarLayer
+    /// Name for the location annotation (VoiceOver reads it).
+    var cityName: String? = nil
     let precipitationSource: RadarPrecipitationSource
     @Binding var isLoading: Bool
     let coordinate: CLLocationCoordinate2D
@@ -258,18 +273,20 @@ struct RadarMapView: UIViewRepresentable {
         // Add location marker (searched city)
         let annotation = MKPointAnnotation()
         annotation.coordinate = coordinate
-        annotation.title = "CityLocation"
+        annotation.title = cityName ?? "Selected location"
         mapView.addAnnotation(annotation)
 
         // Add GPS dot if viewing a different city
         if showGPSDot, let gps = userGPSLocation {
             let gpsAnnotation = MKPointAnnotation()
             gpsAnnotation.coordinate = gps
-            gpsAnnotation.title = "GPSLocation"
+            gpsAnnotation.title = "Your location"
             mapView.addAnnotation(gpsAnnotation)
         }
 
         syncLightningAnnotations(on: mapView)
+        mapView.isAccessibilityElement = true
+        mapView.accessibilityLabel = "Radar map"
 
         // Loading will be controlled by delegate methods
         return mapView
@@ -525,6 +542,7 @@ final class LightningAnnotationView: MKAnnotationView {
 
         frame = badge.frame
         addSubview(badge)
+        isAccessibilityElement = false
     }
 
     required init?(coder aDecoder: NSCoder) {

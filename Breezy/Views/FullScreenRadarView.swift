@@ -92,6 +92,7 @@ struct FullScreenRadarView: View {
             RadarMapView(
                 region: $region,
                 layer: selectedLayer,
+                cityName: viewModel.currentLocation?.city,
                 precipitationSource: precipitationSource,
                 isLoading: $isLoading,
                 coordinate: currentCoordinate,
@@ -167,6 +168,8 @@ struct FullScreenRadarView: View {
                                         .frame(width: 36, height: 36)
                                         .background(Color.white.opacity(0.18), in: Circle())
                                 }
+                                .accessibilityLabel("Radar playback")
+                                .accessibilityValue(isPlaying ? "Playing" : "Paused")
 
                                 VStack(spacing: 2) {
                                     GeometryReader { geo in
@@ -201,6 +204,29 @@ struct FullScreenRadarView: View {
                                         )
                                     }
                                     .frame(height: 24)
+                                    // VoiceOver: the drag scrubber becomes an
+                                    // adjustable element swiping frame by frame.
+                                    .accessibilityElement(children: .ignore)
+                                    .accessibilityLabel("Radar timeline")
+                                    .accessibilityValue(activeFrameTime.map { "Frame at \($0.formatted(date: .omitted, time: .shortened))" } ?? "No frame")
+                                    .accessibilityAdjustableAction { direction in
+                                        switch direction {
+                                        case .increment:
+                                            if currentFrameIndex < frames.count - 1 {
+                                                pauseAnimation()
+                                                HapticsManager.shared.selectionChanged()
+                                                currentFrameIndex += 1
+                                            }
+                                        case .decrement:
+                                            if currentFrameIndex > 0 {
+                                                pauseAnimation()
+                                                HapticsManager.shared.selectionChanged()
+                                                currentFrameIndex -= 1
+                                            }
+                                        @unknown default:
+                                            break
+                                        }
+                                    }
 
                                     HStack {
                                         Text("-3h")
@@ -244,6 +270,7 @@ struct FullScreenRadarView: View {
                                     .foregroundColor(.white)
                                     .frame(width: 44, height: 44)
                             }
+                            .accessibilityLabel("Recenter on my location")
                             .transition(.scale.combined(with: .opacity))
                         }
                     }
@@ -286,6 +313,7 @@ struct FullScreenRadarView: View {
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
                 }
+                .accessibilityLabel("Close radar")
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(viewModel.currentLocation?.city ?? "Weather Radar")
@@ -315,6 +343,7 @@ struct FullScreenRadarView: View {
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
                 }
+                .accessibilityLabel("Map style")
                 .onChange(of: viewModel.mapStyle) { _, _ in
                     HapticsManager.shared.selectionChanged()
                 }
@@ -328,6 +357,7 @@ struct FullScreenRadarView: View {
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
                 }
+                .accessibilityLabel("Radar layers")
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)

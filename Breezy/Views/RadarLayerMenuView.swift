@@ -33,6 +33,7 @@ struct RadarLayerMenuView: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.secondary)
                 }
+                .accessibilityLabel("Close")
             }
             .padding()
             .padding(.top, 8)

@@ -37,5 +37,7 @@ struct QuickStatPill: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, DesignSystem.spacingS)
         .softGlassCard(padding: 6, cornerRadius: DesignSystem.radiusS)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(value)")
     }
 }

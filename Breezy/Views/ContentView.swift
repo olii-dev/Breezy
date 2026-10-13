@@ -152,6 +152,7 @@ struct ContentView: View {
                                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                                     .padding(8)
                             }
+                            .accessibilityLabel("Add widget")
                         } else {
                             Button(action: {
                                 HapticsManager.shared.impact(style: .light)
@@ -445,6 +446,7 @@ struct ContentView: View {
                             .padding(8)
                             .background(Circle().fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
                     }
+                    .accessibilityLabel("Edit dashboard")
                     .buttonStyle(.plain)
                     .padding(.trailing, 16)
                     .padding(.top, 8)
@@ -1876,6 +1878,8 @@ struct NewHourlyCardView: View {
                                     RoundedRectangle(cornerRadius: DesignSystem.radiusS)
                                         .fill(index == currentHourIndex ? Color.white.opacity(0.25) : Color.clear)
                                 )
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel("\(hour.time), \(viewModel.formattedTemperature(hour.temperatureRaw)), \(hour.condition ?? "")\(index == currentHourIndex ? ", now" : "")")
                             }
                         }
                         .padding(.horizontal, DesignSystem.spacingM)
@@ -2321,6 +2325,8 @@ struct MetricsPillsView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DesignSystem.spacingM)
                 .softGlassCard(padding: DesignSystem.spacingS, cornerRadius: DesignSystem.radiusS)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(pill.title), \(pill.value)")
             }
         }
     }
@@ -3554,7 +3560,8 @@ struct AirQualityCardWidget: View {
                             .padding(.vertical, 5)
                             .background(Capsule().fill(badgeColor.opacity(0.2)))
                             .overlay(Capsule().stroke(badgeColor.opacity(0.9), lineWidth: 0.8))
-                            .foregroundColor(badgeColor)
+                            // Keep the band color on the capsule; text stays readable.
+                            .foregroundColor(textColor)
                     }
                 } else {
                     HStack(alignment: .top, spacing: 16) {
@@ -5389,6 +5396,7 @@ struct WidgetGalleryView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(theme.textColor.opacity(0.8))
                     }
+                    .accessibilityLabel("Close")
                     .padding(.trailing, DesignSystem.spacingM)
                 }
                 .padding(.top, 12)
@@ -5822,6 +5830,7 @@ struct WidgetConfigView: View {
                                                         .font(.caption)
                                                         .foregroundColor((selectedMetrics.count > 1) ? DesignSystem.skyBlue : theme.textColor.opacity(0.35))
                                                 }
+                                                .accessibilityLabel("Remove metric")
                                                 .buttonStyle(.plain)
                                                 .disabled(selectedMetrics.count <= 1)
                                             }
@@ -6606,6 +6615,7 @@ struct ShareWeatherCardView: View {
                                             .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
                                     )
                             }
+                            .accessibilityLabel("More options")
                         }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 24)

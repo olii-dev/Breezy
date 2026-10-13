@@ -53,6 +53,8 @@ private struct TripRouteMapView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView(frame: .zero)
+        map.isAccessibilityElement = true
+        map.accessibilityLabel = "Trip route map"
         map.isZoomEnabled = false
         map.isScrollEnabled = false
         map.isRotateEnabled = false

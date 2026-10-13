@@ -1151,6 +1151,8 @@ struct SmallWidgetView: View {
                     .offset(x: 30, y: 25)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(entry.weather.city), \(entry.weather.temperature), \(entry.weather.condition)\(entry.weather.highTemp != nil && entry.weather.lowTemp != nil ? ", high \(entry.weather.highTemp!), low \(entry.weather.lowTemp!)" : "")")
     }
     
     var gradientColors: [Color] {

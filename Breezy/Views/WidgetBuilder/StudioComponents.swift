@@ -35,31 +35,36 @@ struct SettingsToggleRow: View {
     let textColor: Color
     @Binding var isOn: Bool
     @AppStorage("Breezy.glassOpacity") private var glassOpacity: Double = 0.35
-    
+
     var body: some View {
         HStack {
             Image(systemName: icon)
                 .foregroundColor(color)
                 .frame(width: 24)
-            
+
             Text(title)
                 .font(.subheadline.weight(.medium))
                 .foregroundColor(textColor)
-            
+
             Spacer()
-            
+
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .tint(color)
                 .onChange(of: isOn) { _, _ in
                     HapticsManager.shared.impact(style: .light)
                 }
-                .accessibilityHint("Double tap to toggle")
         }
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(.ultraThinMaterial.opacity(glassOpacity))
         )
+        // One element per row: title + state, icon stays decorative.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityHint("Double tap to toggle")
+        .accessibilityAddTraits(.isButton)
     }
 }

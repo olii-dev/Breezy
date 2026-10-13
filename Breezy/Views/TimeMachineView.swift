@@ -63,6 +63,7 @@ struct TimeMachineView: View {
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundStyle(theme.textColor.opacity(0.7))
                         }
+                        .accessibilityLabel("Close")
                     }
                 }
         }

@@ -94,27 +94,27 @@ struct AlertDetailSettingsView: View {
             switch threshold {
             case .uv:
                 sliderHeader("Threshold", systemImage: "sun.max.fill", value: "\(settings.uvThreshold)+", tint: .yellow, theme: theme)
-                slider($settings.uvThreshold, range: 3...11, step: 1, tint: .yellow)
+                slider($settings.uvThreshold, range: 3...11, step: 1, tint: .yellow, label: "UV threshold", unit: "index")
                 caption("Alert when the UV index reaches this level", theme: theme)
 
             case .rainChance:
                 sliderHeader("Rain Chance Threshold", systemImage: "cloud.rain.fill", value: "\(settings.rainChanceThreshold)%", tint: .blue, theme: theme)
-                slider($settings.rainChanceThreshold, range: 10...90, step: 10, tint: .blue)
+                slider($settings.rainChanceThreshold, range: 10...90, step: 10, tint: .blue, label: "Rain chance threshold", unit: "percent")
                 caption("Used when no minute-by-minute rain data is available", theme: theme)
 
             case .temperatureChange:
                 sliderHeader("Change Threshold", systemImage: "thermometer.variable", value: "\(settings.temperatureChangeThreshold)°", tint: .orange, theme: theme)
-                slider($settings.temperatureChangeThreshold, range: 5...20, step: 1, tint: .orange)
+                slider($settings.temperatureChangeThreshold, range: 5...20, step: 1, tint: .orange, label: "Temperature change threshold", unit: "degrees")
                 caption("Alert when the temperature swings this much from yesterday", theme: theme)
 
             case .windSpeed:
                 sliderHeader("Wind Threshold", systemImage: "wind", value: "\(settings.windSpeedThreshold) \(viewModel.windSpeedUnit.displayName)", tint: .cyan, theme: theme)
-                slider($settings.windSpeedThreshold, range: 20...80, step: 5, tint: .cyan)
+                slider($settings.windSpeedThreshold, range: 20...80, step: 5, tint: .cyan, label: "Wind threshold")
                 caption("Alert when wind speeds reach this level", theme: theme)
 
             case .rainProbability:
                 sliderHeader("Rain Probability", systemImage: "cloud.drizzle.fill", value: "\(settings.precipitationProbabilityThreshold)%", tint: .teal, theme: theme)
-                slider($settings.precipitationProbabilityThreshold, range: 30...100, step: 10, tint: .teal)
+                slider($settings.precipitationProbabilityThreshold, range: 30...100, step: 10, tint: .teal, label: "Rain probability threshold", unit: "percent")
                 caption("Alert when the day's rain probability reaches this percentage", theme: theme)
             }
         }
@@ -127,22 +127,22 @@ struct AlertDetailSettingsView: View {
             switch cooldown {
             case .rain:
                 sliderHeader("Cooldown", systemImage: "clock.fill", value: "\(settings.rainAlertCooldownMinutes)m", tint: .blue, theme: theme)
-                slider($settings.rainAlertCooldownMinutes, range: 5...60, step: 5, tint: .blue)
+                slider($settings.rainAlertCooldownMinutes, range: 5...60, step: 5, tint: .blue, label: "Rain alert cooldown", unit: "minutes")
                 caption("Minimum time between rain alerts", theme: theme)
 
             case .uv:
                 sliderHeader("Cooldown", systemImage: "clock.fill", value: "\(settings.uvAlertCooldownMinutes / 60)h", tint: .yellow, theme: theme)
-                slider($settings.uvAlertCooldownMinutes, range: 60...360, step: 60, tint: .yellow)
+                slider($settings.uvAlertCooldownMinutes, range: 60...360, step: 60, tint: .yellow, label: "UV alert cooldown", unit: "minutes")
                 caption("Minimum time between UV alerts for the same location", theme: theme)
 
             case .wind:
                 sliderHeader("Cooldown", systemImage: "clock.fill", value: "\(settings.windAlertCooldownMinutes)m", tint: .cyan, theme: theme)
-                slider($settings.windAlertCooldownMinutes, range: 15...180, step: 15, tint: .cyan)
+                slider($settings.windAlertCooldownMinutes, range: 15...180, step: 15, tint: .cyan, label: "Wind alert cooldown", unit: "minutes")
                 caption("Minimum time between wind alerts", theme: theme)
 
             case .severe:
                 sliderHeader("Re-alert Interval", systemImage: "clock.fill", value: "\(settings.severeWeatherAlertCooldownMinutes / 60)h", tint: .red, theme: theme)
-                slider($settings.severeWeatherAlertCooldownMinutes, range: 30...360, step: 30, tint: .red)
+                slider($settings.severeWeatherAlertCooldownMinutes, range: 30...360, step: 30, tint: .red, label: "Severe re-alert interval", unit: "minutes")
                 caption("How often severe weather can re-alert while a warning persists", theme: theme)
             }
         }
@@ -243,7 +243,7 @@ struct AlertDetailSettingsView: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundColor(theme.textColor)
 
-            Picker("", selection: Binding(
+            Picker("Sound", selection: Binding(
                 get: { settings[keyPath: config.soundPath] },
                 set: { settings[keyPath: config.soundPath] = $0; onSave() }
             )) {
@@ -307,7 +307,7 @@ struct AlertDetailSettingsView: View {
         }
     }
 
-    private func slider(_ value: Binding<Int>, range: ClosedRange<Double>, step: Double, tint: Color) -> some View {
+    private func slider(_ value: Binding<Int>, range: ClosedRange<Double>, step: Double, tint: Color, label: String, unit: String = "") -> some View {
         Slider(
             value: Binding(
                 get: { Double(value.wrappedValue) },
@@ -317,6 +317,8 @@ struct AlertDetailSettingsView: View {
             step: step
         )
         .tint(tint)
+        .accessibilityLabel(label)
+        .accessibilityValue("\(value.wrappedValue)\(unit.isEmpty ? "" : " \(unit)")")
     }
 
     private func caption(_ text: String, theme: WeatherTheme) -> some View {
@@ -580,5 +582,10 @@ struct LiveActivitySettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.radiusM)
                 .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(row.title)
+        .accessibilityValue((UserDefaults.standard.object(forKey: row.key) as? Bool ?? true) ? "On" : "Off")
+        .accessibilityHint("Double tap to toggle")
+        .accessibilityAddTraits(.isButton)
     }
 }
