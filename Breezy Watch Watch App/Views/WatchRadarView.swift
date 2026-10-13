@@ -194,9 +194,20 @@ struct WatchRadarView: View {
             Spacer()
 
             if let frame = currentFrame() {
-                Text(frame.time, style: .time)
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textColor.opacity(0.6))
+                HStack(spacing: 4) {
+                    // Future frames must never masquerade as observed.
+                    if frame.isNowcast {
+                        Text("FCST")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(.cyan)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.cyan.opacity(0.25), in: Capsule())
+                    }
+                    Text(frame.time, style: .time)
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textColor.opacity(0.6))
+                }
             }
         }
     }
@@ -275,12 +286,22 @@ struct WatchRadarView: View {
                 }
                 .buttonStyle(.plain)
 
-                // Frame scrubber
+                // Frame scrubber — forecast frames tinted cyan behind a "now"
+                // divider so the future half reads instantly.
                 HStack(spacing: 3) {
                     ForEach(Array(frames.enumerated()), id: \.element.id) { index, frame in
                         Capsule()
-                            .fill(index == currentFrameIndex ? theme.textColor : theme.textColor.opacity(0.35))
+                            .fill(index == currentFrameIndex
+                                  ? theme.textColor
+                                  : (frame.isNowcast ? Color.cyan.opacity(0.55) : theme.textColor.opacity(0.35)))
                             .frame(height: 12)
+
+                        // Divider between observed and forecast.
+                        if index + 1 < frames.count, !frame.isNowcast, frames[index + 1].isNowcast {
+                            Capsule()
+                                .fill(Color.cyan.opacity(0.7))
+                                .frame(width: 1.5, height: 14)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -322,7 +343,9 @@ struct WatchRadarView: View {
             if selectedLayer == .precipitation && selectedSource == .rainViewer {
                 try await WatchRadarService.shared.refreshRainViewerMetadata()
                 frames = await WatchRadarService.shared.availableFrames()
-                currentFrameIndex = max(frames.count - 1, 0)
+                // Start on the latest OBSERVED frame (matching iOS) — the
+                // nowcast future stays clearly marked instead of leading.
+                currentFrameIndex = frames.lastIndex(where: { !$0.isNowcast }) ?? max(frames.count - 1, 0)
             } else {
                 frames = []
             }
