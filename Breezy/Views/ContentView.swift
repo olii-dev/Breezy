@@ -21,6 +21,8 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var showingTimeMachine = false
     @State private var showingTripMode = false
+    /// Radar deep link (breezy://radar from the Home Screen radar widget).
+    @State private var showingRadarDeepLink = false
     @State private var showingLocationPicker = false
 #if DEBUG
     @State private var showingDriverRadar = false
@@ -256,10 +258,16 @@ struct ContentView: View {
                     TripModeView(weatherViewModel: viewModel, locationHelper: locationHelper)
                 }
                 .onOpenURL { url in
-                    // Deep link from the trip Live Activity / On the Way widget.
+                    // Deep links from widgets and Live Activities.
                     if url.absoluteString == "breezy://trip" {
                         showingTripMode = true
                     }
+                    if url.absoluteString == "breezy://radar" {
+                        showingRadarDeepLink = true
+                    }
+                }
+                .fullScreenCover(isPresented: $showingRadarDeepLink) {
+                    FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
                 }
                 .overlay(alignment: .top) {
                     if sharedTripVM.isTripLive, TripStore.isGoNowActive() {
