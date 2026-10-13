@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreLocation
+import CryptoKit
 import MapKit
 import UIKit
 
@@ -428,10 +429,31 @@ class WeatherTileOverlay: MKTileOverlay {
                (200..<300).contains(httpResponse.statusCode),
                let data,
                !data.isEmpty {
-                completion(data)
+                // RainViewer answers out-of-range zooms with HTTP 200 and a
+                // fixed "zoom level not supported" image instead of a 404 —
+                // fingerprint it so the ancestor fallback serves a real
+                // (upscaled) radar tile instead of the error art.
+                if Self.isTileServerError(data) {
+                    finish(nil)
+                } else {
+                    completion(data)
+                }
             } else {
                 finish(nil)
             }
         }.resume()
+    }
+
+    /// md5 fingerprints of RainViewer's fixed error tiles (256px and 512px
+    /// variants, color scheme 6 / options 1_1 — stable across frames).
+    private static let tileServerErrorMD5s: Set<String> = [
+        "2cc6649e1f2ec818def1b4d8f911958d",
+        "6227f878c487498df3f64f8ac0636a57"
+    ]
+
+    static func isTileServerError(_ data: Data) -> Bool {
+        guard data.count < 8192 else { return false }
+        let digest = Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return tileServerErrorMD5s.contains(digest)
     }
 }

@@ -9,6 +9,7 @@
 
 import Foundation
 import CoreLocation
+import CryptoKit
 import MapKit
 #if canImport(UIKit)
 import UIKit
@@ -292,25 +293,14 @@ actor WatchRadarService {
         guard let bitmapCtx else { throw WatchRadarError.snapshotFailed }
 
         let gridExtent = Self.gridExtent
-        var tileFetchTasks: [(dx: Int, dy: Int, url: URL)] = []
+        var tileFetchTasks: [(dx: Int, dy: Int, z: Int, x: Int, y: Int)] = []
 
         for dx in -gridExtent...gridExtent {
             for dy in -gridExtent...gridExtent {
                 let tileX = centerX + dx
                 let tileY = centerY + dy
-                let n = Int(pow(2.0, Double(zoom)))
-                let wrappedX = ((tileX % n) + n) % n
 
-                guard let url = tileURL(
-                    layer: layer,
-                    source: source,
-                    x: wrappedX,
-                    y: tileY,
-                    zoom: zoom,
-                    framePath: framePath
-                ) else { continue }
-
-                tileFetchTasks.append((dx: dx, dy: dy, url: url))
+                tileFetchTasks.append((dx: dx, dy: dy, z: zoom, x: tileX, y: tileY))
             }
         }
 
@@ -318,8 +308,15 @@ actor WatchRadarService {
             for task in tileFetchTasks {
                 group.addTask { [weak self] in
                     guard let self else { return (task.dx, task.dy, nil) }
-                    let tile = await self.fetchTile(url: task.url)
-                    return (task.dx, task.dy, tile)
+                    let tile = await self.fetchTileWithFallback(
+                        z: task.z,
+                        x: task.x,
+                        y: task.y,
+                        layer: layer,
+                        source: source,
+                        framePath: framePath
+                    )
+                    return (task.dx, task.dy, tile ?? WatchRadarService.transparentTile)
                 }
             }
 
@@ -344,13 +341,60 @@ actor WatchRadarService {
     private func fetchTile(url: URL) async -> PlatformImage? {
         do {
             let (data, response) = try await session.data(from: url)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                return WatchRadarService.transparentTile
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                  !data.isEmpty, !Self.isTileServerError(data) else {
+                return nil
             }
             return PlatformImage(data: data) ?? WatchRadarService.transparentTile
         } catch {
-            return WatchRadarService.transparentTile
+            return nil
         }
+    }
+
+    /// Tile servers cap how deep they serve data — RainViewer stops around
+    /// zoom 7 and answers deeper zooms with an HTTP-200 error image. On
+    /// failure, walk up the tile pyramid and use the closest available
+    /// ancestor, upscaled into this tile's slot.
+    private func fetchTileWithFallback(
+        z: Int,
+        x: Int,
+        y: Int,
+        layer: WatchRadarLayer,
+        source: WatchRadarPrecipitationSource,
+        framePath: String?,
+        depth: Int = 0
+    ) async -> PlatformImage? {
+        let n = Int(pow(2.0, Double(max(z, 0))))
+        let wrappedX = ((x % n) + n) % n
+
+        if let url = tileURL(layer: layer, source: source, x: wrappedX, y: y, zoom: z, framePath: framePath),
+           let tile = await fetchTile(url: url) {
+            return tile
+        }
+
+        guard z > 0, depth < 6 else { return nil }
+        return await fetchTileWithFallback(
+            z: z - 1,
+            x: x >> 1,
+            y: y >> 1,
+            layer: layer,
+            source: source,
+            framePath: framePath,
+            depth: depth + 1
+        )
+    }
+
+    /// md5 fingerprints of RainViewer's fixed "zoom level not supported"
+    /// error tiles (256px and 512px variants — stable across frames).
+    private static let tileServerErrorMD5s: Set<String> = [
+        "2cc6649e1f2ec818def1b4d8f911958d",
+        "6227f878c487498df3f64f8ac0636a57"
+    ]
+
+    static func isTileServerError(_ data: Data) -> Bool {
+        guard data.count < 8192 else { return false }
+        let digest = Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return tileServerErrorMD5s.contains(digest)
     }
 
     // MARK: - Tile URL Builders
