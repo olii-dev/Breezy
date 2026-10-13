@@ -115,6 +115,7 @@ struct ProviderMarineConditions {
     let seaSurfaceTemperatureCelsius: Double?
     let currentSpeedMetersPerSecond: Double?
     let currentDirectionDegrees: Double?
+    var tideForecast: TideForecast? = nil
 }
 
 /// Pollen concentrations in grains/m³ (Open-Meteo / CAMS Europe only).

@@ -152,7 +152,12 @@ final class OpenMeteoProvider: WeatherProviding {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height,swell_wave_direction,sea_surface_temperature,ocean_current_velocity,ocean_current_direction")
+            URLQueryItem(name: "current", value: "wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height,swell_wave_direction,sea_surface_temperature,ocean_current_velocity,ocean_current_direction"),
+            // Sea level including tides (MSL-referenced) — hourly, wide enough
+            // to catch today's turning points.
+            URLQueryItem(name: "hourly", value: "sea_level_height_msl"),
+            URLQueryItem(name: "past_days", value: "1"),
+            URLQueryItem(name: "forecast_days", value: "3")
         ]
 
         guard let url = components?.url else {
@@ -245,7 +250,11 @@ final class OpenMeteoProvider: WeatherProviding {
             cloudCoverFraction: response.current.cloudCover.map { $0 / 100.0 },
             airQuality: makeAirQuality(from: airQualityResponse?.current),
             airQualityTrend: makeAirQualityTrend(from: airQualityResponse?.hourly, timezone: timezone),
-            marine: makeMarine(from: marineResponse?.current),
+            marine: makeMarine(
+                from: marineResponse?.current,
+                hourlySeaLevel: marineResponse?.hourly,
+                timezone: timezone
+            ),
             pollen: makePollen(from: airQualityResponse?.current)
         )
 
@@ -421,8 +430,33 @@ final class OpenMeteoProvider: WeatherProviding {
             .0
     }
 
-    private func makeMarine(from current: OpenMeteoMarineCurrentBlock?) -> ProviderMarineConditions? {
-        guard let current else { return nil }
+    private func makeMarine(
+        from current: OpenMeteoMarineCurrentBlock?,
+        hourlySeaLevel: OpenMeteoMarineHourlyBlock?,
+        timezone: TimeZone
+    ) -> ProviderMarineConditions? {
+        guard let current else {
+            // Current block nil means the point is far from any water; hourly
+            // sea level would be equally absent.
+            return nil
+        }
+
+        var tideForecast: TideForecast?
+        if let hourlySeaLevel {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+            formatter.timeZone = timezone
+            let samples: [(date: Date, meters: Double?)] = zip(hourlySeaLevel.time, hourlySeaLevel.seaLevelHeightMSL ?? [])
+                .compactMap { time, level in
+                    guard let date = formatter.date(from: time) else { return nil }
+                    return (date, level)
+                }
+            let forecast = TideForecastCalculator.forecast(samples: samples, now: Date())
+            if forecast.currentLevelMeters != nil || !forecast.events.isEmpty {
+                tideForecast = forecast
+            }
+        }
+
         return ProviderMarineConditions(
             waveHeightMeters: current.waveHeight,
             waveDirectionDegrees: current.waveDirection,
@@ -431,7 +465,8 @@ final class OpenMeteoProvider: WeatherProviding {
             swellDirectionDegrees: current.swellWaveDirection,
             seaSurfaceTemperatureCelsius: current.seaSurfaceTemperature,
             currentSpeedMetersPerSecond: current.oceanCurrentVelocity.map { $0 / 3.6 },
-            currentDirectionDegrees: current.oceanCurrentDirection
+            currentDirectionDegrees: current.oceanCurrentDirection,
+            tideForecast: tideForecast
         )
     }
 
@@ -544,6 +579,17 @@ private struct OpenMeteoAirQualityCurrentBlock: Decodable {
 
 private struct OpenMeteoMarineResponse: Decodable {
     let current: OpenMeteoMarineCurrentBlock?
+    let hourly: OpenMeteoMarineHourlyBlock?
+}
+
+private struct OpenMeteoMarineHourlyBlock: Decodable {
+    let time: [String]
+    let seaLevelHeightMSL: [Double?]?
+
+    enum CodingKeys: String, CodingKey {
+        case time
+        case seaLevelHeightMSL = "sea_level_height_msl"
+    }
 }
 
 private struct OpenMeteoMarineCurrentBlock: Decodable {

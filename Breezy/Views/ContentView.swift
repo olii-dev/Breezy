@@ -3642,7 +3642,7 @@ struct MarineOutlookWidget: View {
                 .foregroundColor(textColor.opacity(0.6))
 
             if let marine,
-               marine.waveHeight != nil || marine.wavePeriod != nil || marine.seaSurfaceTemperature != nil || marine.currentSpeed != nil {
+               marine.waveHeight != nil || marine.wavePeriod != nil || marine.seaSurfaceTemperature != nil || marine.currentSpeed != nil || marine.tideEvents?.isEmpty == false {
                 if style == "compact" {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 12) {
@@ -3666,6 +3666,8 @@ struct MarineOutlookWidget: View {
                                 .font(.caption)
                                 .foregroundColor(textColor.opacity(0.68))
                         }
+
+                        tideRow(marine: marine, textColor: textColor)
                     }
                 } else {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -3694,6 +3696,8 @@ struct MarineOutlookWidget: View {
                             .font(.caption)
                             .foregroundColor(textColor.opacity(0.68))
                     }
+
+                    tideRow(marine: marine, textColor: textColor)
                 }
             } else {
                 Text("Marine data is patchy inland, but it becomes useful when you are near the coast.")
@@ -3703,6 +3707,34 @@ struct MarineOutlookWidget: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .softGlassCard()
+    }
+
+    /// "Rising · High 0.5 m at 6:04 PM · Low 1.0 m at 12:38 AM"
+    @ViewBuilder
+    private func tideRow(marine: MarineConditions, textColor: Color) -> some View {
+        if let events = marine.tideEvents, !events.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: marine.tideTrend == "Falling" ? "arrow.down.right" : "arrow.up.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.teal)
+                    Text([marine.tideTrend, marine.tideLevel].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(textColor)
+                }
+
+                ForEach(events.prefix(2)) { event in
+                    Text("\(event.isHigh ? "High" : "Low") \(String(format: "%+.1f m", event.heightMeters)) at \(event.date.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption)
+                        .foregroundColor(textColor.opacity(0.68))
+                }
+
+                Text("Estimated tides")
+                    .font(.caption2)
+                    .foregroundColor(textColor.opacity(0.4))
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 }
 

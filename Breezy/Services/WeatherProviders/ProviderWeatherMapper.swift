@@ -238,7 +238,13 @@ enum ProviderWeatherMapper {
                     swellHeight: marine.swellHeightMeters.map { String(format: "%.1f m", $0) },
                     seaSurfaceTemperature: marine.seaSurfaceTemperatureCelsius.map { formatting.formattedTemperature($0) },
                     currentSpeed: formatting.formattedWindSpeed(metersPerSecond: marine.currentSpeedMetersPerSecond),
-                    currentDirection: marine.currentDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) }
+                    currentDirection: marine.currentDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) },
+                    tideLevel: marine.tideForecast?.currentLevelMeters.map { String(format: "%+.1f m", $0) },
+                    tideTrend: marine.tideForecast.map { forecast in
+                        guard let rising = forecast.isRising else { return nil }
+                        return rising ? "Rising" : "Falling"
+                    } ?? nil,
+                    tideEvents: marine.tideForecast?.events
                 )
             },
             surf: makeSurf(from: current.marine, windSpeedMetersPerSecond: current.windSpeedMetersPerSecond, windDirectionDegrees: current.windDirectionDegrees),
