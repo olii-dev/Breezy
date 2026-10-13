@@ -230,23 +230,7 @@ enum ProviderWeatherMapper {
             airQuality: current.airQuality,
             airQualityTrend: current.airQualityTrend,
             windHistory: makeWindHistory(from: payload.hourly),
-            marine: current.marine.map { marine in
-                MarineConditions(
-                    waveHeight: marine.waveHeightMeters.map { String(format: "%.1f m", $0) },
-                    waveDirection: marine.waveDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) },
-                    wavePeriod: marine.wavePeriodSeconds.map { String(format: "%.0f s", $0) },
-                    swellHeight: marine.swellHeightMeters.map { String(format: "%.1f m", $0) },
-                    seaSurfaceTemperature: marine.seaSurfaceTemperatureCelsius.map { formatting.formattedTemperature($0) },
-                    currentSpeed: formatting.formattedWindSpeed(metersPerSecond: marine.currentSpeedMetersPerSecond),
-                    currentDirection: marine.currentDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) },
-                    tideLevel: marine.tideForecast?.currentLevelMeters.map { String(format: "%+.1f m", $0) },
-                    tideTrend: marine.tideForecast.map { forecast in
-                        guard let rising = forecast.isRising else { return nil }
-                        return rising ? "Rising" : "Falling"
-                    } ?? nil,
-                    tideEvents: marine.tideForecast?.events
-                )
-            },
+            marine: makeMarineConditions(from: current.marine, payload: payload, formatting: formatting),
             surf: makeSurf(from: current.marine, windSpeedMetersPerSecond: current.windSpeedMetersPerSecond, windDirectionDegrees: current.windDirectionDegrees),
             pollen: makePollen(from: current.pollen),
             pressure: formatting.formattedPressure(hectopascals: current.pressureHectopascals),
@@ -366,4 +350,47 @@ enum ProviderWeatherMapper {
         updatedLocation.timezoneIdentifier = timezone.identifier
         return updatedLocation
     }
+
+    /// Marine conditions with the best available tides: gauge-predicted from
+    /// published harmonic constituents when a station is within range, else the
+    /// Open-Meteo sea-level estimate.
+    private static func makeMarineConditions(
+        from marine: ProviderMarineConditions?,
+        payload: ProviderWeatherPayload,
+        formatting: WeatherFormattingContext
+    ) -> MarineConditions? {
+        guard let marine else { return nil }
+
+        var conditions = MarineConditions(
+            waveHeight: marine.waveHeightMeters.map { String(format: "%.1f m", $0) },
+            waveDirection: marine.waveDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) },
+            wavePeriod: marine.wavePeriodSeconds.map { String(format: "%.0f s", $0) },
+            swellHeight: marine.swellHeightMeters.map { String(format: "%.1f m", $0) },
+            seaSurfaceTemperature: marine.seaSurfaceTemperatureCelsius.map { formatting.formattedTemperature($0) },
+            currentSpeed: formatting.formattedWindSpeed(metersPerSecond: marine.currentSpeedMetersPerSecond),
+            currentDirection: marine.currentDirectionDegrees.map { WindDirectionHelper.cardinalDirection(from: $0) }
+        )
+
+        // Gauge tides (real observations, both providers) beat the model estimate.
+        if let station = TideStationIndex.nearestStation(latitude: payload.location.latitude, longitude: payload.location.longitude) {
+            let forecast = HarmonicTideEngine.forecast(station: station)
+            if !forecast.events.isEmpty || forecast.currentLevelMeters != nil {
+                conditions.tideLevel = forecast.currentLevelMeters.map { String(format: "%+.1f m", $0) }
+                conditions.tideTrend = forecast.isRising.map { $0 ? "Rising" : "Falling" }
+                conditions.tideEvents = forecast.events
+                conditions.tideStationName = station.n
+                conditions.tideIsEstimated = false
+                return conditions
+            }
+        }
+
+        // Open-Meteo estimate fallback.
+        if let forecast = marine.tideForecast {
+            conditions.tideLevel = forecast.currentLevelMeters.map { String(format: "%+.1f m", $0) }
+            conditions.tideTrend = forecast.isRising.map { $0 ? "Rising" : "Falling" }
+            conditions.tideEvents = forecast.events
+        }
+        return conditions
+    }
+
 }

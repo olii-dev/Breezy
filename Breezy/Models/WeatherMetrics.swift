@@ -58,10 +58,15 @@ struct MarineConditions: Codable, Equatable {
     let seaSurfaceTemperature: String?
     let currentSpeed: String?
     let currentDirection: String?
-    /// Tides (Open-Meteo sea_level_height_msl — estimated, MSL-referenced).
+    /// Tides — gauge-predicted (harmonic constituents) or estimated
+    /// (Open-Meteo sea_level_height_msl fallback).
     var tideLevel: String? = nil
     var tideTrend: String? = nil
     var tideEvents: [TideEvent]? = nil
+    /// Station name when tides come from a real gauge.
+    var tideStationName: String? = nil
+    /// True when tides are the Open-Meteo model estimate rather than a gauge.
+    var tideIsEstimated: Bool = true
 }
 
 struct MoonPhase: Codable, Equatable {

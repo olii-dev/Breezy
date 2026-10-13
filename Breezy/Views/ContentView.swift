@@ -3729,9 +3729,12 @@ struct MarineOutlookWidget: View {
                         .foregroundColor(textColor.opacity(0.68))
                 }
 
-                Text("Estimated tides")
+                Text(marine.tideIsEstimated
+                     ? "Estimated tides"
+                     : "Tides from the \(marine.tideStationName ?? "local") gauge · TICON-4/GESLA-4 (CC BY 4.0)")
                     .font(.caption2)
                     .foregroundColor(textColor.opacity(0.4))
+                    .lineLimit(2)
             }
             .accessibilityElement(children: .combine)
         }
