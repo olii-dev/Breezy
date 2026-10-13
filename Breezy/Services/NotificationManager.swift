@@ -743,11 +743,58 @@ class NotificationManager: NSObject, ObservableObject {
     /// automatic refreshes and by the background refresh task.
     func runAllAlertChecks(weather: WeatherInfo, temperatureUnit: TemperatureUnit) {
         checkSevereWeather(weather: weather)
+        checkLightningAlert(weather: weather)
         checkRain(weather: weather)
         checkUVAlert(weather: weather)
         checkTemperatureChange(weather: weather, temperatureUnit: temperatureUnit)
         checkWindAlert(weather: weather)
         checkPrecipitationProbability(weather: weather)
+    }
+
+    // MARK: - Lightning Alerts
+
+    /// Forecast-driven half: thunderstorms in the next hour mean lightning is
+    /// possible — distinct from the generic severe alert (that reacts to the
+    /// current condition; this watches the approaching hourly series). Runs
+    /// wherever runAllAlertChecks runs, so the background refresh delivers it
+    /// with the app closed. Ignores quiet hours (safety).
+    func checkLightningAlert(weather: WeatherInfo) {
+        guard settings.lightningAlertsEnabled else { return }
+        guard authorizationStatus == .authorized else { return }
+
+        let now = Date()
+        let nextHour = (weather.allHourlyData ?? weather.hourlyForecast)
+            .filter { hour in
+                guard let date = hour.sourceDate else { return false }
+                return date > now && date <= now.addingTimeInterval(3600)
+            }
+
+        let stormy = nextHour.contains { hour in
+            let condition = (hour.condition ?? "").lowercased()
+            return condition.contains("thunderstorm") || condition.contains("storms")
+        }
+        guard stormy else { return }
+
+        if let last = alertState.state.lastLightningAlertDate,
+           Date().timeIntervalSince(last) < 60 * 60 { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Lightning Possible"
+        content.body = alertBody(
+            base: "Thunderstorms forecast within the hour in \(weather.location.city). Lightning could be nearby — plan indoors.",
+            weather: weather,
+            preferences: settings.alertContent
+        )
+        content.sound = .default
+        content.categoryIdentifier = "WEATHER_ALERT"
+        content.userInfo = ["type": "lightningForecast"]
+
+        notificationCenter.add(UNNotificationRequest(
+            identifier: "lightningForecast_\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        ))
+        alertState.update { $0.lastLightningAlertDate = Date() }
     }
 
     // MARK: - Update Settings

@@ -24,6 +24,9 @@ struct AlertState: Codable, Equatable {
     // Severe weather
     var lastSevereAlertDate: Date?
 
+    // Lightning (forecast-driven half; live proximity tracks its own window)
+    var lastLightningAlertDate: Date?
+
     // Wind
     var lastWindAlertDate: Date?
 
@@ -49,6 +52,7 @@ struct AlertState: Codable, Equatable {
         lastUVAlertLocation = try c.decodeIfPresent(String.self, forKey: .lastUVAlertLocation)
         lastUVAlertIndex = try c.decodeIfPresent(Int.self, forKey: .lastUVAlertIndex)
         lastSevereAlertDate = try c.decodeIfPresent(Date.self, forKey: .lastSevereAlertDate)
+        lastLightningAlertDate = try c.decodeIfPresent(Date.self, forKey: .lastLightningAlertDate)
         lastWindAlertDate = try c.decodeIfPresent(Date.self, forKey: .lastWindAlertDate)
         lastPrecipProbabilityAlertDate = try c.decodeIfPresent(Date.self, forKey: .lastPrecipProbabilityAlertDate)
         lastTemperatureCelsius = try c.decodeIfPresent(Double.self, forKey: .lastTemperatureCelsius)

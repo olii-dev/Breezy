@@ -748,6 +748,37 @@ struct NotificationSettingsView: View {
                                 )
                             )
 
+                            NavigationLink {
+                                LightningAlertSettingsView(
+                                    settings: $notificationSettings,
+                                    viewModel: viewModel,
+                                    onSave: { saveNotificationSettings() }
+                                )
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "bolt.fill")
+                                        .font(.title3)
+                                        .foregroundColor(.yellow)
+                                        .frame(width: 26)
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text("Lightning")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundColor(theme.textColor)
+                                        Text("Thunderstorm forecasts + live strikes nearby")
+                                            .font(.caption2)
+                                            .foregroundColor(theme.textColor.opacity(0.5))
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(theme.textColor.opacity(0.4))
+                                }
+                                .padding()
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                            }
+                            .buttonStyle(.plain)
+
                             alertRow(
                                 "Rain Alerts", icon: "cloud.rain.fill", color: .blue, theme: theme,
                                 isOn: notificationSettings.rainAlertsEnabled,

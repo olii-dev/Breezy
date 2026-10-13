@@ -362,13 +362,13 @@ struct FullScreenRadarView: View {
         .onAppear {
             loadFramesIfNeeded()
             if showLightning {
-                LightningService.shared.start()
+                LightningService.shared.start(reason: .radar)
             }
         }
         .onDisappear {
             pauseAnimation()
             // The websocket only lives while a radar surface is on screen.
-            LightningService.shared.stop()
+            LightningService.shared.stop(reason: .radar)
         }
         .onChange(of: selectedLayer) { _, newLayer in
             // Start playback automatically when entering precipitation RainViewer

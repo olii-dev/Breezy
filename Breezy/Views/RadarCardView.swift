@@ -193,12 +193,12 @@ struct RadarCardView: View {
         }
         .onAppear {
             if showLightning {
-                LightningService.shared.start()
+                LightningService.shared.start(reason: .radar)
             }
         }
         .onDisappear {
             // The websocket only lives while a radar surface is on screen.
-            LightningService.shared.stop()
+            LightningService.shared.stop(reason: .radar)
         }
     }
 

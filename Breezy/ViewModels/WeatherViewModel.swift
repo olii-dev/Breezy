@@ -1067,6 +1067,11 @@ class WeatherViewModel: ObservableObject {
 
             // Weather Live Activities follow the forecast.
             LiveActivityHub.updateAll(with: info)
+
+            // Storm watch: thunderstorm conditions auto-start the live
+            // lightning feed so proximity alerts can fire while Breezy is
+            // alive; clear conditions release it (radar keeps its own reason).
+            updateStormWatch(for: info)
             
             // Refresh attribution periodically or on fetch
             if attribution == nil {
@@ -1931,6 +1936,26 @@ class WeatherViewModel: ObservableObject {
         notificationManager.runAllAlertChecks(weather: newWeather, temperatureUnit: temperatureUnit)
     }
     
+    /// Thunderstorm conditions hold a storm-watch reason on the live
+    /// lightning feed (proximity alerts need the websocket alive, which iOS
+    /// only grants while the app is running). Clear conditions release it.
+    private func updateStormWatch(for weather: WeatherInfo) {
+        LightningAlertManager.shared.userCoordinate = CLLocationCoordinate2D(
+            latitude: weather.location.latitude,
+            longitude: weather.location.longitude
+        )
+
+        let lowered = weather.condition.lowercased()
+        let stormy = UserDefaults.standard.notificationSettings.lightningAlertsEnabled
+            && (lowered.contains("thunderstorm") || lowered.contains("storms"))
+
+        if stormy {
+            LightningService.shared.start(reason: .stormWatch)
+        } else {
+            LightningService.shared.stop(reason: .stormWatch)
+        }
+    }
+
     private func syncWatchContext() {
         let theme: WeatherTheme
         switch themeMode {

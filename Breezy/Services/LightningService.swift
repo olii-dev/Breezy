@@ -46,6 +46,13 @@ enum LightningConnectionState: Equatable {
     case unavailable
 }
 
+/// Why the feed is running — radar surfaces and storm-watch auto-start hold
+/// independent reasons so one surface closing never kills the other's feed.
+enum LightningFeedReason: String {
+    case radar
+    case stormWatch
+}
+
 final class LightningService: ObservableObject {
 
     static let shared = LightningService()
@@ -54,6 +61,10 @@ final class LightningService: ObservableObject {
     @Published private(set) var strikes: [LightningStrike] = []
     /// Feed health, surfaced by the radar UI instead of a silently empty layer.
     @Published private(set) var connectionState: LightningConnectionState = .idle
+
+    /// Fired on the main thread for every strike appended — powers proximity
+    /// alerts without polling the published buffer.
+    var onStrikeAdded: ((LightningStrike) -> Void)?
 
     /// True while the websocket is established (even if the stream looks stale).
     var isConnected: Bool { connectionState == .connected || connectionState == .stale }
@@ -81,6 +92,7 @@ final class LightningService: ObservableObject {
     private var reconnectAttempt = 0
     private var shouldRun = false
     private var pruneTimer: Timer?
+    private var activeReasons: Set<LightningFeedReason> = []
     /// Last time any frame arrived (strikes, status, keepalives — anything).
     private var lastMessageAt: Date?
     /// Set once a reconnect cycle has begun after silence, so stale is reported
@@ -93,33 +105,47 @@ final class LightningService: ObservableObject {
 
     // MARK: - Lifecycle
 
-    func start() {
+    func start(reason: LightningFeedReason) {
         queue.async { [weak self] in
-            guard let self, !self.shouldRun else { return }
-            self.shouldRun = true
-            self.lastMessageAt = nil
-            self.reconnectAttempt = 0
-            self.recyclingAfterSilence = false
-            self.setState(.connecting)
-            self.connect()
-            self.startPruning()
+            guard let self else { return }
+            let wasIdle = self.activeReasons.isEmpty
+            self.activeReasons.insert(reason)
+            guard wasIdle else { return }
+            self.beginRunning()
         }
     }
 
-    func stop() {
+    func stop(reason: LightningFeedReason) {
         queue.async { [weak self] in
             guard let self else { return }
-            self.shouldRun = false
-            self.task?.cancel(with: .goingAway, reason: nil)
-            self.task = nil
-            self.session?.invalidateAndCancel()
-            self.session = nil
-            self.pruneTimer?.invalidate()
-            self.pruneTimer = nil
-            self.lastMessageAt = nil
-            self.recyclingAfterSilence = false
-            self.setState(.idle)
+            self.activeReasons.remove(reason)
+            guard self.activeReasons.isEmpty else { return }
+            self.ceaseRunning()
         }
+    }
+
+    private func beginRunning() {
+        guard !shouldRun else { return }
+        shouldRun = true
+        lastMessageAt = nil
+        reconnectAttempt = 0
+        recyclingAfterSilence = false
+        setState(.connecting)
+        connect()
+        startPruning()
+    }
+
+    private func ceaseRunning() {
+        shouldRun = false
+        task?.cancel(with: .goingAway, reason: nil)
+        task = nil
+        session?.invalidateAndCancel()
+        session = nil
+        pruneTimer?.invalidate()
+        pruneTimer = nil
+        lastMessageAt = nil
+        recyclingAfterSilence = false
+        setState(.idle)
     }
 
     // MARK: - Connection
@@ -276,6 +302,7 @@ final class LightningService: ObservableObject {
             guard let self else { return }
             self.strikes.append(strike)
             self.pruneExpired()
+            self.onStrikeAdded?(strike)
         }
     }
 

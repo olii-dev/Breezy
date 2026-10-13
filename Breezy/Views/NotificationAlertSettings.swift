@@ -376,6 +376,86 @@ struct NotificationContentEditor: View {
     }
 }
 
+// MARK: - Lightning Alert Settings
+
+/// Lightning alerts' two prongs explained — no thresholds to tune.
+struct LightningAlertSettingsView: View {
+    @Binding var settings: NotificationSettings
+    @ObservedObject var viewModel: WeatherViewModel
+    var onSave: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let theme = viewModel.currentTheme(colorScheme: colorScheme)
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignSystem.spacingL) {
+                HStack(spacing: 12) {
+                    Image(systemName: "bolt.fill")
+                        .font(.title2)
+                        .foregroundColor(.yellow)
+                    Text("Lightning Alerts")
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(theme.textColor)
+                    Spacer()
+                }
+                .padding()
+                .background(cardBackground)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle(isOn: Binding(
+                        get: { settings.lightningAlertsEnabled },
+                        set: { settings.lightningAlertsEnabled = $0; onSave() }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Enabled")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundColor(theme.textColor)
+                            Text("Ignores quiet hours — lightning is a safety alert")
+                                .font(.caption2)
+                                .foregroundColor(theme.textColor.opacity(0.5))
+                        }
+                    }
+                    .tint(.yellow)
+                }
+                .padding()
+                .background(cardBackground)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Forecast watch", systemImage: "clock.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(theme.textColor)
+                    Text("When thunderstorms appear in the next hour's forecast, you get a \"Lightning Possible\" notification — this works with the app closed, delivered by background refresh.")
+                        .font(.caption)
+                        .foregroundColor(theme.textColor.opacity(0.6))
+
+                    Label("Live strikes", systemImage: "bolt.horizontal.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(theme.textColor)
+                        .padding(.top, 4)
+                    Text("While Breezy is open (or the radar is showing) during stormy conditions, the live lightning feed watches for strikes within 20 km and alerts immediately — with stronger wording inside 8 km.")
+                        .font(.caption)
+                        .foregroundColor(theme.textColor.opacity(0.6))
+                }
+                .padding()
+                .background(cardBackground)
+            }
+            .padding()
+        }
+        .background(
+            AnimatedGradientBackground(colors: [theme.topColor, theme.bottomColor])
+        )
+        .navigationTitle("Lightning")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+            .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+    }
+}
+
 // MARK: - Live Activities Settings
 
 struct LiveActivitySettingsView: View {
