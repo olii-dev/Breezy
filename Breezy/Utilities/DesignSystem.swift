@@ -199,18 +199,21 @@ enum FontScale {
 
 struct JiggleModifier: ViewModifier {
     let isJiggling: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isAnimating = false
     @State private var rotationOffset: Double = Double.random(in: -0.35...0.35)
     @State private var xOffset: CGFloat = CGFloat.random(in: -0.3...0.3)
     @State private var yOffset: CGFloat = CGFloat.random(in: -0.3...0.3)
     @State private var animationTask: Task<Void, Never>?
-    
+
     func body(content: Content) -> some View {
+        // Reduce Motion: edit mode stays indicated by the overlay chrome,
+        // not by shaking.
         content
-            .rotationEffect(.degrees(isJiggling ? (isAnimating ? 0.7 + rotationOffset : -0.7 - rotationOffset) : 0))
+            .rotationEffect(.degrees(isJiggling && !reduceMotion ? (isAnimating ? 0.7 + rotationOffset : -0.7 - rotationOffset) : 0))
             .offset(
-                x: isJiggling ? (isAnimating ? xOffset : -xOffset) : 0,
-                y: isJiggling ? (isAnimating ? yOffset : -yOffset) : 0
+                x: isJiggling && !reduceMotion ? (isAnimating ? xOffset : -xOffset) : 0,
+                y: isJiggling && !reduceMotion ? (isAnimating ? yOffset : -yOffset) : 0
             )
             .onAppear {
                 updateAnimationState()
@@ -218,13 +221,16 @@ struct JiggleModifier: ViewModifier {
             .onChange(of: isJiggling) { _, newValue in
                 updateAnimationState(isEnabled: newValue)
             }
+            .onChange(of: reduceMotion) { _, _ in
+                updateAnimationState(isEnabled: isJiggling)
+            }
             .onDisappear {
                 stopAnimation(reset: false)
             }
     }
-    
+
     private func updateAnimationState(isEnabled: Bool? = nil) {
-        if isEnabled ?? isJiggling {
+        if isEnabled ?? isJiggling, !reduceMotion {
             startAnimation()
         } else {
             stopAnimation(reset: true)

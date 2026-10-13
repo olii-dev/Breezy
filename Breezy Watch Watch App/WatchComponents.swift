@@ -142,6 +142,7 @@ struct HourlyForecastHorizontalView: View {
     let isMinimalist: Bool
     var textColor: Color = .white
 
+    @Environment(\.accessibilityReduceMotion) private var watchReduceMotion
     @State private var crownValue: Double = 0
     @State private var selectedID: Date?
     @State private var autoHideTask: Task<Void, Never>?
@@ -169,8 +170,7 @@ struct HourlyForecastHorizontalView: View {
                                 isHighlighted: selectedID == hour.date
                             )
                             .id(hour.date)
-                            .scaleEffect(selectedID == hour.date ? 1.12 : 1)
-                            .animation(.easeInOut(duration: 0.15), value: selectedID)
+                            .scaleEffect(selectedID == hour.date && !watchReduceMotion ? 1.12 : 1)
                         }
                     }
                     .padding(.horizontal)

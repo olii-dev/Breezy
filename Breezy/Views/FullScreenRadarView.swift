@@ -22,6 +22,7 @@ struct FullScreenRadarView: View {
     @State private var frames: [RadarService.RainViewerFrameData] = []
     @State private var currentFrameIndex: Int = 0
     @State private var isPlaying: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationTimer: Timer?
     @State private var metadataLoaded: Bool = false
     @State private var isScrubbing: Bool = false
@@ -418,6 +419,8 @@ struct FullScreenRadarView: View {
         guard selectedLayer == .precipitation,
               precipitationSource == .rainViewer,
               !metadataLoaded else { return }
+        // Reduce Motion: frames stay available for manual scrubbing, but the
+        // loop doesn't autoplay.
 
         metadataLoaded = true
         RadarService.shared.refreshRainViewerMetadataIfNeeded(force: true) {
@@ -441,7 +444,7 @@ struct FullScreenRadarView: View {
     }
 
     private func startPlayback() {
-        guard canAnimate else { return }
+        guard canAnimate, !reduceMotion else { return }
         pauseAnimation()
         isPlaying = true
 

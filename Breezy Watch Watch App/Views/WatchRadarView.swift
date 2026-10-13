@@ -42,6 +42,7 @@ struct WatchRadarView: View {
 
     @State private var isPlaying: Bool = false
     @State private var crownValue: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Zoom cycle: Region → City → Close.
     @State private var zoomIndex: Int = 1
@@ -249,7 +250,7 @@ struct WatchRadarView: View {
 
             // Location dot at center
             if compositeImage != nil {
-                WatchRadarLocationDot(color: theme.textColor, pulsing: scenePhase == .active)
+                WatchRadarLocationDot(color: theme.textColor, pulsing: scenePhase == .active && !reduceMotion)
             }
         }
     }
@@ -478,7 +479,7 @@ struct WatchRadarView: View {
     }
 
     private func startAnimation() {
-        guard animationEnabled, !frames.isEmpty else { return }
+        guard animationEnabled, !frames.isEmpty, !reduceMotion else { return }
         stopAnimation()
         isPlaying = true
 

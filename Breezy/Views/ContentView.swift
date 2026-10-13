@@ -18,6 +18,7 @@ struct ContentView: View {
     /// Shared trip state so the dashboard banner reacts to Go Now start/end.
     @ObservedObject private var sharedTripVM = TripViewModel.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingSettings = false
     @State private var showingTimeMachine = false
     @State private var showingTripMode = false
@@ -104,39 +105,39 @@ struct ContentView: View {
                 }
                 .onChange(of: viewModel.weather) { oldValue, newValue in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    withAnimation(.easeInOut(duration: 1.0)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 1.0)) {
                         gradientColors = [theme.topColor, theme.bottomColor]
                     }
                 }
                 .onChange(of: colorScheme) { oldValue, newValue in
                     // Instant background repaint on theme switch
                     let theme = viewModel.currentTheme(colorScheme: newValue)
-                    withAnimation(.easeInOut(duration: 1.0)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 1.0)) {
                         gradientColors = [theme.topColor, theme.bottomColor]
                     }
                 }
                 // Also listen to explicit theme settings triggers
                 .onChange(of: viewModel.themeMode) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    withAnimation(.easeInOut(duration: 1.0)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 1.0)) {
                         gradientColors = [theme.topColor, theme.bottomColor]
                     }
                 }
                 .onChange(of: viewModel.selectedPresetThemeName) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    withAnimation(.easeInOut(duration: 1.0)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 1.0)) {
                         gradientColors = [theme.topColor, theme.bottomColor]
                     }
                 }
                 .onChange(of: viewModel.customTheme.id) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    withAnimation(.easeInOut(duration: 1.0)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 1.0)) {
                         gradientColors = [theme.topColor, theme.bottomColor]
                     }
                 }
                 .onChange(of: viewModel.appearanceMode) { _, _ in
                     let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                    withAnimation(.easeInOut(duration: 1.0)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 1.0)) {
                         gradientColors = [theme.topColor, theme.bottomColor]
                     }
                 }
@@ -326,8 +327,10 @@ struct ContentView: View {
                 colors: gradientColors.isEmpty ? [theme.topColor, theme.bottomColor] : gradientColors
             )
 
-            // Floating ambient particles
-            FloatingParticles()
+            // Floating ambient particles (still under Reduce Motion)
+            if !reduceMotion {
+                FloatingParticles()
+            }
 
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: DesignSystem.spacingXL) {
