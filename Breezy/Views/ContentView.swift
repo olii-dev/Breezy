@@ -164,6 +164,11 @@ struct ContentView: View {
                                         .font(.subheadline)
                                     Text(viewModel.weather?.location.city ?? "Location")
                                         .font(.subheadline.weight(.medium))
+                                        // Long suburb names must compress, never
+                                        // collide with the trailing toolbar buttons.
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.55)
+                                        .truncationMode(.tail)
                                 }
                                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                             }
@@ -2695,7 +2700,7 @@ struct RainSummaryWidget: View {
                                 Text(intensity)
                                     .font(.title3.weight(.bold))
                                     .foregroundColor(textColor)
-                                Text("Peak rate")
+                                Text("Peak hourly")
                                     .font(.caption2)
                                     .foregroundColor(textColor.opacity(0.6))
                             }
@@ -2764,7 +2769,7 @@ struct RainfallTodayWidget: View {
 
             if style != "minimal" {
                 HStack(spacing: 12) {
-                    WeatherStatBlock(title: "Peak rate", value: peakIntensity, textColor: textColor)
+                    WeatherStatBlock(title: "Peak hourly", value: peakIntensity, textColor: textColor)
                     WeatherStatBlock(title: "Rain chance", value: todayChance, textColor: textColor)
                 }
             }
@@ -4908,7 +4913,7 @@ struct SmartStackWidget: View {
             ) {
                 HStack {
                     SmartStackMetricTile(title: "Total", value: weather.metrics?.todayRainfall ?? "0 mm", textColor: theme.textColor)
-                    SmartStackMetricTile(title: "Peak Intensity", value: weather.metrics?.todayMaxRainIntensity ?? "0 mm/h", textColor: theme.textColor)
+                    SmartStackMetricTile(title: "Peak hourly", value: weather.metrics?.todayMaxRainIntensity ?? "0 mm/h", textColor: theme.textColor)
                 }
             }
         case .windSummary:

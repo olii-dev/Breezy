@@ -3185,7 +3185,7 @@ struct BreezyCircularUVWidget: Widget {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             AccessoryUVLockView(entry: entry)
         }
-        .configurationDisplayName("UV Index")
+        .configurationDisplayName("UV Ring")
         .description("Current UV exposure levels.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular])
     }
@@ -3922,7 +3922,7 @@ struct BreezyMoonLockWidget: Widget {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             BreezyMoonLockWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Moon Phase")
+        .configurationDisplayName("Moon Tonight")
         .description("Current moon phase.")
         .supportedFamilies([.accessoryCircular])
     }
