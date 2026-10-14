@@ -82,10 +82,10 @@ final class WeatherKitProvider: WeatherProviding {
             hourly: hourly,
             formatting: formatting,
             rainChance: day.precipitationChance,
-            rainfallTotalMillimeters: day.precipitationAmount.value,
+            rainfallTotalMillimeters: day.precipitationAmount.converted(to: .millimeters).value,
             sunrise: day.sun.sunrise,
             sunset: day.sun.sunset,
-            uvIndex: Int(day.uvIndex.value),
+            uvIndex: day.uvIndex.value,
             windSpeedMetersPerSecond: day.wind.speed.converted(to: .metersPerSecond).value,
             windGustMetersPerSecond: hourly.compactMap(\.windGustMetersPerSecond).max(),
             windDirectionDegrees: day.wind.direction.value,
@@ -109,7 +109,7 @@ final class WeatherKitProvider: WeatherProviding {
                 condition: WeatherConditionConverter.description(from: day.condition),
                 conditionCode: day.condition.description,
                 precipitationChance: day.precipitationChance,
-                precipitationSumMillimeters: day.precipitationAmount.value,
+                precipitationSumMillimeters: day.precipitationAmount.converted(to: .millimeters).value,
                 windSpeedMaxMetersPerSecond: day.wind.speed.converted(to: .metersPerSecond).value,
                 windDirectionDegrees: day.wind.direction.value,
                 uvIndexMax: Int(day.uvIndex.value),
@@ -131,7 +131,7 @@ final class WeatherKitProvider: WeatherProviding {
             condition: WeatherConditionConverter.description(from: weather.currentWeather.condition),
             conditionCode: weather.currentWeather.condition.description,
             isDaylight: weather.currentWeather.isDaylight,
-            uvIndex: Int(weather.currentWeather.uvIndex.value),
+            uvIndex: weather.currentWeather.uvIndex.value,
             pressureHectopascals: weather.currentWeather.pressure.converted(to: .hectopascals).value,
             visibilityMeters: weather.currentWeather.visibility.converted(to: .meters).value,
             dewPointCelsius: weather.currentWeather.dewPoint.converted(to: .celsius).value,
@@ -140,7 +140,10 @@ final class WeatherKitProvider: WeatherProviding {
             windSpeedMetersPerSecond: weather.currentWeather.wind.speed.converted(to: .metersPerSecond).value,
             windGustMetersPerSecond: weather.hourlyForecast.first?.wind.gust?.converted(to: .metersPerSecond).value,
             precipitationChance: weather.dailyForecast.first?.precipitationChance,
-            precipitationIntensityMillimetersPerHour: weather.minuteForecast?.forecast.first?.precipitationIntensity.value,
+            // m/s → mm/h (×3.6e6); WeatherKit serves locale units, the field is mm/h.
+            precipitationIntensityMillimetersPerHour: weather.minuteForecast?.forecast.first.map { minute in
+                minute.precipitationIntensity.converted(to: .metersPerSecond).value * 3_600_000
+            },
             cloudCoverFraction: weather.currentWeather.cloudCover,
             airQuality: nil,
             airQualityTrend: nil,
@@ -157,7 +160,7 @@ final class WeatherKitProvider: WeatherProviding {
                 condition: WeatherConditionConverter.description(from: day.condition),
                 conditionCode: day.condition.description,
                 precipitationChance: day.precipitationChance,
-                precipitationSumMillimeters: day.precipitationAmount.value,
+                precipitationSumMillimeters: day.precipitationAmount.converted(to: .millimeters).value,
                 windSpeedMaxMetersPerSecond: day.wind.speed.converted(to: .metersPerSecond).value,
                 windDirectionDegrees: day.wind.direction.value,
                 uvIndexMax: Int(day.uvIndex.value),
@@ -173,7 +176,7 @@ final class WeatherKitProvider: WeatherProviding {
             MinuteForecast(
                 time: minute.date,
                 precipitationChance: minute.precipitationChance,
-                precipitationIntensity: minute.precipitationIntensity.value,
+                precipitationIntensity: minute.precipitationIntensity.converted(to: .metersPerSecond).value * 3_600_000, // m/s → mm/h
                 isPrecipitating: minute.precipitationChance > 0
             )
         } ?? []
@@ -195,11 +198,11 @@ final class WeatherKitProvider: WeatherProviding {
             condition: WeatherConditionConverter.description(from: hour.condition),
             conditionCode: hour.condition.description,
             precipitationChance: hour.precipitationChance,
-            precipitationAmountMillimeters: hour.precipitationAmount.value,
+            precipitationAmountMillimeters: hour.precipitationAmount.converted(to: .millimeters).value,
             windSpeedMetersPerSecond: hour.wind.speed.converted(to: .metersPerSecond).value,
             windGustMetersPerSecond: hour.wind.gust?.converted(to: .metersPerSecond).value,
             windDirectionDegrees: hour.wind.direction.value,
-            uvIndex: Int(hour.uvIndex.value),
+            uvIndex: hour.uvIndex.value,
             humidityFraction: hour.humidity,
             pressureHectopascals: hour.pressure.converted(to: .hectopascals).value,
             visibilityMeters: hour.visibility.converted(to: .meters).value,

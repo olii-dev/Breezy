@@ -54,6 +54,9 @@ final class WidgetOpenMeteoClient {
 
         let hourly = makeHourly(from: response.hourly, timezone: timezone, isFahrenheit: isFahrenheit)
         let daily = makeDaily(from: response.daily, timezone: timezone, isFahrenheit: isFahrenheit)
+        var locationCalendar = Calendar(identifier: .gregorian)
+        locationCalendar.timeZone = timezone
+        displayCalendar = locationCalendar
         let condition = WidgetOpenMeteoCondition.description(from: response.current.weatherCode)
         let currentDate = parseTimestamp(response.current.time, timezone: timezone) ?? Date()
         let currentHour = hourly.first(where: { Calendar.current.isDate($0.date, equalTo: currentDate, toGranularity: .hour) })
@@ -241,14 +244,19 @@ final class WidgetOpenMeteoClient {
         return formatter.date(from: value)
     }
 
+    /// Location-timezone calendar for display labels (set per fetch).
+    private var displayCalendar = Calendar.current
+
     private func hourString(for date: Date) -> String {
-        WidgetHourFormatter.hourLabel(Calendar.current.component(.hour, from: date))
+        WidgetHourFormatter.hourLabel(displayCalendar.component(.hour, from: date))
     }
 
     private func dayName(for date: Date) -> String {
-        if Calendar.current.isDateInToday(date) { return "Today" }
+        let today = displayCalendar.startOfDay(for: Date())
+        if displayCalendar.isDate(date, inSameDayAs: today) { return "Today" }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE"
+        formatter.timeZone = displayCalendar.timeZone
         return formatter.string(from: date)
     }
 
@@ -334,7 +342,7 @@ final class WidgetOpenMeteoClient {
             ratingColorHex: rating.hexColor,
             waveHeight: marine.waveHeight.map { String(format: "%.1f m", $0) },
             wavePeriod: marine.wavePeriod.map { String(format: "%.0f s", $0) },
-            swellHeight: (marine.swellWaveHeight ?? marine.windWaveHeight).map { String(format: "%.1f m", $0) },
+            swellHeight: marine.swellWaveHeight.map { String(format: "%.1f m", $0) },
             seaTemp: seaTemp,
             wind: windString
         )

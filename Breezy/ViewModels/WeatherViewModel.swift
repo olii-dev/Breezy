@@ -1068,6 +1068,12 @@ class WeatherViewModel: ObservableObject {
             // Weather Live Activities follow the forecast.
             LiveActivityHub.updateAll(with: info)
 
+            // Persist the location timezone so widget surfaces (which fetch
+            // without a timezone source) label hours in the location's time.
+            if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
+                defaults.set(info.timezone, forKey: "Breezy.locationTimeZone")
+            }
+
             // Storm watch: thunderstorm conditions auto-start the live
             // lightning feed so proximity alerts can fire while Breezy is
             // alive; clear conditions release it (radar keeps its own reason).

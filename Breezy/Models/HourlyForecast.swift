@@ -26,7 +26,7 @@ struct HourlyForecast: Identifiable, Codable, Equatable {
     let emoji: String?
     let hourValue: Int
     let precipitationChance: Double? // 0.0 to 1.0
-    let precipitationAmount: Double? // mm or inches
+    let precipitationAmount: Double? // millimeters (display converts)
     let windSpeed: String?
     let windGust: Double? // wind gust speed in same unit as windSpeed
     let windDirection: String?

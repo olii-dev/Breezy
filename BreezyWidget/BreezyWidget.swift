@@ -897,6 +897,7 @@ struct Provider: TimelineProvider {
         let windUnitRaw = defaults?.string(forKey: "Breezy.windSpeedUnit") ?? "m/s"
         let precipUnitRaw = defaults?.string(forKey: "Breezy.precipitationUnit") ?? "Millimeters"
         let visUnitRaw = defaults?.string(forKey: "Breezy.visibilityUnit") ?? "Kilometers"
+        let pressureUnitRaw = defaults?.string(forKey: "Breezy.pressureUnit") ?? "hPa"
 
         let isFahrenheit = tempUnitRaw == "Fahrenheit"
         let precipitationUnit = PrecipitationUnit(rawValue: precipUnitRaw) ?? .millimeters
@@ -934,24 +935,36 @@ struct Provider: TimelineProvider {
             windStr = String(format: "%.0f m/s", windVal.converted(to: .metersPerSecond).value)
         }
 
-        let pressStr = String(format: "%.0f hPa", weather.currentWeather.pressure.converted(to: .hectopascals).value)
-        let uv = Int(weather.currentWeather.uvIndex.value)
+        let pressStr: String
+        switch pressureUnitRaw {
+        case "inHg": pressStr = String(format: "%.2f inHg", weather.currentWeather.pressure.converted(to: .inchesOfMercury).value)
+        case "mmHg": pressStr = String(format: "%.0f mmHg", weather.currentWeather.pressure.converted(to: .millimetersOfMercury).value)
+        case "mbar": pressStr = String(format: "%.0f mbar", weather.currentWeather.pressure.converted(to: .hectopascals).value)
+        default: pressStr = String(format: "%.0f hPa", weather.currentWeather.pressure.converted(to: .hectopascals).value)
+        }
+        let uv = weather.currentWeather.uvIndex.value // UVIndex.value is already Int
 
         let rainChanceVal = daily?.precipitationChance ?? 0.0
         let rainChanceStr = String(format: "%.0f%%", rainChanceVal * 100)
         let startOfToday = calendar.startOfDay(for: currentDate)
         let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? currentDate
         let todayHours = weather.hourlyForecast.filter { $0.date >= startOfToday && $0.date < endOfToday }
-        let todayRainAmount = todayHours.reduce(0.0) { $0 + $1.precipitationAmount.value }
+        let todayRainAmount = todayHours.reduce(0.0) { $0 + $1.precipitationAmount.converted(to: .millimeters).value }
         let rainAmountStr = String(format: "%.1f %@", precipitationUnit.convert(todayRainAmount), precipitationUnit.symbol)
 
         let humidityStr = String(format: "%.0f%%", weather.currentWeather.humidity * 100)
         let visStr = String(format: "%.1f %@", visibilityUnit.convert(weather.currentWeather.visibility.converted(to: .meters).value), visibilityUnit.symbol)
 
         var hourlyForecasts: [WidgetWeatherData.WidgetHourlyForecast] = []
+        // Label hours in the LOCATION's time when the app has persisted it.
+        var labelCalendar = calendar
+        if let tzId = defaults?.string(forKey: "Breezy.locationTimeZone"),
+           let tz = TimeZone(identifier: tzId) {
+            labelCalendar.timeZone = tz
+        }
         let nextHours = weather.hourlyForecast.filter { $0.date >= currentDate }.prefix(12)
         for hour in nextHours {
-            let hComp = calendar.component(.hour, from: hour.date)
+            let hComp = labelCalendar.component(.hour, from: hour.date)
             let timeStr = WidgetHourFormatter.hourLabel(hComp)
             let hTempStr = isFahrenheit
                 ? String(format: "%.0f°", hour.temperature.converted(to: .fahrenheit).value)
@@ -967,6 +980,7 @@ struct Provider: TimelineProvider {
 
         let dailyFormatter = DateFormatter()
         dailyFormatter.dateFormat = "EEEE"
+        dailyFormatter.timeZone = labelCalendar.timeZone
         var dailyForecasts: [WidgetWeatherData.WidgetDailyForecast] = []
         for day in weather.dailyForecast.prefix(10) {
             let dayName = calendar.isDateInToday(day.date) ? "Today" : dailyFormatter.string(from: day.date)
@@ -1028,13 +1042,13 @@ struct Provider: TimelineProvider {
         guard let phase else { return 0.5 }
         switch phase {
         case .new: return 0.0
-        case .waxingCrescent: return 0.25
+        case .waxingCrescent: return 0.15
         case .firstQuarter: return 0.5
-        case .waxingGibbous: return 0.75
+        case .waxingGibbous: return 0.85
         case .full: return 1.0
-        case .waningGibbous: return 0.75
+        case .waningGibbous: return 0.85
         case .lastQuarter: return 0.5
-        case .waningCrescent: return 0.25
+        case .waningCrescent: return 0.15
         @unknown default: return 0.5
         }
     }

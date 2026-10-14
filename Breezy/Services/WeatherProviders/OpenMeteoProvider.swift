@@ -461,7 +461,7 @@ final class OpenMeteoProvider: WeatherProviding {
             waveHeightMeters: current.waveHeight,
             waveDirectionDegrees: current.waveDirection,
             wavePeriodSeconds: current.wavePeriod,
-            swellHeightMeters: current.swellWaveHeight ?? current.windWaveHeight,
+            swellHeightMeters: current.swellWaveHeight,
             swellDirectionDegrees: current.swellWaveDirection,
             seaSurfaceTemperatureCelsius: current.seaSurfaceTemperature,
             currentSpeedMetersPerSecond: current.oceanCurrentVelocity.map { $0 / 3.6 },

@@ -211,8 +211,9 @@ final class TripWeatherService: @unchecked Sendable {
                 weatherCode: code,
                 precipitationProbability: min(1, max(0, (hourly.precipitationProbability?[safeTrip: index] ?? 0) / 100.0)),
                 precipitationMillimeters: hourly.precipitation?[safeTrip: index] ?? 0,
-                windSpeedMetersPerSecond: hourly.windSpeed10m?[safeTrip: index] ?? 0,
-                windGustMetersPerSecond: hourly.windGusts10m?[safeTrip: index],
+                // Open-Meteo serves wind in km/h; the fields are m/s.
+                windSpeedMetersPerSecond: (hourly.windSpeed10m?[safeTrip: index] ?? 0) / 3.6,
+                windGustMetersPerSecond: hourly.windGusts10m?[safeTrip: index].map { $0 / 3.6 },
                 visibilityMeters: hourly.visibility?[safeTrip: index]
             )
             points.append(TripHourlyWeatherPoint(date: hourDate, weather: snap))
