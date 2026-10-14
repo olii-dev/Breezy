@@ -14,8 +14,8 @@ struct SevereWeatherLiveActivityWidget: Widget {
         ActivityConfiguration(for: SevereWeatherActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
-                .activityBackgroundTint(.red.opacity(0.35))
-                .activitySystemActionForegroundColor(.white)
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .red, isSevere: true))
+                .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {

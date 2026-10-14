@@ -14,8 +14,8 @@ struct WindLiveActivityWidget: Widget {
         ActivityConfiguration(for: WindActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
-                .activityBackgroundTint(.black.opacity(0.4))
-                .activitySystemActionForegroundColor(.white)
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .cyan))
+                .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {

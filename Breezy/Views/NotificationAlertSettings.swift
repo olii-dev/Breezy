@@ -8,6 +8,7 @@
 
 import SwiftUI
 import UserNotifications
+import WidgetKit
 
 // MARK: - Alert Detail Page
 
@@ -463,6 +464,8 @@ struct LightningAlertSettingsView: View {
 struct LiveActivitySettingsView: View {
     @ObservedObject var viewModel: WeatherViewModel
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("Breezy.liveActivityStyle", store: UserDefaults(suiteName: "group.com.breezy.weather"))
+    private var liveActivityStyleRaw: String = LiveActivityStyle.darkGlass.rawValue
 
     private struct ActivityRow {
         let title: String
@@ -488,6 +491,28 @@ struct LiveActivitySettingsView: View {
                     }
                 }
 
+                // Appearance
+                VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                    StudioHeader(title: "APPEARANCE", icon: "paintbrush.fill", theme: theme)
+
+                    Picker("Appearance", selection: $liveActivityStyleRaw) {
+                        Text(LiveActivityStyle.darkGlass.displayName).tag(LiveActivityStyle.darkGlass.rawValue)
+                        Text(LiveActivityStyle.matchTheme.displayName).tag(LiveActivityStyle.matchTheme.rawValue)
+                        Text(LiveActivityStyle.pureBlack.displayName).tag(LiveActivityStyle.pureBlack.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: liveActivityStyleRaw) { _, _ in
+                        HapticsManager.shared.selectionChanged()
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+
+                    Text(liveActivityStyleCaption)
+                        .font(.caption2)
+                        .foregroundColor(theme.textColor.opacity(0.5))
+                }
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+
                 Text("Live Activities need to be allowed for Breezy in Settings → Notifications → Live Activities.")
                     .font(.caption2)
                     .foregroundColor(theme.textColor.opacity(0.4))
@@ -499,6 +524,17 @@ struct LiveActivitySettingsView: View {
         )
         .navigationTitle("Live Activities")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var liveActivityStyleCaption: String {
+        switch LiveActivityStyle(rawValue: liveActivityStyleRaw) {
+        case .matchTheme:
+            return "Activities use your Custom theme's gradient. Restyles on their next update."
+        case .pureBlack:
+            return "True-black backgrounds — sharpest on OLED and easiest on battery."
+        default:
+            return "The classic translucent dark look."
+        }
     }
 
     private var activityRows: [ActivityRow] {

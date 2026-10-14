@@ -15,8 +15,8 @@ struct TripLiveActivityWidget: Widget {
         ActivityConfiguration(for: TripActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
-                .activityBackgroundTint(.black.opacity(0.4))
-                .activitySystemActionForegroundColor(.white)
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .cyan))
+                .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
                 .widgetURL(URL(string: "breezy://trip"))
         } dynamicIsland: { context in
             DynamicIsland {
