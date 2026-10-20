@@ -152,7 +152,7 @@ final class AuroraAlertManager {
         if let bz = snapshot.bzNanoteslas, bz <= -5 { body += ", solar wind is coupling (Bz \(Int(bz)) nT)" }
         if let cloud = snapshot.cloudFraction { body += cloud < 0.3 ? ", skies are clear" : ", \(Int((cloud * 100).rounded()))% cloud — find a gap" }
         if let moon = snapshot.moonIllumination, moon > 0.5 { body += ", moon is \(Int((moon * 100).rounded()))% — darker spots help" }
-        content.body = body + ". Look south if you're in Australia."
+        content.body = body + ". " + AuroraKit.lookDirection(latitude: snapshot.latitude)
         content.sound = .default
         content.userInfo = ["type": "aurora"]
 

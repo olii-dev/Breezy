@@ -130,6 +130,15 @@ enum AuroraKit {
         value >= 9.5 ? "9+" : String(format: "%.0f", value.rounded())
     }
 
+    /// The auroral oval sits poleward of the viewer, so the answer depends on
+    /// which pole is yours: south for the southern hemisphere, north for the
+    /// northern. (Deep-tropics users never reach an active assessment anyway.)
+    static func lookDirection(latitude: Double) -> String {
+        latitude < 0
+            ? "Face south, away from city lights, and give your eyes 10 minutes."
+            : "Face north, away from city lights, and give your eyes 10 minutes."
+    }
+
     // MARK: - Snapshot (app group contract with the widget extension)
 
     /// Everything the widgets need, precomputed on the phone so the widget
