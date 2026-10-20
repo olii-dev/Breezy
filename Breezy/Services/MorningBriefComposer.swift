@@ -199,21 +199,22 @@ enum MorningBriefComposer {
         return softAlternatives[seed % softAlternatives.count]
     }
 
-    // MARK: - Titles (~8 per family; rotation guarantees no quick repeats)
+    // MARK: - Titles (8+ per family; plain-sensible with occasional light
+    // touches — variety without gimmicks; deck rotation prevents repeats)
 
     private static let titles: [Family: [String]] = [
-        .umbrella: ["Umbrella day", "Wet one today", "Keep the brolly handy", "Rain owns the schedule", "Soaked day", "Wet from the get-go", "Rain's on the menu", "Damp day ahead", "Brollies at dawn"],
-        .stormy: ["Stormy one today", "Thunder in the forecast", "Keep an ear on the sky", "Drama in the sky today", "Storm watch", "Rumbles expected", "The sky's got plans", "Ears pricked today"],
-        .snowy: ["Snow day", "White one today", "Snow's the story today", "Rug up — snow around", "Slippery one today", "Snow's come to visit", "Winter's showing off", "Flurries about"],
-        .freezing: ["Freezing today", "Ice rules today", "Bitter one today", "Everything's frozen", "Sub-zero day", "Penguin weather", "Breath-visible morning", "The cold bites today"],
-        .coldSnap: ["Cold one today", "Rug up today", "Winter rules apply", "Sharp one today", "Chilly day", "Nippy from the off", "Jumpers mandatory", "Winter's having a moment"],
-        .foggy: ["Foggy one today", "Pea-soup morning", "Grey and hazy today", "Misty day", "Low-vis day", "The world's gone soft out there", "Headlights at 9 AM", "Can't see the hills today"],
-        .windy: ["Windy one today", "Hold onto your hat", "The wind runs the show", "Blustery day", "Gusty old day", "Hair today, gone today", "Kites win today", "The trees are having a workout"],
-        .muggy: ["Muggy one today", "Sticky day ahead", "The air is soup today", "Heavy, warm, sticky", "Tropical-ish today", "Stick-to-your-shirt day", "Swampy one today", "The humidity's clocked in"],
-        .hotOne: ["Hot one today", "Warm day — plan around it", "The heat is the story", "Scorcher today", "Sun's got teeth today", "Fry-an-egg-on-the-bonnet day", "Meltdown territory", "The beach is calling"],
-        .wildOne: ["Wildcard day", "Day has two acts", "Mixed bag today", "The weather's undecided", "Check back before you head out", "Four seasons in one day", "The forecast has trust issues", "Anything-goes day"],
-        .goldenMorning: ["Good day to be outside", "Clear-sky day", "Nice one today", "Blue-sky day", "Textbook day", "Postcard weather", "The good stuff today", "Sky's showing off"],
-        .dryDay: ["Dry and steady", "Clean day ahead", "No rain drama today", "Quiet weather day", "Easy day", "Nothing to fight today", "Smooth sailing weather", "The forecast behaves today"]
+        .umbrella: ["Umbrella day", "Wet one today", "Rain settles in today", "Rain most of the day", "Take the brolly", "Damp from the start", "Pack the rain jacket", "Soaked day ahead"],
+        .stormy: ["Storms likely today", "Thunder in the forecast", "Storm watch today", "Unsettled with storms", "Storms building later", "Keep an ear out today", "Wild sky today"],
+        .snowy: ["Snow today", "Snow falling today", "Snow's the story today", "White and slippery", "Wintry day ahead", "Snow about — take care", "Snow day"],
+        .freezing: ["Freezing today", "Ice on everything", "Bitter cold today", "Stays below freezing", "Frost and ice today", "Sub-zero day", "The cold bites today"],
+        .coldSnap: ["Cold one today", "Rug up today", "Staying chilly", "Winter's back today", "Sharp cold today", "Chilly all day", "Bleak and cold"],
+        .foggy: ["Foggy this morning", "Low cloud and mist", "Poor visibility early", "Grey and hazy today", "Foggy start, clearing later", "Mist sticks around today", "Low-vis morning"],
+        .windy: ["Windy today", "Strong winds today", "Blustery all day", "Gusty one today", "The wind dominates today", "Windy from the off", "Hold onto your hat"],
+        .muggy: ["Humid today", "Sticky and warm", "Muggy one today", "Heavy, humid air", "Warm but heavy air", "Tropical-feeling day", "The humidity's back", "Sticky all day"],
+        .hotOne: ["Hot one today", "Scorcher today", "Heat is the story today", "Very hot day ahead", "Hot — plan around it", "Top of a hot one", "Hot and relentless", "Sun's got teeth today"],
+        .wildOne: ["Wildcard day", "Mixed bag today", "Four seasons in one day", "Changeable day", "Sun and showers mixed", "Hard to pick a window", "The forecast is split", "Anything-goes day"],
+        .goldenMorning: ["Clear skies today", "Beautiful day ahead", "Good day to be outside", "Blue-sky day", "Textbook clear day", "Not a cloud today", "Postcard weather", "The good stuff today"],
+        .dryDay: ["Dry all day", "No rain today", "Clear and dry", "Quiet weather day", "Stable day ahead", "Settled and dry", "Easy weather day", "Nothing to fight today"]
     ]
 
     // MARK: - Entry point
