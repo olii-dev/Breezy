@@ -27,7 +27,9 @@ final class WatchOpenMeteoClient {
         async let aqiTask = fetchAirQualityIndex(latitude: latitude, longitude: longitude)
         let response = try await fetchForecast(latitude: latitude, longitude: longitude)
         let timezone = TimeZone(identifier: response.timezone) ?? .current
-        let hourly = makeHourly(from: response.hourly, timezone: timezone, temperatureUnit: units.temperature, windUnit: units.wind)
+        let todaySunrise = parseTimestamp(response.daily.sunrise.first ?? "", timezone: timezone)
+        let todaySunset = parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone)
+        let hourly = makeHourly(from: response.hourly, timezone: timezone, temperatureUnit: units.temperature, windUnit: units.wind, sunrise: todaySunrise, sunset: todaySunset)
         let daily = makeDaily(from: response.daily, timezone: timezone, temperatureUnit: units.temperature, windUnit: units.wind)
         let minuteForecast = makeMinuteForecast(from: response.minutely15, timezone: timezone)
         let aqiValue = await aqiTask
@@ -49,8 +51,8 @@ final class WatchOpenMeteoClient {
             temperature: currentTemp,
             feelsLike: feelsLike,
             condition: condition,
-            emoji: WatchWeatherIconHelper.emoji(for: condition),
-            iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
+            emoji: WatchWeatherIconHelper.emoji(for: condition, sunrise: todaySunrise, sunset: todaySunset),
+            iconName: WatchWeatherIconHelper.minimalistIcon(for: condition, sunrise: todaySunrise, sunset: todaySunset),
             highTemp: today?.highTemp,
             lowTemp: today?.lowTemp,
             hourlyForecast: Array(hourly.prefix(24)).map {
@@ -87,8 +89,8 @@ final class WatchOpenMeteoClient {
                 latitude: latitude,
                 longitude: longitude
             ),
-            sunriseDate: parseTimestamp(response.daily.sunrise.first ?? "", timezone: timezone),
-            sunsetDate: parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone),
+            sunriseDate: todaySunrise,
+            sunsetDate: todaySunset,
             minuteForecast: minuteForecast,
             aqi: aqiValue,
             aqiCategory: aqiValue.map(WatchAQIHelper.category(forUSIndex:))
@@ -198,19 +200,21 @@ final class WatchOpenMeteoClient {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private func makeHourly(from block: HourlyBlock, timezone: TimeZone, temperatureUnit: WatchTemperatureUnit, windUnit: WindSpeedUnit) -> [OpenMeteoWatchHourly] {
+    private func makeHourly(from block: HourlyBlock, timezone: TimeZone, temperatureUnit: WatchTemperatureUnit, windUnit: WindSpeedUnit, sunrise: Date? = nil, sunset: Date? = nil) -> [OpenMeteoWatchHourly] {
         let dates = block.time.compactMap { parseTimestamp($0, timezone: timezone) }
+        var locationCalendar = Calendar.current
+        locationCalendar.timeZone = timezone
         return dates.enumerated().map { index, date in
             let condition = WatchOpenMeteoCondition.description(from: block.weatherCode[safe: index] ?? 0)
             let temperatureC = block.temperature2M[safe: index] ?? 0
             var hourly = OpenMeteoWatchHourly(
                 date: date,
-                time: WatchDateFormatterHelper.formatHour(Calendar.current.component(.hour, from: date)),
+                time: WatchDateFormatterHelper.formatHour(locationCalendar.component(.hour, from: date)),
                 temperatureValue: convertTemperature(temperatureC, unit: temperatureUnit),
                 temperature: formattedTemperature(temperatureC, unit: temperatureUnit),
                 condition: condition,
-                emoji: WatchWeatherIconHelper.emoji(for: condition),
-                iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
+                emoji: WatchWeatherIconHelper.emoji(for: condition, at: date, sunrise: sunrise, sunset: sunset),
+                iconName: WatchWeatherIconHelper.minimalistIcon(for: condition, at: date, sunrise: sunrise, sunset: sunset),
                 uvValue: block.uvIndex?[safe: index].map { Int(round($0)) },
                 rainChance: block.precipitationProbability?[safe: index].map { String(format: "%.0f%%", $0) }
             )
@@ -231,6 +235,8 @@ final class WatchOpenMeteoClient {
         let sunset = block.sunset.compactMap { parseTimestamp($0, timezone: timezone) }
         var forecasts: [WatchDailyForecast] = []
         forecasts.reserveCapacity(dates.count)
+        var locationCalendar = Calendar.current
+        locationCalendar.timeZone = timezone
 
         for (index, date) in dates.enumerated() {
             let condition = WatchOpenMeteoCondition.description(from: block.weatherCode[safe: index] ?? 0)
@@ -238,11 +244,14 @@ final class WatchOpenMeteoClient {
             let highC = block.temperature2MMax[safe: index] ?? 0
             let lowValue = convertTemperature(lowC, unit: temperatureUnit)
             let highValue = convertTemperature(highC, unit: temperatureUnit)
+            // Daily rows depict the day, so judge day/night at that day's
+            // noon using its own sun events.
+            let dayNoon = locationCalendar.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
 
             forecasts.append(WatchDailyForecast(
-                dayName: Calendar.current.isDateInToday(date) ? "Today" : shortWeekday(for: date),
-                iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
-                emoji: WatchWeatherIconHelper.emoji(for: condition),
+                dayName: locationCalendar.isDateInToday(date) ? "Today" : shortWeekday(for: date),
+                iconName: WatchWeatherIconHelper.minimalistIcon(for: condition, at: dayNoon, sunrise: sunrise[safe: index], sunset: sunset[safe: index]),
+                emoji: WatchWeatherIconHelper.emoji(for: condition, at: dayNoon, sunrise: sunrise[safe: index], sunset: sunset[safe: index]),
                 lowTemp: String(format: "%.0f°", lowValue),
                 highTemp: String(format: "%.0f°", highValue),
                 lowValue: lowValue,

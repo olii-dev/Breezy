@@ -83,7 +83,12 @@ final class WidgetOpenMeteoClient {
             city: city,
             temperature: formatTemperature(response.current.temperature2M, isFahrenheit: isFahrenheit),
             condition: condition,
-            emoji: WidgetIconHelper.getIcon(for: condition, isMinimalist: false),
+            emoji: WidgetIconHelper.getIcon(
+                for: condition,
+                isMinimalist: false,
+                sunrise: parseTimestamp(response.daily.sunrise.first ?? "", timezone: timezone),
+                sunset: parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone)
+            ),
             highTemp: daily.first?.highTemp,
             lowTemp: daily.first?.lowTemp,
             hourlyForecast: hourly
@@ -93,7 +98,8 @@ final class WidgetOpenMeteoClient {
                     time: $0.time,
                     temperature: $0.temperature,
                     emoji: $0.emoji,
-                    condition: $0.condition
+                    condition: $0.condition,
+                    sourceDate: $0.date
                 )
             },
             timestamp: Date(),

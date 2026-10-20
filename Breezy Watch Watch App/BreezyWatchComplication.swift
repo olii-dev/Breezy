@@ -260,7 +260,7 @@ class WatchComplicationProvider: TimelineProvider {
                     time: complicationHourString(Calendar.current.component(.hour, from: h.date)),
                     temperature: temp(h.temperature),
                     emoji: "☀️",
-                    iconName: WatchWeatherIconHelper.minimalistIcon(for: h.condition.description),
+                    iconName: WatchWeatherIconHelper.minimalistIcon(for: h.condition.description, at: h.date, sunrise: daily?.sun.sunrise, sunset: daily?.sun.sunset),
                     condition: h.condition.description,
                     precipitationChance: String(format: "%.0f%%", h.precipitationChance * 100)
                 )
@@ -275,7 +275,7 @@ class WatchComplicationProvider: TimelineProvider {
             feelsLike: temp(weather.currentWeather.apparentTemperature),
             condition: condition,
             emoji: "🌡️",
-            iconName: WatchWeatherIconHelper.minimalistIcon(for: condition),
+            iconName: WatchWeatherIconHelper.minimalistIcon(for: condition, sunrise: daily?.sun.sunrise, sunset: daily?.sun.sunset),
             highTemp: daily.map { temp($0.highTemperature) },
             lowTemp: daily.map { temp($0.lowTemperature) },
             hourlyForecast: Array(hourly),

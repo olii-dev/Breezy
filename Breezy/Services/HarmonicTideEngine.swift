@@ -181,7 +181,9 @@ enum TideStationIndex {
     static func equirectangularKilometers(fromLat lat1: Double, lon lon1: Double, toLat lat2: Double, lon lon2: Double) -> Double {
         let rad = Double.pi / 180
         let meanLat = (lat1 + lat2) / 2 * rad
-        let dx = (lon2 - lon1) * rad * cos(meanLat)
+        var dLon = lon2 - lon1
+        if dLon > 180 { dLon -= 360 } else if dLon < -180 { dLon += 360 }
+        let dx = dLon * rad * cos(meanLat)
         let dy = (lat2 - lat1) * rad
         return 6371 * sqrt(dx * dx + dy * dy)
     }

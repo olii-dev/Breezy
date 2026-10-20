@@ -163,6 +163,10 @@ struct WidgetWeatherData: Codable {
         let temperature: String
         let emoji: String
         let condition: String
+        /// Absolute instant for this hour when the writer had it — lets the
+        /// widget match timeline entries by time instead of clock labels,
+        /// which repeat every 12/24h and follow the location's timezone.
+        var sourceDate: Date? = nil
     }
 
     struct WidgetDailyForecast: Codable {
@@ -571,10 +575,10 @@ enum WidgetThemeContrastGuard {
 struct WidgetIconHelper {
     
     // Function to choose icon style based on user preference and condition
-    static func getIcon(for condition: String?, isMinimalist: Bool?, conditionCode: String? = nil, isDaylight: Bool? = nil) -> String {
+    static func getIcon(for condition: String?, isMinimalist: Bool?, conditionCode: String? = nil, isDaylight: Bool? = nil, at date: Date = Date(), sunrise: Date? = nil, sunset: Date? = nil) -> String {
         // Use default logic if new fields missing (for backward compatibility)
         let useMinimalist = isMinimalist ?? true
-        
+
         // If we have precise condition code, use it
         if let code = conditionCode, let day = isDaylight {
             if useMinimalist {
@@ -583,10 +587,22 @@ struct WidgetIconHelper {
                 return emoji(for: code, isDaylight: day)
             }
         }
-        
+
         // Fallback to old logic
         guard let condition = condition else { return "thermometer.medium" }
-        
+
+        // Sun-event day/night when the caller has them — saved cities in
+        // other timezones made the device-clock fallback show a moon at
+        // the location's local noon.
+        if let sunrise, let sunset, sunset > sunrise {
+            let day = date >= sunrise && date < sunset
+            if useMinimalist {
+                return minimalistIcon(for: condition, isDaylight: day)
+            } else {
+                return emoji(for: condition, isDaylight: day)
+            }
+        }
+
         if useMinimalist {
             return minimalistIcon(for: condition)
         } else {
@@ -709,16 +725,20 @@ struct Provider: TimelineProvider {
             for i in 1...4 {
                 if let entryDate = calendar.date(byAdding: .hour, value: i, to: currentDate) {
                     
-                    // Find matching hourly forecast
+                    // Find matching hourly forecast, preferring absolute time:
+                    // clock labels repeat every 12/24h and follow the
+                    // location's timezone, which can differ from this device.
                     let hourComponent = calendar.component(.hour, from: entryDate)
                     var futureWeather = data
-                    
-                    // Try to finding matching hourly data
-                    // Note: This matches the format produced by the lightweight model
-                    // (e.g., "12PM"/"1AM" on 12-hour devices, "17" on 24-hour devices).
-                    let expectedTimeStr = WidgetHourFormatter.hourLabel(hourComponent)
-                    
-                    if let matchingForecast = data.hourlyForecast.first(where: { $0.time == expectedTimeStr }) {
+
+                    let matchingForecast = data.hourlyForecast.last(where: { forecast in
+                        guard let sourceDate = forecast.sourceDate else { return false }
+                        return abs(sourceDate.timeIntervalSince(entryDate)) < 30 * 60
+                    }) ?? data.hourlyForecast.last(where: {
+                        $0.time == WidgetHourFormatter.hourLabel(hourComponent)
+                    })
+
+                    if let matchingForecast = matchingForecast {
                          futureWeather = WidgetWeatherData(
                             city: data.city,
                             temperature: matchingForecast.temperature,
@@ -946,8 +966,17 @@ struct Provider: TimelineProvider {
 
         let rainChanceVal = daily?.precipitationChance ?? 0.0
         let rainChanceStr = String(format: "%.0f%%", rainChanceVal * 100)
-        let startOfToday = calendar.startOfDay(for: currentDate)
-        let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? currentDate
+
+        // Day boundaries AND hour labels in the LOCATION's time when the app
+        // has persisted it — device-midnight slicing a remote city's hours
+        // sums the wrong day's rain and mislabels "Today".
+        var labelCalendar = calendar
+        if let tzId = defaults?.string(forKey: "Breezy.locationTimeZone"),
+           let tz = TimeZone(identifier: tzId) {
+            labelCalendar.timeZone = tz
+        }
+        let startOfToday = labelCalendar.startOfDay(for: currentDate)
+        let endOfToday = labelCalendar.date(byAdding: .day, value: 1, to: startOfToday) ?? currentDate
         let todayHours = weather.hourlyForecast.filter { $0.date >= startOfToday && $0.date < endOfToday }
         let todayRainAmount = todayHours.reduce(0.0) { $0 + $1.precipitationAmount.converted(to: .millimeters).value }
         let rainAmountStr = String(format: "%.1f %@", precipitationUnit.convert(todayRainAmount), precipitationUnit.symbol)
@@ -956,12 +985,8 @@ struct Provider: TimelineProvider {
         let visStr = String(format: "%.1f %@", visibilityUnit.convert(weather.currentWeather.visibility.converted(to: .meters).value), visibilityUnit.symbol)
 
         var hourlyForecasts: [WidgetWeatherData.WidgetHourlyForecast] = []
-        // Label hours in the LOCATION's time when the app has persisted it.
-        var labelCalendar = calendar
-        if let tzId = defaults?.string(forKey: "Breezy.locationTimeZone"),
-           let tz = TimeZone(identifier: tzId) {
-            labelCalendar.timeZone = tz
-        }
+        let todaySunrise = weather.dailyForecast.first?.sun.sunrise
+        let todaySunset = weather.dailyForecast.first?.sun.sunset
         let nextHours = weather.hourlyForecast.filter { $0.date >= currentDate }.prefix(12)
         for hour in nextHours {
             let hComp = labelCalendar.component(.hour, from: hour.date)
@@ -973,8 +998,9 @@ struct Provider: TimelineProvider {
             hourlyForecasts.append(.init(
                 time: timeStr,
                 temperature: hTempStr,
-                emoji: WidgetIconHelper.getIcon(for: hCond, isMinimalist: true),
-                condition: hCond
+                emoji: WidgetIconHelper.getIcon(for: hCond, isMinimalist: true, at: hour.date, sunrise: todaySunrise, sunset: todaySunset),
+                condition: hCond,
+                sourceDate: hour.date
             ))
         }
 
@@ -983,7 +1009,7 @@ struct Provider: TimelineProvider {
         dailyFormatter.timeZone = labelCalendar.timeZone
         var dailyForecasts: [WidgetWeatherData.WidgetDailyForecast] = []
         for day in weather.dailyForecast.prefix(10) {
-            let dayName = calendar.isDateInToday(day.date) ? "Today" : dailyFormatter.string(from: day.date)
+            let dayName = labelCalendar.isDateInToday(day.date) ? "Today" : dailyFormatter.string(from: day.date)
             let highStr_d = String(format: "%.0f°", isFahrenheit ? day.highTemperature.converted(to: .fahrenheit).value : day.highTemperature.converted(to: .celsius).value)
             let lowStr_d = String(format: "%.0f°", isFahrenheit ? day.lowTemperature.converted(to: .fahrenheit).value : day.lowTemperature.converted(to: .celsius).value)
             dailyForecasts.append(.init(
@@ -2489,10 +2515,18 @@ struct UVGraphView: View {
             let endHour = 20.0
             let totalHours = endHour - startHour
             
-            // Current Time Progress
-            let calendar = Calendar.current
-            let hour = Double(calendar.component(.hour, from: Date()))
-            let minute = Double(calendar.component(.minute, from: Date()))
+            // Current Time Progress — in the widget location's timezone when
+            // known, so the marker matches the sun position the curve depicts.
+            let nowCalendar: Calendar = {
+                var cal = Calendar.current
+                if let tzId = UserDefaults(suiteName: "group.com.breezy.weather")?.string(forKey: "Breezy.locationTimeZone"),
+                   let tz = TimeZone(identifier: tzId) {
+                    cal.timeZone = tz
+                }
+                return cal
+            }()
+            let hour = Double(nowCalendar.component(.hour, from: Date()))
+            let minute = Double(nowCalendar.component(.minute, from: Date()))
             let currentDecimalHour = hour + (minute / 60.0)
             
             // Clamped progress (0.0 to 1.0)

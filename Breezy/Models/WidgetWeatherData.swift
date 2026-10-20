@@ -52,6 +52,10 @@ struct WidgetWeatherData: Codable {
         let temperature: String
         let emoji: String
         let condition: String?
+        /// Absolute instant for this hour when the writer had it — lets the
+        /// widget match timeline entries by time instead of clock labels,
+        /// which repeat every 12/24h and follow the location's timezone.
+        var sourceDate: Date? = nil
     }
 
     struct WidgetDailyForecast: Codable {

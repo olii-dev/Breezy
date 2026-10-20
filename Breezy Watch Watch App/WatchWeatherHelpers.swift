@@ -53,37 +53,38 @@ struct WatchWeatherConditionConverter {
 }
 
 struct WatchWeatherIconHelper {
-    static func emoji(for condition: String) -> String {
+    static func emoji(for condition: String, at date: Date = Date(), sunrise: Date? = nil, sunset: Date? = nil) -> String {
         let cond = condition.lowercased()
-        
+        let night = isNight(at: date, sunrise: sunrise, sunset: sunset)
+
         if cond.contains("clear") {
-            if isNightTime() {
+            if night {
                 return "🌙"
             }
             return "☀️"
         }
-        
+
         if cond.contains("sun") || cond.contains("sunny") { return "☀️" }
         if cond.contains("rain") || cond.contains("drizzle") { return "🌧️" }
         if cond.contains("cloud") || cond.contains("overcast") { return "⛅️" }
         if cond.contains("snow") || cond.contains("blizzard") { return "❄️" }
         if cond.contains("fog") || cond.contains("mist") { return "🌫️" }
         if cond.contains("thunder") { return "⛈️" }
-        
-        if isNightTime() {
+
+        if night {
             return "🌙"
         }
-        
+
         return "🌡️"
     }
-    
-    static func minimalistIcon(for condition: String) -> String {
+
+    static func minimalistIcon(for condition: String, at date: Date = Date(), sunrise: Date? = nil, sunset: Date? = nil) -> String {
         let cond = condition.lowercased()
-        
-        if cond.contains("clear") && (cond.contains("night") || isNightTime()) {
+
+        if cond.contains("clear") && (cond.contains("night") || isNight(at: date, sunrise: sunrise, sunset: sunset)) {
             return "moon.stars"
         }
-        
+
         if cond.contains("sun") || cond.contains("clear") || cond.contains("sunny") {
             return "sun.max"
         }
@@ -96,10 +97,18 @@ struct WatchWeatherIconHelper {
 
         return "thermometer.medium"
     }
-    
+
     private static func isNightTime() -> Bool {
         let hour = Calendar.current.component(.hour, from: Date())
         return hour >= 20 || hour < 6
+    }
+
+    /// Night by the location's actual sun events when available (saved cities
+    /// in other timezones made the device-clock heuristic show a moon at
+    /// local noon); falls back to that heuristic without them.
+    static func isNight(at date: Date = Date(), sunrise: Date?, sunset: Date?) -> Bool {
+        guard let sunrise, let sunset, sunset > sunrise else { return isNightTime() }
+        return date < sunrise || date >= sunset
     }
 }
 

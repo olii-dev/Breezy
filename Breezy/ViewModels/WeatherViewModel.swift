@@ -1776,9 +1776,10 @@ class WeatherViewModel: ObservableObject {
             time: "Now",
             temperature: tempRaw,
             emoji: emoji,
-            condition: cond
+            condition: cond,
+            sourceDate: now
         ))
-        
+
         // Add the next 12 hours (so widget can simulate future weather)
         for hour in futureHours.prefix(12) {
             // Skip if it's the same as current hour (already added as "Now")
@@ -1789,7 +1790,8 @@ class WeatherViewModel: ObservableObject {
                 time: hour.time,
                 temperature: self.formattedTemperature(hour.temperatureRaw),
                 emoji: hour.emoji ?? "",
-                condition: hour.condition ?? ""
+                condition: hour.condition ?? "",
+                sourceDate: hour.sourceDate
             ))
         }
         
