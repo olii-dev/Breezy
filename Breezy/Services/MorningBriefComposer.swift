@@ -199,38 +199,87 @@ enum MorningBriefComposer {
         return softAlternatives[seed % softAlternatives.count]
     }
 
-    // MARK: - Titles
+    // MARK: - Titles (~8 per family; rotation guarantees no quick repeats)
 
     private static let titles: [Family: [String]] = [
-        .umbrella: ["Umbrella day", "Wet one today", "Keep the brolly handy", "Rain owns the schedule", "Soaked day"],
-        .stormy: ["Stormy one today", "Thunder in the forecast", "Keep an ear on the sky", "Drama in the sky today", "Storm watch"],
-        .snowy: ["Snow day", "White one today", "Snow's the story today", "Rug up — snow around", "Slippery one today"],
-        .freezing: ["Freezing today", "Ice rules today", "Bitter one today", "Everything's frozen", "Sub-zero day"],
-        .coldSnap: ["Cold one today", "Rug up today", "Winter rules apply", "Sharp one today", "Chilly day"],
-        .foggy: ["Foggy one today", "Pea-soup morning", "Grey and hazy today", "Misty day", "Low-vis day"],
-        .windy: ["Windy one today", "Hold onto your hat", "The wind runs the show", "Blustery day", "Gusty old day"],
-        .muggy: ["Muggy one today", "Sticky day ahead", "The air is soup today", "Heavy, warm, sticky", "Tropical-ish today"],
-        .hotOne: ["Hot one today", "Warm day — plan around it", "The heat is the story", "Scorcher today", "Sun's got teeth today"],
-        .wildOne: ["Wildcard day", "Day has two acts", "Mixed bag today", "The weather's undecided", "Check back before you head out"],
-        .goldenMorning: ["Good day to be outside", "Clear-sky day", "Nice one today", "Blue-sky day", "Textbook day"],
-        .dryDay: ["Dry and steady", "Clean day ahead", "No rain drama today", "Quiet weather day", "Easy day"]
+        .umbrella: ["Umbrella day", "Wet one today", "Keep the brolly handy", "Rain owns the schedule", "Soaked day", "Wet from the get-go", "Rain's on the menu", "Damp day ahead", "Brollies at dawn"],
+        .stormy: ["Stormy one today", "Thunder in the forecast", "Keep an ear on the sky", "Drama in the sky today", "Storm watch", "Rumbles expected", "The sky's got plans", "Ears pricked today"],
+        .snowy: ["Snow day", "White one today", "Snow's the story today", "Rug up — snow around", "Slippery one today", "Snow's come to visit", "Winter's showing off", "Flurries about"],
+        .freezing: ["Freezing today", "Ice rules today", "Bitter one today", "Everything's frozen", "Sub-zero day", "Penguin weather", "Breath-visible morning", "The cold bites today"],
+        .coldSnap: ["Cold one today", "Rug up today", "Winter rules apply", "Sharp one today", "Chilly day", "Nippy from the off", "Jumpers mandatory", "Winter's having a moment"],
+        .foggy: ["Foggy one today", "Pea-soup morning", "Grey and hazy today", "Misty day", "Low-vis day", "The world's gone soft out there", "Headlights at 9 AM", "Can't see the hills today"],
+        .windy: ["Windy one today", "Hold onto your hat", "The wind runs the show", "Blustery day", "Gusty old day", "Hair today, gone today", "Kites win today", "The trees are having a workout"],
+        .muggy: ["Muggy one today", "Sticky day ahead", "The air is soup today", "Heavy, warm, sticky", "Tropical-ish today", "Stick-to-your-shirt day", "Swampy one today", "The humidity's clocked in"],
+        .hotOne: ["Hot one today", "Warm day — plan around it", "The heat is the story", "Scorcher today", "Sun's got teeth today", "Fry-an-egg-on-the-bonnet day", "Meltdown territory", "The beach is calling"],
+        .wildOne: ["Wildcard day", "Day has two acts", "Mixed bag today", "The weather's undecided", "Check back before you head out", "Four seasons in one day", "The forecast has trust issues", "Anything-goes day"],
+        .goldenMorning: ["Good day to be outside", "Clear-sky day", "Nice one today", "Blue-sky day", "Textbook day", "Postcard weather", "The good stuff today", "Sky's showing off"],
+        .dryDay: ["Dry and steady", "Clean day ahead", "No rain drama today", "Quiet weather day", "Easy day", "Nothing to fight today", "Smooth sailing weather", "The forecast behaves today"]
     ]
 
     // MARK: - Entry point
 
-    static func compose(context: Context, day: Date = Date(), lastFamilyKey: String?) -> Brief {
-        let family = pick(for: context, day: day, lastUsedKey: lastFamilyKey)
-        return build(family: family, context: context, day: day)
+    /// Per-family rotation memory. The composer never serves the same title
+    /// or the same lead sentence twice in a row for a family: each compose
+    /// advances that family's cursors, so repeats only happen after the whole
+    /// pool has been exhausted. A run of twenty dry days walks twenty
+    /// different openings.
+    struct VarietyState: Codable {
+        var lastFamilyKey: String?
+        var cursors: [String: Int] = [:]
+        /// Remaining undealt indices per key.
+        var decks: [String: [Int]] = [:]
+
+        private static let storageKey = "Breezy.morningBrief.variety"
+
+        static func load() -> VarietyState {
+            guard let data = UserDefaults.standard.data(forKey: storageKey),
+                  let decoded = try? JSONDecoder().decode(VarietyState.self, from: data) else {
+                return VarietyState()
+            }
+            return decoded
+        }
+
+        func save() {
+            if let data = try? JSONEncoder().encode(self) {
+                UserDefaults.standard.set(data, forKey: Self.storageKey)
+            }
+        }
+
+        /// Deal the next index for a pool. Reshuffles only when the deck is
+        /// empty, and never deals the previous card twice in a row — every
+        /// option appears once before any repeat.
+        mutating func next(_ key: String, poolSize: Int) -> Int {
+            guard poolSize > 1 else { return 0 }
+            var deck = decks[key] ?? []
+            if deck.isEmpty || deck.contains(where: { $0 >= poolSize }) {
+                deck = (0..<poolSize).shuffled()
+                if let last = cursors[key], deck.first == last, deck.count > 1 {
+                    deck.swapAt(0, 1)
+                }
+            }
+            let value = deck.removeFirst()
+            decks[key] = deck
+            cursors[key] = value
+            return value
+        }
+    }
+
+    static func compose(context: Context, day: Date = Date(), state: VarietyState) -> (brief: Brief, nextState: VarietyState) {
+        var state = state
+        let family = pick(for: context, day: day, lastUsedKey: state.lastFamilyKey)
+        state.lastFamilyKey = family.rawValue
+        let brief = build(family: family, context: context, day: day, state: &state)
+        return (brief, state)
     }
 
     // MARK: - Builders
 
-    private static func build(family: Family, context: Context, day: Date) -> Brief {
-        let seed = Calendar.current.ordinality(of: .day, in: .year, for: day) ?? 0
-        let title = variant(seed, titles[family] ?? ["Today's weather"])
+    private static func build(family: Family, context: Context, day: Date, state: inout VarietyState) -> Brief {
+        let pool = titles[family] ?? ["Today's weather"]
+        let title = pool[state.next("title:\(family.rawValue)", poolSize: pool.count)]
 
-        var sentences = coreSentences(for: family, context: context, seed: seed)
-        sentences.append(contentsOf: optionalSentences(for: family, context: context, seed: seed))
+        var sentences = coreSentences(for: family, context: context, state: &state, day: day)
+        sentences.append(contentsOf: optionalSentences(for: family, context: context, day: day))
 
         // Trim to notification length: keep the first two, then fill to ~260 chars.
         var body = sentences.prefix(2).joined(separator: " ")
@@ -243,20 +292,29 @@ enum MorningBriefComposer {
         return Brief(title: title, body: body, familyKey: family.rawValue)
     }
 
+    /// Seeded pick retained for context lines (those stay day-stable).
     private static func variant(_ seed: Int, _ options: [String]) -> String {
         options[seed % options.count]
     }
 
-    /// The two load-bearing sentences, family-flavoured, with seeded variants.
-    private static func coreSentences(for family: Family, context: Context, seed: Int) -> [String] {
+    /// The two load-bearing sentences. The lead rotates through its variants
+    /// via the family cursor; the rest are day-seeded picks.
+    private static func coreSentences(for family: Family, context: Context, state: inout VarietyState, day: Date) -> [String] {
         var out: [String] = []
+        let seed = Calendar.current.ordinality(of: .day, in: .year, for: day) ?? 0
+        func lead(_ options: [String]) -> String {
+            options[state.next("lead:\(family.rawValue)", poolSize: options.count)]
+        }
+        func pick(_ options: [String]) -> String {
+            variant(seed, options)
+        }
 
         switch family {
         case .umbrella:
             if let start = context.nextRainStart {
                 let startText = start.formatted(date: .omitted, time: .shortened)
                 if let end = context.nextRainEnd {
-                    out.append(variant(seed, [
+                    out.append(lead([
                         "Rain moves in around \(startText) and hangs about till \(end.formatted(date: .omitted, time: .shortened)).",
                         "Showers arrive near \(startText), easing off around \(end.formatted(date: .omitted, time: .shortened)).",
                     ]))
@@ -267,20 +325,20 @@ enum MorningBriefComposer {
                     ]))
                 }
             } else {
-                out.append(variant(seed, [
+                out.append(lead([
                     "Rain is likely through the day — cover whatever you can.",
                     "A wet one: pack the cover, skip the picnic.",
                 ]))
             }
             if let high = context.highText {
-                out.append(variant(seed, ["High \(high) — won't dry out much.", "Top of \(high), and damp with it."]))
+                out.append(pick(["High \(high) — won't dry out much.", "Top of \(high), and damp with it."]))
             }
 
         case .stormy:
             if let start = context.nextRainStart {
                 out.append("Storms build around \(start.formatted(date: .omitted, time: .shortened)) — move the outdoor plan before then.")
             } else {
-                out.append(variant(seed, [
+                out.append(lead([
                     "Thunderstorms are in the picture today — keep anything outdoor flexible.",
                     "Storms on the menu: it's a watch-the-sky kind of day.",
                 ]))
@@ -295,7 +353,7 @@ enum MorningBriefComposer {
             } else {
                 out.append("Snow in the forecast — expect slick surfaces and slow traffic.")
             }
-            out.append(variant(seed, [
+            out.append(pick([
                 "Boots, scraper, and a plan B for the commute.",
                 "Layers today, and check the car before you go.",
             ]))
@@ -304,14 +362,14 @@ enum MorningBriefComposer {
             if let high = context.highText {
                 out.append("It tops out at \(high) — everything wet out there is ice.")
             }
-            out.append(variant(seed, [
+            out.append(lead([
                 "Frost first thing: scrape, layer up, take it easy on footpaths.",
                 "Thick socks weather. Give yourself extra time this morning.",
             ]))
 
         case .coldSnap:
             if let low = context.lowText {
-                out.append(variant(seed, [
+                out.append(lead([
                     "Starting near \(low), barely climbing from there.",
                     "It's \(low) this morning and in no hurry to warm up.",
                 ]))
@@ -321,25 +379,25 @@ enum MorningBriefComposer {
             }
 
         case .foggy:
-            out.append(variant(seed, [
+            out.append(lead([
                 "Thick air out there — give it till mid-morning to burn off.",
                 "Visibility is poor early; the fog should lift by late morning.",
             ]))
-            out.append(variant(seed, [
+            out.append(pick([
                 "Drive slow and expect delays on the open road.",
                 "Low beams on, big gaps behind the car in front.",
             ]))
 
         case .windy:
             if let wind = context.windPeakText {
-                out.append(variant(seed, [
+                out.append(lead([
                     "Gusts to \(wind) — the wind runs the day.",
                     "It blows a gale at \(wind) at peak.",
                 ]))
             } else {
                 out.append("It's a blustery one from the off.")
             }
-            out.append(variant(seed, [
+            out.append(pick([
                 "Washing, hats and stand-up paddleboards stay inside.",
                 "Anything light and outdoorsy is going for a walk without you.",
             ]))
@@ -348,14 +406,14 @@ enum MorningBriefComposer {
             if let high = context.highText, let humidity = context.humidity {
                 out.append("\(high) but it'll feel worse — the air's holding \(humidity)% humidity.")
             }
-            out.append(variant(seed, [
+            out.append(pick([
                 "Move anything sweaty to early morning; the afternoon is soup.",
                 "Fans on, water bottle full, take it slow out there.",
             ]))
 
         case .hotOne:
             if let high = context.highText {
-                out.append(variant(seed, [
+                out.append(lead([
                     "It's heading for \(high), so front-load anything outdoors.",
                     "\(high) at the top — the middle of the day is for shade.",
                 ]))
@@ -378,21 +436,27 @@ enum MorningBriefComposer {
             }
 
         case .goldenMorning:
-            out.append(variant(seed, [
+            out.append(lead([
                 "Sky's behaving — good light and no washouts.",
                 "Clean sky, calm day: the outdoors is open for business.",
+                "Not a cloud with a plan — the day's wide open.",
             ]))
             if let high = context.highText {
-                out.append(variant(seed, ["High \(high).", "Tops out at \(high)."]))
+                out.append(pick(["High \(high).", "Tops out at \(high).", "Warming to \(high) through the day."]))
             }
 
         case .dryDay:
-            out.append(variant(seed, [
+            out.append(lead([
                 "Nothing in the rain story today — do the outdoor thing.",
                 "Dry all day: whatever you've been putting off outside, today's fine for it.",
+                "Not a drop on the radar — the day's yours.",
             ]))
             if let high = context.highText, let low = context.lowText {
-                out.append("\(high) / \(low) across the day.")
+                out.append(pick([
+                    "\(high) / \(low) across the day.",
+                    "Top of \(high), down to \(low) overnight.",
+                    "\(high) by the afternoon, \(low) while you sleep.",
+                ]))
             }
         }
 
@@ -400,7 +464,8 @@ enum MorningBriefComposer {
     }
 
     /// Context lines, shuffled deterministically by the day seed.
-    private static func optionalSentences(for family: Family, context: Context, seed: Int) -> [String] {
+    private static func optionalSentences(for family: Family, context: Context, day: Date) -> [String] {
+        let seed = Calendar.current.ordinality(of: .day, in: .year, for: day) ?? 0
         var pool: [String] = []
 
         if family != .umbrella && family != .stormy, let start = context.nextRainStart,
@@ -425,6 +490,13 @@ enum MorningBriefComposer {
         }
         if let humidity = context.humidity, family != .muggy, humidity >= 85 {
             pool.append("It's a humid one (\(humidity)%) — light layers.")
+        }
+        if family == .dryDay || family == .goldenMorning {
+            pool.append(contentsOf: [
+                "Prime washing weather.",
+                "Dog walk verdict: yes.",
+                "Coffee outside kind of morning.",
+            ])
         }
 
         // Deterministic shuffle with the day seed.

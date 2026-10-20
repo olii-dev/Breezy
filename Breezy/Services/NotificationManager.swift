@@ -322,7 +322,9 @@ class NotificationManager: NSObject, ObservableObject {
         let today = calendar.startOfDay(for: Date())
         guard let slot = settings.dailyForecastTimes.first else { return }
 
-        let lastFamilyKey = UserDefaults.standard.string(forKey: "Breezy.morningBrief.lastFamily")
+        // Variety state advances per composed day so titles and lead lines
+        // walk their pools — saved after both days are composed.
+        var variety = MorningBriefComposer.VarietyState.load()
 
         for dayOffset in 0..<Self.morningBriefDaysAhead {
             guard let targetDay = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
@@ -334,14 +336,12 @@ class NotificationManager: NSObject, ObservableObject {
             guard let fireDate = calendar.date(from: dateComponents), fireDate > Date() else { continue }
 
             let context = Self.buildBriefContext(weather: weather, dayOffset: dayOffset)
-            let brief = MorningBriefComposer.compose(
+            let (brief, updatedVariety) = MorningBriefComposer.compose(
                 context: context,
                 day: targetDay,
-                lastFamilyKey: dayOffset == 0 ? lastFamilyKey : nil
+                state: variety
             )
-            if dayOffset == 0 {
-                UserDefaults.standard.set(brief.familyKey, forKey: "Breezy.morningBrief.lastFamily")
-            }
+            variety = updatedVariety
 
             let content = UNMutableNotificationContent()
             content.title = brief.title
@@ -357,6 +357,9 @@ class NotificationManager: NSObject, ObservableObject {
                 trigger: trigger
             )) { _ in }
         }
+
+        variety.save()
+        UserDefaults.standard.removeObject(forKey: "Breezy.morningBrief.lastFamily")
     }
 
     /// Map the forecast into composer inputs. Rain onset uses the same
