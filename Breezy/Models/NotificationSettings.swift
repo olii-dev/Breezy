@@ -55,6 +55,13 @@ struct NotificationSettings: Codable {
     // Lightning (forecast-driven + live proximity when the feed is up)
     var lightningAlertsEnabled: Bool
 
+    // Aurora (NOAA SWPC; opt-in — visibility is latitude-dependent)
+    var auroraAlertsEnabled: Bool = false
+    var auroraMinKp: Int = 0 // 0 = automatic from latitude; else a hard floor of 5...9
+
+    // Morning Brief (rich daily digest; separate from the basic daily forecast)
+    var morningBriefEnabled: Bool = false
+
     // Rain Alerts (hourly heads-up + short-fuse minute checks)
     var rainAlertsEnabled: Bool
     var rainChanceThreshold: Int // Percentage 0-100 for the hourly fallback path (default 40)
@@ -208,6 +215,7 @@ extension NotificationSettings {
     private enum CodingKeys: String, CodingKey {
         case dailyForecastEnabled, dailyForecastHour, dailyForecastMinute
         case severeWeatherEnabled, severeWeatherAlertCooldownMinutes, lightningAlertsEnabled
+        case auroraAlertsEnabled, auroraMinKp, morningBriefEnabled
         case rainAlertsEnabled, rainChanceThreshold, rainAlertCooldownMinutes
         case uvAlertsEnabled, uvThreshold, uvAlertCooldownMinutes
         case temperatureChangeAlertsEnabled, temperatureChangeThreshold
@@ -236,6 +244,9 @@ extension NotificationSettings {
         dailyForecastMinute = try c.decodeIfPresent(Int.self, forKey: .dailyForecastMinute) ?? d.dailyForecastMinute
         severeWeatherEnabled = try c.decodeIfPresent(Bool.self, forKey: .severeWeatherEnabled) ?? d.severeWeatherEnabled
         lightningAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .lightningAlertsEnabled) ?? d.lightningAlertsEnabled
+        auroraAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .auroraAlertsEnabled) ?? d.auroraAlertsEnabled
+        auroraMinKp = try c.decodeIfPresent(Int.self, forKey: .auroraMinKp) ?? d.auroraMinKp
+        morningBriefEnabled = try c.decodeIfPresent(Bool.self, forKey: .morningBriefEnabled) ?? d.morningBriefEnabled
         rainAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .rainAlertsEnabled) ?? d.rainAlertsEnabled
         rainChanceThreshold = try c.decodeIfPresent(Int.self, forKey: .rainChanceThreshold) ?? d.rainChanceThreshold
         rainAlertCooldownMinutes = try c.decodeIfPresent(Int.self, forKey: .rainAlertCooldownMinutes) ?? d.rainAlertCooldownMinutes

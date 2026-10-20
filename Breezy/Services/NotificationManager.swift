@@ -237,6 +237,11 @@ class NotificationManager: NSObject, ObservableObject {
             if settings.onlyWeekdayForecast && calendar.isDateInWeekend(targetDay) { continue }
 
             for (slotIndex, time) in settings.dailyForecastTimes.enumerated() {
+                // The morning brief replaces the plain forecast at the first
+                // morning slot — two notifications at once is noise.
+                if settings.morningBriefEnabled && dayOffset < Self.morningBriefDaysAhead && slotIndex == 0 {
+                    continue
+                }
                 var dateComponents = calendar.dateComponents([.year, .month, .day], from: targetDay)
                 dateComponents.hour = time.hour
                 dateComponents.minute = time.minute
@@ -276,6 +281,178 @@ class NotificationManager: NSObject, ObservableObject {
             return "\(Calendar.current.weekdaySymbols[weekday - 1])'s Weather"
         }
     }
+
+    // MARK: - Morning Brief
+
+    private static let morningBriefDaysAhead = 2
+
+    /// Schedules the composed morning brief for today (if the slot is still
+    /// ahead) and tomorrow. Content is baked at schedule time — the same
+    /// staleness trade-off the daily forecast makes; every fetch reschedules.
+    func scheduleMorningBrief(weather: WeatherInfo, temperatureUnit: TemperatureUnit) {
+        guard settings.morningBriefEnabled else {
+            cancelMorningBrief()
+            return
+        }
+        guard authorizationStatus == .authorized else { return }
+
+        Task {
+            await removeAllPendingMorningBriefs()
+            await addMorningBriefRequests(weather: weather, temperatureUnit: temperatureUnit)
+        }
+    }
+
+    func cancelMorningBrief() {
+        Task {
+            await removeAllPendingMorningBriefs()
+        }
+    }
+
+    private func removeAllPendingMorningBriefs() async {
+        let requests = await notificationCenter.pendingNotificationRequests()
+        let ids = requests
+            .filter { $0.content.categoryIdentifier == "MORNING_BRIEF" }
+            .map(\.identifier)
+        guard !ids.isEmpty else { return }
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
+    private func addMorningBriefRequests(weather: WeatherInfo, temperatureUnit: TemperatureUnit) async {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let slot = settings.dailyForecastTimes.first else { return }
+
+        let lastFamilyKey = UserDefaults.standard.string(forKey: "Breezy.morningBrief.lastFamily")
+
+        for dayOffset in 0..<Self.morningBriefDaysAhead {
+            guard let targetDay = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
+            if settings.onlyWeekdayForecast && calendar.isDateInWeekend(targetDay) { continue }
+
+            var dateComponents = calendar.dateComponents([.year, .month, .day], from: targetDay)
+            dateComponents.hour = slot.hour
+            dateComponents.minute = slot.minute
+            guard let fireDate = calendar.date(from: dateComponents), fireDate > Date() else { continue }
+
+            let context = Self.buildBriefContext(weather: weather, dayOffset: dayOffset)
+            let brief = MorningBriefComposer.compose(
+                context: context,
+                day: targetDay,
+                lastFamilyKey: dayOffset == 0 ? lastFamilyKey : nil
+            )
+            if dayOffset == 0 {
+                UserDefaults.standard.set(brief.familyKey, forKey: "Breezy.morningBrief.lastFamily")
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = brief.title
+            content.body = brief.body
+            content.sound = getSound(for: "dailyForecast") ?? .default
+            content.categoryIdentifier = "MORNING_BRIEF"
+            content.userInfo = ["type": "morningBrief"]
+
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+            notificationCenter.add(UNNotificationRequest(
+                identifier: "morningBrief_\(dayOffset)",
+                content: content,
+                trigger: trigger
+            )) { _ in }
+        }
+    }
+
+    /// Map the forecast into composer inputs. Rain onset uses the same
+    /// minute-then-hourly precedence as the rain alerts.
+    static func buildBriefContext(weather: WeatherInfo, dayOffset: Int) -> MorningBriefComposer.Context {
+        let daily = dayOffset < weather.dailyForecast.count ? weather.dailyForecast[dayOffset] : weather.dailyForecast.first
+        let now = Date()
+        let dayStart = Calendar.current.startOfDay(for: now.addingTimeInterval(Double(dayOffset) * 86_400))
+        let dayEnd = dayStart.addingTimeInterval(86_400)
+
+        // Rain onset (today only — the minute/hourly horizon doesn't reach tomorrow).
+        var nextRainStart: Date?
+        var nextRainEnd: Date?
+        var currentlyRaining = false
+        var maxHourlyChance: Int?
+        if dayOffset == 0 {
+            let minutes = weather.metrics?.minuteForecast ?? []
+            let future = minutes.filter { $0.time >= now }
+            currentlyRaining = future.first.map(\.isPrecipitating) ?? false
+            if let onset = future.first(where: \.isPrecipitating) {
+                nextRainStart = onset.time
+                nextRainEnd = minutes.first { $0.time > onset.time && !$0.isPrecipitating }?.time
+            }
+            let upcomingHours = weather.hourlyForecast
+                .compactMap { hour -> (Date, Double?)? in
+                    guard let date = hour.sourceDate, date >= now, date < dayEnd else { return nil }
+                    return (date, hour.precipitationChance)
+                }
+                .sorted { $0.0 < $1.0 }
+            if nextRainStart == nil, let rainy = upcomingHours.first(where: { ($0.1 ?? 0) >= 0.4 }) {
+                nextRainStart = rainy.0
+            }
+            maxHourlyChance = upcomingHours.compactMap { $0.1 }.map { Int(($0 * 100).rounded()) }.max()
+        }
+        // Tomorrow has no hourly horizon — the daily rain chance (mapped into
+        // rainChancePercent below) drives the family routing instead.
+
+        // UV peak from today's hourly (nil-tolerant).
+        var uvPeak: Int?
+        var uvPeakTime: String?
+        if dayOffset == 0, let hours = weather.allHourlyData {
+            let todayHours = hours.filter { hour in
+                guard let date = hour.sourceDate else { return false }
+                return date >= now && date < dayEnd
+            }
+            if let peak = todayHours.max(by: { ($0.uvIndex ?? 0) < ($1.uvIndex ?? 0) }), (peak.uvIndex ?? 0) > 0 {
+                uvPeak = peak.uvIndex
+                uvPeakTime = "around \(peak.time)"
+            }
+        }
+
+        // Golden hour tonight + a quality verdict from the day's cloud.
+        var golden: (start: Date, end: Date)?
+        var goldenQuality: String?
+        if let sunset = daily?.sunsetDate {
+            let window = GoldenHourHelper.window(sunDate: sunset, isMorning: false)
+            golden = (window.start, window.end)
+            if let cloudText = weather.metrics?.cloudCover?.replacingOccurrences(of: "%", with: ""),
+               let cloud = Double(cloudText) {
+                goldenQuality = cloud < 20 ? "clear" : cloud < 50 ? "broken-cloud" : "murky"
+            }
+        }
+
+        var tideText: String?
+        if dayOffset == 0, let next = weather.metrics?.marine?.tideEvents?
+            .filter({ $0.date >= now }).min(by: { $0.date < $1.date }) {
+            let kind = next.isHigh ? "High tide" : "Low tide"
+            tideText = "\(kind) \(next.date.formatted(date: .omitted, time: .shortened))"
+        }
+
+        let auroraSnapshot = AuroraStore.load()
+
+        return MorningBriefComposer.Context(
+            condition: daily?.condition ?? weather.condition,
+            highText: daily?.highTemp,
+            lowText: daily?.lowTemp,
+            rainChancePercent: daily?.chanceOfRain.flatMap { Double($0.replacingOccurrences(of: "%", with: "")) }.map { Int($0) },
+            nextRainStart: nextRainStart,
+            nextRainEnd: nextRainEnd,
+            currentlyRaining: currentlyRaining,
+            maxHourlyRainChance: maxHourlyChance,
+            uvPeak: uvPeak,
+            uvPeakTimeText: uvPeakTime,
+            windPeakText: daily?.windSpeed,
+            humidity: weather.metrics?.humidity,
+            cloudPercent: weather.metrics?.cloudCover.flatMap { Double($0.replacingOccurrences(of: "%", with: "")) }.map { Int($0) },
+            goldenHourTonight: golden,
+            goldenHourQualityLabel: goldenQuality,
+            tideNextEvent: tideText,
+            moonIllumination: daily?.moonPhase.map { Int(($0.illumination * 100).rounded()) },
+            auroraActive: auroraSnapshot?.isActive == true,
+            auroraVerdict: auroraSnapshot?.verdict,
+            city: weather.location.city
+        )
+    }
+
     
     private func formatDailyForecastBody(weather: WeatherInfo, temperatureUnit: TemperatureUnit, dayIndex: Int = 0) -> String {
         let preferences = settings.dailyForecastContent
@@ -804,6 +981,7 @@ class NotificationManager: NSObject, ObservableObject {
         // Reschedule daily forecast if time changed
         if let weather = weather {
             scheduleDailyForecast(weather: weather, temperatureUnit: temperatureUnit)
+            scheduleMorningBrief(weather: weather, temperatureUnit: temperatureUnit)
         }
     }
 }

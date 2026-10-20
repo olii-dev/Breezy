@@ -832,7 +832,20 @@ struct ContentView: View {
                     .padding(.horizontal, DesignSystem.spacingM)
                 }
 
-                
+            case .stargazing:
+                StargazingCardView(
+                    weather: weather,
+                    viewModel: viewModel,
+                    textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                    glassOpacity: viewModel.glassOpacity
+                )
+                .padding(.horizontal, DesignSystem.spacingM)
+
+            case .goldenHour:
+                GoldenHourWidget(weather: weather, viewModel: viewModel)
+                    .padding(.horizontal, DesignSystem.spacingM)
+
+
             case .uvIndexCurve:
                 if let hourly = weather.allHourlyData, !hourly.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
@@ -4266,6 +4279,8 @@ struct GoldenHourWidget: View {
         let window: GoldenHourHelper.Window
         let isActive: Bool
         let status: String
+        let qualityLabel: String?
+        let qualityColor: Color
     }
 
     let weather: WeatherInfo
@@ -4274,6 +4289,19 @@ struct GoldenHourWidget: View {
 
     private var timeZone: TimeZone {
         TimeZone(identifier: weather.timezone) ?? .current
+    }
+
+    /// Nowcast quality from current cloud cover — honest about being the
+    /// current sky, not the sky at the window.
+    private var skyQuality: (label: String, color: Color)? {
+        guard let cloudText = weather.metrics?.cloudCover?.replacingOccurrences(of: "%", with: ""),
+              let cloud = Double(cloudText) else { return nil }
+        switch cloud {
+        case ..<20: return ("Clear", .green)
+        case ..<50: return ("Some cloud", .yellow)
+        case ..<80: return ("Mostly cloudy", .orange)
+        default: return ("Overcast", .red)
+        }
     }
 
     private var rows: [WindowRow] {
@@ -4298,7 +4326,15 @@ struct GoldenHourWidget: View {
             } else {
                 status = "Ended"
             }
-            return WindowRow(label: label, icon: icon, window: window, isActive: isActive, status: status)
+            return WindowRow(
+                label: label,
+                icon: icon,
+                window: window,
+                isActive: isActive,
+                status: status,
+                qualityLabel: skyQuality?.label,
+                qualityColor: skyQuality?.color ?? .gray
+            )
         }
     }
 
@@ -4335,9 +4371,21 @@ struct GoldenHourWidget: View {
                             Text(row.label)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundColor(textColor)
-                            Text("\(DateFormatterHelper.formatTime(row.window.start, timeZone: timeZone)) – \(DateFormatterHelper.formatTime(row.window.end, timeZone: timeZone))")
-                                .font(.caption)
-                                .foregroundColor(textColor.opacity(0.6))
+                            HStack(spacing: 5) {
+                                Text("\(DateFormatterHelper.formatTime(row.window.start, timeZone: timeZone)) – \(DateFormatterHelper.formatTime(row.window.end, timeZone: timeZone))")
+                                    .font(.caption)
+                                    .foregroundColor(textColor.opacity(0.6))
+                                if let qualityLabel = row.qualityLabel {
+                                    HStack(spacing: 3) {
+                                        Circle()
+                                            .fill(row.qualityColor)
+                                            .frame(width: 6, height: 6)
+                                        Text(qualityLabel)
+                                            .font(.caption2.weight(.medium))
+                                            .foregroundColor(textColor.opacity(0.55))
+                                    }
+                                }
+                            }
                         }
 
                         Spacer(minLength: 0)
@@ -5606,6 +5654,7 @@ struct WidgetGalleryView: View {
         case .surf: return "Open-Meteo only: wave height, period, swell and a surf-quality rating"
         case .pollen: return "Open-Meteo only: tree, grass and weed pollen with an allergy-risk rating (Europe)"
         case .goldenHour: return "Sunrise and sunset golden hour windows"
+        case .stargazing: return "Aurora odds, cloud and moon for tonight's sky"
         case .smartStack: return "Adaptive widget stack"
         }
     }

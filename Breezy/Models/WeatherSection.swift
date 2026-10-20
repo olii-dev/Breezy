@@ -40,6 +40,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
     case sunPath = "Sun Path"
     case moonPhase = "Moon Phase"
     case goldenHour = "Golden Hour"
+    case stargazing = "Stargazing"
     
     // Maps
     case radar = "Weather Radar"
@@ -95,6 +96,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable, Hashable {
         case .sunPath: return "sun.and.horizon.fill"
         case .moonPhase: return "moon.stars.fill"
         case .goldenHour: return "sunset.fill"
+        case .stargazing: return "sparkles"
         case .uvIndexCurve: return "chart.xyaxis.line"
         case .smartStack: return "square.3.layers.3d"
         }
@@ -187,7 +189,7 @@ extension WidgetType {
             return .forecasts
         case .deepDetails, .rainSummary, .rainfallToday, .minutePrecipitation, .windSummary, .windGraph, .uvIndex, .feelsLike, .uvIndexCurve, .humidityStrip, .visibilityCard, .cloudCoverCard, .windHistory, .airQualityCard, .aqiTrend, .marineOutlook, .surf, .pollen:
             return .details
-        case .sunPath, .moonPhase, .goldenHour:
+        case .sunPath, .moonPhase, .goldenHour, .stargazing:
             return .astronomy
         case .radar:
             return .maps

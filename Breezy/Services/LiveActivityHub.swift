@@ -27,5 +27,6 @@ enum LiveActivityHub {
         SevereWeatherLiveActivityManager.shared.restore()
         WindLiveActivityManager.shared.restore()
         TripLiveActivityManager.shared.restore()
+        AuroraLiveActivityManager.shared.restore()
     }
 }

@@ -2045,8 +2045,10 @@ struct BreezyWidgetBundle: WidgetBundle {
         SevereWeatherLiveActivityWidget()
         WindLiveActivityWidget()
         DailySummaryLiveActivityWidget()
+        AuroraLiveActivityWidget()
         #endif
         RadarWidget()
+        BreezyStargazingWidget()
         BreezyWeatherWidget() // Custom Widget moved to end
     }
 }

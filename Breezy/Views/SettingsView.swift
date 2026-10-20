@@ -779,6 +779,68 @@ struct NotificationSettingsView: View {
                             }
                             .buttonStyle(.plain)
 
+                            NavigationLink {
+                                AuroraSettingsView(
+                                    settings: $notificationSettings,
+                                    viewModel: viewModel,
+                                    onSave: { saveNotificationSettings() }
+                                )
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "sparkles")
+                                        .font(.title3)
+                                        .foregroundColor(.purple)
+                                        .frame(width: 26)
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text("Aurora")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundColor(theme.textColor)
+                                        Text("Kp watch for tonight's sky")
+                                            .font(.caption2)
+                                            .foregroundColor(theme.textColor.opacity(0.5))
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(theme.textColor.opacity(0.4))
+                                }
+                                .padding()
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                            }
+                            .buttonStyle(.plain)
+
+                            NavigationLink {
+                                MorningBriefSettingsView(
+                                    settings: $notificationSettings,
+                                    viewModel: viewModel,
+                                    onSave: { saveNotificationSettings() }
+                                )
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "sun.and.horizon.fill")
+                                        .font(.title3)
+                                        .foregroundColor(.orange)
+                                        .frame(width: 26)
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text("Morning Brief")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundColor(theme.textColor)
+                                        Text("One genuinely useful summary when you wake")
+                                            .font(.caption2)
+                                            .foregroundColor(theme.textColor.opacity(0.5))
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(theme.textColor.opacity(0.4))
+                                }
+                                .padding()
+                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+                            }
+                            .buttonStyle(.plain)
+
                             alertRow(
                                 "Rain Alerts", icon: "cloud.rain.fill", color: .blue, theme: theme,
                                 isOn: notificationSettings.rainAlertsEnabled,

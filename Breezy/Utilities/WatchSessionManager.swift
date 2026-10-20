@@ -107,6 +107,31 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         let notificationSettings = UserDefaults.standard.notificationSettings
         context["Breezy.dailyForecastHour"] = notificationSettings.dailyForecastTimes.first?.hour ?? notificationSettings.dailyForecastHour
         context["Breezy.dailyForecastMinute"] = notificationSettings.dailyForecastTimes.first?.minute ?? notificationSettings.dailyForecastMinute
+
+        // Stargazing page payload: aurora + tonight's-sky numbers from the
+        // latest fetch. Plain values — the watch renders from these alone.
+        if let aurora = AuroraStore.load() {
+            context["aurora.kp"] = aurora.kp ?? -1
+            context["aurora.requiredKp"] = aurora.requiredKp ?? -1
+            context["aurora.cloudPercent"] = aurora.cloudFraction.map { Int(($0 * 100).rounded()) } ?? -1
+            context["aurora.moonPercent"] = aurora.moonIllumination.map { Int(($0 * 100).rounded()) } ?? -1
+            context["aurora.verdict"] = aurora.verdict
+            context["aurora.detail"] = aurora.detail
+            context["aurora.updatedAt"] = aurora.fetchedAt.timeIntervalSince1970
+        }
+        let defaults = UserDefaults(suiteName: "group.com.breezy.weather")
+        if let eveningStart = defaults?.object(forKey: "Breezy.goldenHourEveningStart") as? TimeInterval {
+            context["goldenHour.eveningStart"] = eveningStart
+        }
+        if let eveningEnd = defaults?.object(forKey: "Breezy.goldenHourEveningEnd") as? TimeInterval {
+            context["goldenHour.eveningEnd"] = eveningEnd
+        }
+        if let morningStart = defaults?.object(forKey: "Breezy.goldenHourMorningStart") as? TimeInterval {
+            context["goldenHour.morningStart"] = morningStart
+        }
+        if let morningEnd = defaults?.object(forKey: "Breezy.goldenHourMorningEnd") as? TimeInterval {
+            context["goldenHour.morningEnd"] = morningEnd
+        }
         
         // Critical: Try to use sendMessage for INSTANT sync if reachable
         if session.isReachable {

@@ -1060,6 +1060,7 @@ class WeatherViewModel: ObservableObject {
             } else {
                 // Still schedule daily forecast (doesn't send immediate notification)
                 notificationManager.scheduleDailyForecast(weather: info, temperatureUnit: temperatureUnit)
+                notificationManager.scheduleMorningBrief(weather: info, temperatureUnit: temperatureUnit)
             }
             
             // Update previous weather for change detection
@@ -1068,10 +1069,25 @@ class WeatherViewModel: ObservableObject {
             // Weather Live Activities follow the forecast.
             LiveActivityHub.updateAll(with: info)
 
+            // Aurora runs alongside: refresh the snapshot and check alerts.
+            AuroraAlertManager.shared.update(with: info)
+
             // Persist the location timezone so widget surfaces (which fetch
             // without a timezone source) label hours in the location's time.
             if let defaults = UserDefaults(suiteName: "group.com.breezy.weather") {
                 defaults.set(info.timezone, forKey: "Breezy.locationTimeZone")
+
+                // Golden-hour windows for the watch's stargazing page.
+                if let sunset = info.dailyForecast.first?.sunsetDate {
+                    let evening = GoldenHourHelper.window(sunDate: sunset, isMorning: false)
+                    defaults.set(evening.start.timeIntervalSince1970, forKey: "Breezy.goldenHourEveningStart")
+                    defaults.set(evening.end.timeIntervalSince1970, forKey: "Breezy.goldenHourEveningEnd")
+                }
+                if let sunrise = info.dailyForecast.first?.sunriseDate {
+                    let morning = GoldenHourHelper.window(sunDate: sunrise, isMorning: true)
+                    defaults.set(morning.start.timeIntervalSince1970, forKey: "Breezy.goldenHourMorningStart")
+                    defaults.set(morning.end.timeIntervalSince1970, forKey: "Breezy.goldenHourMorningEnd")
+                }
             }
 
             // Storm watch: thunderstorm conditions auto-start the live
@@ -1939,6 +1955,7 @@ class WeatherViewModel: ObservableObject {
     private func handleNotifications(newWeather: WeatherInfo, oldWeather: WeatherInfo?, locationChanged: Bool) {
         // Schedule daily forecast (doesn't send immediate notification)
         notificationManager.scheduleDailyForecast(weather: newWeather, temperatureUnit: temperatureUnit)
+        notificationManager.scheduleMorningBrief(weather: newWeather, temperatureUnit: temperatureUnit)
 
         // All immediate alert checks (cooldowns live in NotificationManager).
         notificationManager.runAllAlertChecks(weather: newWeather, temperatureUnit: temperatureUnit)

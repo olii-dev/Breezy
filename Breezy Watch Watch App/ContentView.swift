@@ -59,10 +59,17 @@ struct ContentView: View {
                         
                         DailyForecastView(daily: weather.dailyForecast)
                             .containerBackground(Color.clear, for: .tabView)
-                        
+
+                        // Stargazing page only when the phone has relayed
+                        // space-weather data — never a dead-end page.
+                        if WatchAuroraStore.load() != nil {
+                            StargazingPageView()
+                                .containerBackground(Color.clear, for: .tabView)
+                        }
+
                         WatchRadarView()
                             .containerBackground(Color.clear, for: .tabView)
-                        
+
                         WatchTimeMachineView()
                             .containerBackground(Color.clear, for: .tabView)
                     }

@@ -78,6 +78,9 @@ class WatchSessionManager: NSObject, WCSessionDelegate {
                 defaults.set(forecastMinute, forKey: "WatchPhoneForecastMinute")
             }
 
+            // Stargazing payload (aurora + golden hour) for the watch page.
+            WatchAuroraStore.apply(context: applicationContext)
+
             // Notify view model to reload
             NotificationCenter.default.post(name: NSNotification.Name("WatchContextUpdated"), object: nil)
             NotificationCenter.default.post(name: NSNotification.Name("WatchTemperatureUnitChanged"), object: nil)
