@@ -566,6 +566,34 @@ struct LiveActivitySettingsView: View {
                 }
             }
 
+            if let elements = LiveActivityElements.catalogue[activity] {
+                HStack(spacing: 8) {
+                    ForEach(elements, id: \.id) { element in
+                        let on = LiveActivityElements.isEnabled(activity: activity, element: element.id)
+                        Button {
+                            HapticsManager.shared.selectionChanged()
+                            LiveActivityElements.set(!on, activity: activity, element: element.id)
+                            WidgetCenter.shared.reloadAllTimelines()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: on ? "checkmark" : "minus")
+                                    .font(.caption2.weight(.bold))
+                                Text(element.label)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill((on ? Color.green : theme.textColor).opacity(0.12)))
+                            .foregroundColor(on ? .green : theme.textColor.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(element.label) for \(title), \(on ? "on" : "off")")
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
             HStack(spacing: 10) {
                 ForEach(LiveActivityAccent.names, id: \.self) { name in
                     let isDefault = name == "default"

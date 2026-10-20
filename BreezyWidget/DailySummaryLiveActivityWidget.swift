@@ -12,14 +12,17 @@ import ActivityKit
 
 struct DailySummaryLiveActivityWidget: Widget {
     /// User-picked accent (Live Activity settings) or the family default.
-    private var accent: Color { LiveActivityTheme.accent(activity: "daily", fallback: accent) }
+    private var accent: Color { LiveActivityTheme.accent(activity: "daily", fallback: .orange) }
 
+    private func on(_ element: String) -> Bool {
+        LiveActivityElements.isEnabled(activity: "daily", element: element)
+    }
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DailySummaryActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
                 .widgetURL(URL(string: "breezy://alerts"))
-                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .cyan))
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: accent))
                 .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in
             DynamicIsland {
@@ -47,7 +50,7 @@ struct DailySummaryLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
-                        if let rain = context.state.rainChanceText {
+                        if on("rain"), let rain = context.state.rainChanceText {
                             Label(rain, systemImage: "cloud.rain.fill")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -90,7 +93,7 @@ struct DailySummaryLiveActivityWidget: Widget {
                     Text(context.state.conditionText)
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
-                    if let rain = context.state.rainChanceText {
+                    if on("rain"), let rain = context.state.rainChanceText {
                         Text("· \(rain)")
                             .font(.caption)
                             .foregroundStyle(.secondary)

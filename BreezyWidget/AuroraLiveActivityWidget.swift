@@ -13,7 +13,11 @@ import ActivityKit
 
 struct AuroraLiveActivityWidget: Widget {
     /// User-picked accent (Live Activity settings) or the family default.
-    private var accent: Color { LiveActivityTheme.accent(activity: "aurora", fallback: accent) }
+    private var accent: Color { LiveActivityTheme.accent(activity: "aurora", fallback: .purple) }
+
+    private func on(_ element: String) -> Bool {
+        LiveActivityElements.isEnabled(activity: "aurora", element: element)
+    }
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: AuroraActivityAttributes.self) { context in
@@ -39,9 +43,11 @@ struct AuroraLiveActivityWidget: Widget {
                         Text(context.state.verdict)
                             .font(.headline)
                             .foregroundStyle(accent)
+                        if on("dawn") {
                         Text("until \(context.state.dawnDate.formatted(date: .omitted, time: .shortened))")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -51,17 +57,17 @@ struct AuroraLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 12) {
-                        if let bz = context.state.bzNanoteslas {
+                        if on("space"), let bz = context.state.bzNanoteslas {
                             Label("\(Int(bz)) nT", systemImage: bz <= -5 ? "arrow.down.circle.fill" : "minus.circle")
                                 .font(.caption)
                                 .foregroundStyle(bz <= -5 ? .green : .secondary)
                         }
-                        if let cloud = context.state.cloudPercent {
+                        if on("space"), let cloud = context.state.cloudPercent {
                             Label("\(cloud)% cloud", systemImage: "cloud.fill")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        if let moon = context.state.moonPercent {
+                        if on("space"), let moon = context.state.moonPercent {
                             Label("\(moon)% moon", systemImage: "moonphase.waxing.crescent")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -99,12 +105,12 @@ struct AuroraLiveActivityWidget: Widget {
                 HStack(spacing: 6) {
                     Text("Kp \(AuroraKit.formatted(context.state.kp))")
                         .font(.caption.weight(.bold))
-                    if let bz = context.state.bzNanoteslas {
+                    if on("space"), let bz = context.state.bzNanoteslas {
                         Text("· Bz \(Int(bz)) nT")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if let cloud = context.state.cloudPercent {
+                    if on("space"), let cloud = context.state.cloudPercent {
                         Text("· \(cloud)% cloud")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -118,9 +124,11 @@ struct AuroraLiveActivityWidget: Widget {
                 Text(context.state.verdict)
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(accent)
+                if on("dawn") {
                 Text("till \(context.state.dawnDate.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                }
             }
         }
     }

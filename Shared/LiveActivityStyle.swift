@@ -82,3 +82,33 @@ public enum LiveActivityAccent {
             .string(forKey: storagePrefix + activity + ".accent") ?? "default"
     }
 }
+
+
+// MARK: - Per-activity element toggles
+
+/// Optional content elements per Live Activity. All default ON; toggling
+/// writes an explicit bool so missing keys never hide content.
+public enum LiveActivityElements {
+    public static let catalogue: [String: [(id: String, label: String)]] = [
+        "rain": [("chance", "Rain chance"), ("intensity", "Intensity"), ("window", "Time window")],
+        "uv": [("category", "UV category"), ("drops", "Drop time")],
+        "severe": [("detail", "Detail line")],
+        "wind": [("direction", "Direction"), ("gust", "Gusts")],
+        "daily": [("rain", "Rain chance")],
+        "aurora": [("space", "Bz, cloud & moon"), ("dawn", "Dawn time")]
+    ]
+
+    private static func key(_ activity: String, _ element: String) -> String {
+        "Breezy.LA.\(activity).\(element)"
+    }
+
+    public static func isEnabled(activity: String, element: String) -> Bool {
+        UserDefaults(suiteName: "group.com.breezy.weather")?
+            .object(forKey: key(activity, element)) as? Bool ?? true
+    }
+
+    public static func set(_ enabled: Bool, activity: String, element: String) {
+        UserDefaults(suiteName: "group.com.breezy.weather")?
+            .set(enabled, forKey: key(activity, element))
+    }
+}

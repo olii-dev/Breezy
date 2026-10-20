@@ -10,9 +10,13 @@ import SwiftUI
 import ActivityKit
 
 struct WindLiveActivityWidget: Widget {
-    /// User-picked accent (Live Activity settings) or the family default.
-    private var accent: Color { LiveActivityTheme.accent(activity: "wind", fallback: accent) }
 
+    /// User-picked accent (Live Activity settings) or the family default.
+    private var accent: Color { LiveActivityTheme.accent(activity: "wind", fallback: .teal) }
+
+    private func on(_ element: String) -> Bool {
+        LiveActivityElements.isEnabled(activity: "wind", element: element)
+    }
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WindActivityAttributes.self) { context in
             lockScreenView(context: context)
@@ -27,7 +31,7 @@ struct WindLiveActivityWidget: Widget {
                         Label("Wind", systemImage: "wind")
                             .font(.headline)
                             .foregroundStyle(accent)
-                        if let direction = context.state.directionText {
+                        if on("direction"), let direction = context.state.directionText {
                             Text(direction)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -40,7 +44,7 @@ struct WindLiveActivityWidget: Widget {
                             .font(.title3.weight(.bold))
                             .monospacedDigit()
                             .foregroundStyle(accent)
-                        if let gust = context.state.gustText {
+                        if on("gust"), let gust = context.state.gustText {
                             Text(gust)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -54,7 +58,7 @@ struct WindLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
-                        if let direction = context.state.directionText {
+                        if on("direction"), let direction = context.state.directionText {
                             Text(direction)
                                 .font(.caption)
                                 .foregroundStyle(accent)
@@ -94,12 +98,12 @@ struct WindLiveActivityWidget: Widget {
                     .font(.headline)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    if let direction = context.state.directionText {
+                    if on("direction"), let direction = context.state.directionText {
                         Text(direction)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if let gust = context.state.gustText {
+                    if on("gust"), let gust = context.state.gustText {
                         Text("· \(gust)")
                             .font(.caption)
                             .foregroundStyle(.secondary)

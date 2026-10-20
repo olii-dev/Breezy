@@ -12,7 +12,11 @@ import ActivityKit
 
 struct RainLiveActivityWidget: Widget {
     /// User-picked accent (Live Activity settings) or the family default.
-    private var accent: Color { LiveActivityTheme.accent(activity: "rain", fallback: accent) }
+    private var accent: Color { LiveActivityTheme.accent(activity: "rain", fallback: .cyan) }
+
+    private func on(_ element: String) -> Bool {
+        LiveActivityElements.isEnabled(activity: "rain", element: element)
+    }
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RainActivityAttributes.self) { context in
@@ -28,9 +32,11 @@ struct RainLiveActivityWidget: Widget {
                         Label("Rain", systemImage: "cloud.rain.fill")
                             .font(.headline)
                             .foregroundStyle(accent)
-                        Text("\(context.state.chancePercent)% chance")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if on("chance") {
+                            Text("\(context.state.chancePercent)% chance")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -51,19 +57,21 @@ struct RainLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
-                        if let intensity = context.state.intensityText {
+                        if on("intensity"), let intensity = context.state.intensityText {
                             Text(intensity)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text(context.state.rainEnd.map { end in
-                            "From \(context.state.rainStart.formatted(date: .omitted, time: .shortened)) until \(end.formatted(date: .omitted, time: .shortened))"
-                        } ?? "From \(context.state.rainStart.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                        if on("window") {
+                            Text(context.state.rainEnd.map { end in
+                                "From \(context.state.rainStart.formatted(date: .omitted, time: .shortened)) until \(end.formatted(date: .omitted, time: .shortened))"
+                            } ?? "From \(context.state.rainStart.formatted(date: .omitted, time: .shortened))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
                     }
                 }
             } compactLeading: {
@@ -93,17 +101,21 @@ struct RainLiveActivityWidget: Widget {
                     .font(.headline)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    Text("\(context.state.chancePercent)%")
-                        .font(.caption.weight(.semibold))
-                    if let intensity = context.state.intensityText {
+                    if on("chance") {
+                        Text("\(context.state.chancePercent)%")
+                            .font(.caption.weight(.semibold))
+                    }
+                    if on("intensity"), let intensity = context.state.intensityText {
                         Text(intensity)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Text("· from \(context.state.rainStart.formatted(date: .omitted, time: .shortened))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if on("window") {
+                        Text("· from \(context.state.rainStart.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
 

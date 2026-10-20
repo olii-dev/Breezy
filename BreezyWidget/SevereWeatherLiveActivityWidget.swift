@@ -11,7 +11,11 @@ import ActivityKit
 
 struct SevereWeatherLiveActivityWidget: Widget {
     /// User-picked accent (Live Activity settings) or the family default.
-    private var accent: Color { LiveActivityTheme.accent(activity: "severe", fallback: accent) }
+    private var accent: Color { LiveActivityTheme.accent(activity: "severe", fallback: .red) }
+
+    private func on(_ element: String) -> Bool {
+        LiveActivityElements.isEnabled(activity: "severe", element: element)
+    }
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SevereWeatherActivityAttributes.self) { context in

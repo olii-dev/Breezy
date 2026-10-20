@@ -11,7 +11,11 @@ import ActivityKit
 
 struct UVLiveActivityWidget: Widget {
     /// User-picked accent (Live Activity settings) or the family default.
-    private var accent: Color { LiveActivityTheme.accent(activity: "uv", fallback: accent) }
+    private var accent: Color { LiveActivityTheme.accent(activity: "uv", fallback: .cyan) }
+
+    private func on(_ element: String) -> Bool {
+        LiveActivityElements.isEnabled(activity: "uv", element: element)
+    }
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: UVActivityAttributes.self) { context in
@@ -56,7 +60,7 @@ struct UVLiveActivityWidget: Widget {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        if let drops = context.state.dropsBelowText {
+                        if on("drops"), let drops = context.state.dropsBelowText {
                             Text(drops)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -93,7 +97,7 @@ struct UVLiveActivityWidget: Widget {
                 HStack(spacing: 6) {
                     Text(context.state.categoryText)
                         .font(.caption.weight(.semibold))
-                    if let drops = context.state.dropsBelowText {
+                    if on("drops"), let drops = context.state.dropsBelowText {
                         Text("· \(drops)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
