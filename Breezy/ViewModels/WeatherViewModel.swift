@@ -953,9 +953,15 @@ class WeatherViewModel: ObservableObject {
         #if DEBUG
         fetchLogger.notice("BREEZYSTARTUP entry followGPS=\(self.shouldFollowGPS, privacy: .public) manual=\(self.savedManualLocation()?.city ?? "none", privacy: .public)")
         #endif
-        // Request notification permissions and register categories
-        Task {
-            _ = await notificationManager.requestAuthorization()
+        // Request notification permissions and register categories — but only
+        // post-onboarding: the wizard asks contextually on its final step,
+        // and a launch-time prompt would fire before any explanation.
+        if UserDefaults.standard.bool(forKey: "Breezy.HasCompletedOnboarding") {
+            Task {
+                _ = await notificationManager.requestAuthorization()
+                notificationManager.registerNotificationCategories()
+            }
+        } else {
             notificationManager.registerNotificationCategories()
         }
         

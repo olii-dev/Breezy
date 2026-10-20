@@ -10,19 +10,73 @@ import MapKit
 import UserNotifications
 struct OnboardingView: View {
     private enum Step: Int, CaseIterable {
-        case welcome
-        case explore
-        case style
+        case personalise
         case location
         case alerts
+        case style
 
         var title: String {
             switch self {
-            case .welcome: return "Welcome"
-            case .explore: return "Explore Breezy"
-            case .style: return "Pick Your Look"
+            case .personalise: return "What Matters to You?"
             case .location: return "Choose a Starting Place"
-            case .alerts: return "Alerts and Handoff"
+            case .alerts: return "Alerts & Handoff"
+            case .style: return "Make It Yours"
+            }
+        }
+    }
+
+    /// First-launch interests. Ticking one pre-configures the matching alert
+    /// toggles and dashboard cards — real setup, not a feature tour.
+    private enum Interest: String, CaseIterable, Identifiable {
+        case rainStorms, uvSun, wind, aurora, morningBrief, coastSurf, dailyForecast
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .rainStorms: return "Rain & Storms"
+            case .uvSun: return "UV & Sun Safety"
+            case .wind: return "Wind"
+            case .aurora: return "Aurora Alerts"
+            case .morningBrief: return "Morning Brief"
+            case .coastSurf: return "Coast & Surf"
+            case .dailyForecast: return "Daily Forecast"
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .rainStorms: return "Rain onset, severe weather & lightning"
+            case .uvSun: return "UV alerts when exposure climbs"
+            case .wind: return "Strong-wind warnings"
+            case .aurora: return "Kp watch for tonight's sky"
+            case .morningBrief: return "One smart summary each morning"
+            case .coastSurf: return "Marine conditions & surf rating"
+            case .dailyForecast: return "The classic daily digest"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .rainStorms: return "cloud.rain.fill"
+            case .uvSun: return "sun.max.fill"
+            case .wind: return "wind"
+            case .aurora: return "sparkles"
+            case .morningBrief: return "sun.and.horizon.fill"
+            case .coastSurf: return "water.waves"
+            case .dailyForecast: return "calendar"
+            }
+        }
+
+        var accent: Color {
+            switch self {
+            case .rainStorms: return .blue
+            case .uvSun: return .orange
+            case .wind: return .teal
+            case .aurora: return .purple
+            case .morningBrief: return .pink
+            case .coastSurf: return .cyan
+            case .dailyForecast: return .green
             }
         }
     }
@@ -38,7 +92,7 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var searchService = LocationSearchService()
 
-    @State private var currentStep: Step = .welcome
+    @State private var currentStep: Step = .personalise
     @State private var selectedLocation: LocationData?
     @State private var selectedLocationChoice: LocationChoice?
     @State private var draftNotificationSettings = UserDefaults.standard.notificationSettings
@@ -47,6 +101,7 @@ struct OnboardingView: View {
     @State private var isFinishing = false
     @State private var showManualSearch = false
     @State private var shakeError = false
+    @State private var personaliseInterests: Set<Interest> = [.rainStorms, .dailyForecast]
     @FocusState private var searchFieldFocused: Bool
     @AppStorage("Breezy.typography") private var typographyRaw: String = WeatherFont.system.rawValue
 
@@ -56,15 +111,13 @@ struct OnboardingView: View {
 
     private var primaryButtonTitle: String {
         switch currentStep {
-        case .welcome:
-            return "Start Setup"
-        case .explore:
-            return "Show Me the Style"
-        case .style:
+        case .personalise:
             return "Set My Location"
         case .location:
             return "Continue"
         case .alerts:
+            return "Make It Yours"
+        case .style:
             if isFinishing {
                 return "Finishing..."
             }
@@ -76,14 +129,14 @@ struct OnboardingView: View {
     }
 
     private var secondaryButtonTitle: String? {
-        currentStep == .alerts && notificationStatus != .authorized ? "Start Without Notifications" : nil
+        currentStep == .style && notificationStatus != .authorized ? "Start Without Notifications" : nil
     }
 
     private var primaryActionDisabled: Bool {
         switch currentStep {
         case .location:
             return selectedLocation == nil || isRequestingLocation
-        case .alerts:
+        case .style:
             return isFinishing
         default:
             return false
@@ -147,16 +200,14 @@ struct OnboardingView: View {
 
         Group {
             switch currentStep {
-            case .welcome:
-                welcomeStep(theme: theme)
-            case .explore:
-                exploreStep(theme: theme)
-            case .style:
-                styleStep(theme: theme)
+            case .personalise:
+                personaliseStep(theme: theme)
             case .location:
                 locationStep(theme: theme)
             case .alerts:
                 alertsStep(theme: theme)
+            case .style:
+                styleStep(theme: theme)
             }
         }
         .transition(.opacity.combined(with: .move(edge: .trailing)))
@@ -164,27 +215,25 @@ struct OnboardingView: View {
 
     private var stepDescription: String {
         switch currentStep {
-        case .welcome:
-            return "Deeper forecasts, powerful widgets, and full customisation."
-        case .explore:
-            return "Build widgets, explore past weather, and customise nearly every detail."
-        case .style:
-            return "Pick the style you want for Breezy."
+        case .personalise:
+            return "Tick what you care about — Breezy sets up the alerts and cards to match. Everything is changeable later."
         case .location:
             return "Choose how Breezy should start: use your current location or pick a city manually."
         case .alerts:
-            return "Pick what you want to be notified about."
+            return "Your picks are pre-set here — fine-tune sounds and thresholds if you like."
+        case .style:
+            return "Pick the look. You can change any of this later in Settings."
         }
     }
 
     private func onboardingHeader(theme: WeatherTheme) -> some View {
         VStack(spacing: 14) {
             HStack {
-                if currentStep != .welcome {
+                if currentStep != .personalise {
                     Button {
                         HapticsManager.shared.impact(style: .light)
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
-                            currentStep = Step(rawValue: max(currentStep.rawValue - 1, 0)) ?? .welcome
+                            currentStep = Step(rawValue: max(currentStep.rawValue - 1, 0)) ?? .personalise
                         }
                     } label: {
                         Image(systemName: "chevron.left")
@@ -280,9 +329,9 @@ struct OnboardingView: View {
 
     private func handlePrimaryAction() {
         switch currentStep {
-        case .welcome, .explore, .style, .location:
+        case .personalise, .location, .alerts:
             advanceStep()
-        case .alerts:
+        case .style:
             Task {
                 await finalizeOnboarding(requestNotifications: notificationStatus == .notDetermined)
             }
@@ -312,10 +361,10 @@ struct OnboardingView: View {
                 }
 
                 if value.translation.width < 0 {
-                    guard currentStep != .alerts, !primaryActionDisabled else { return }
+                    guard currentStep != .style, !primaryActionDisabled else { return }
                     HapticsManager.shared.impact(style: .light)
                     advanceStep()
-                } else if currentStep != .welcome {
+                } else if currentStep != .personalise {
                     HapticsManager.shared.impact(style: .light)
                     retreatStep()
                 }
@@ -346,7 +395,53 @@ struct OnboardingView: View {
         }
     }
 
+    /// Personalise answers flow into the draft settings (alerts) and the
+    /// dashboard list (cards) — real configuration, applied on finish.
+    private func applyPersonaliseInterests() {
+        for interest in personaliseInterests {
+            switch interest {
+            case .rainStorms:
+                draftNotificationSettings.rainAlertsEnabled = true
+                draftNotificationSettings.severeWeatherEnabled = true
+                draftNotificationSettings.lightningAlertsEnabled = true
+            case .uvSun:
+                draftNotificationSettings.uvAlertsEnabled = true
+            case .wind:
+                draftNotificationSettings.windAlertsEnabled = true
+            case .aurora:
+                draftNotificationSettings.auroraAlertsEnabled = true
+            case .morningBrief:
+                draftNotificationSettings.morningBriefEnabled = true
+            case .coastSurf, .dailyForecast:
+                break // cards / already on by default
+            }
+        }
+
+        // Dashboard cards for the visual interests (provider-supported only).
+        let key = "Breezy.DashboardWidgets.\(viewModel.weatherSource.rawValue)"
+        var widgets = CloudStorage.shared.data(forKey: key)
+            .flatMap { try? JSONDecoder().decode([DashboardWidget].self, from: $0) }
+            ?? DashboardWidget.defaultDashboard.filter { $0.type.isSupported(by: viewModel.weatherSource) }
+
+        var additions: [WidgetType] = []
+        if personaliseInterests.contains(.uvSun) { additions.append(.uvIndex) }
+        if personaliseInterests.contains(.aurora) { additions.append(.stargazing) }
+        if personaliseInterests.contains(.coastSurf) { additions.append(contentsOf: [.marineOutlook, .surf]) }
+
+        var changed = false
+        for type in additions
+        where !widgets.contains(where: { $0.type == type }) && type.isSupported(by: viewModel.weatherSource) {
+            widgets.append(DashboardWidget(id: UUID(), type: type))
+            changed = true
+        }
+
+        if changed, let encoded = try? JSONEncoder().encode(widgets) {
+            CloudStorage.shared.set(encoded, forKey: key)
+        }
+    }
+
     private func persistNotificationPreferences() {
+        applyPersonaliseInterests()
         UserDefaults.standard.notificationSettings = draftNotificationSettings
         NotificationManager.shared.updateSettings(
             draftNotificationSettings,
@@ -475,86 +570,63 @@ struct OnboardingView: View {
     }
 
     @ViewBuilder
-    private func welcomeStep(theme: WeatherTheme) -> some View {
-        VStack(spacing: 20) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 30)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.orange, Color.pink, Color.blue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(height: 170)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 32)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    )
-
-                VStack(spacing: 14) {
-                    Image(systemName: "cloud.sun.rain.fill")
-                        .font(.system(size: 46, weight: .light))
-                        .foregroundColor(.white)
-
-                    Text("Breezy")
-                        .font(.system(size: 36, weight: .black, design: typographyDesign))
-                        .foregroundColor(.white)
-                }
-            }
-
-            HStack(spacing: 12) {
-                onboardingStatCard(title: "Widgets", detail: "Build your own", icon: "square.grid.2x2.fill", theme: theme)
-                onboardingStatCard(title: "Radar", detail: "Map-first", icon: "tornado", theme: theme)
-                onboardingStatCard(title: "History", detail: "Time Machine", icon: "clock.arrow.circlepath", theme: theme)
-            }
-
-            HStack(spacing: 12) {
-                onboardingStatCard(title: "Customise", detail: "Change anything", icon: "slider.horizontal.3", theme: theme)
-                onboardingStatCard(title: "Font", detail: "Pick a font", icon: "textformat", theme: theme)
-                onboardingStatCard(title: "Alerts", detail: "Notifications", icon: "bell.fill", theme: theme) 
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func exploreStep(theme: WeatherTheme) -> some View {
+    private func personaliseStep(theme: WeatherTheme) -> some View {
         VStack(spacing: 14) {
-            featureShowcaseCard(
-                title: "Widget Gallery",
-                subtitle: "Build dashboards you control.",
-                icon: "square.grid.2x2.fill",
-                accent: .blue,
-                theme: theme
-            )
-
-            featureShowcaseCard(
-                title: "Time Machine",
-                subtitle: "Explore past weather.",
-                icon: "clock.arrow.circlepath",
-                accent: .purple,
-                theme: theme
-            )
-
-            featureShowcaseCard(
-                title: "Full-Screen Radar",
-                subtitle: "Map view for precipitation & layers.",
-                icon: "tornado",
-                accent: .teal,
-                theme: theme
-            )
-
-            featureShowcaseCard(
-                title: "Deep Daily Detail",
-                subtitle: "Fine-grained daily data, configurable.",
-                icon: "chart.line.uptrend.xyaxis",
-                accent: .orange,
-                theme: theme
-            )
+            ForEach(Interest.allCases) { interest in
+                interestCard(interest, theme: theme)
+            }
         }
     }
 
-    @ViewBuilder
+    private func interestCard(_ interest: Interest, theme: WeatherTheme) -> some View {
+        let isSelected = personaliseInterests.contains(interest)
+
+        return Button {
+            HapticsManager.shared.selectionChanged()
+            if isSelected {
+                personaliseInterests.remove(interest)
+            } else {
+                personaliseInterests.insert(interest)
+            }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: interest.icon)
+                    .font(.title3)
+                    .foregroundColor(isSelected ? interest.accent : theme.textColor.opacity(0.5))
+                    .frame(width: 30)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(interest.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(theme.textColor)
+                    Text(interest.subtitle)
+                        .font(.caption)
+                        .foregroundColor(theme.textColor.opacity(0.55))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundColor(isSelected ? interest.accent : theme.textColor.opacity(0.3))
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                    .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                            .stroke(isSelected ? interest.accent.opacity(0.6) : theme.textColor.opacity(0.15), lineWidth: isSelected ? 1.5 : 0.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(interest.title), \(isSelected ? "selected" : "not selected")")
+        .accessibilityAddTraits(.isButton)
+    }
+
     private func styleStep(theme: WeatherTheme) -> some View {
         VStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 12) {
@@ -970,53 +1042,6 @@ struct OnboardingView: View {
                 RoundedRectangle(cornerRadius: 24)
                     .stroke(theme.textColor.opacity(0.12), lineWidth: 0.6)
             )
-    }
-
-    private func onboardingStatCard(title: String, detail: String, icon: String, theme: WeatherTheme) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(theme.textColor)
-
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(theme.textColor)
-
-            Text(detail)
-                .font(.caption)
-                .foregroundColor(theme.textColor.opacity(0.7))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(onboardingCardBackground(theme: theme))
-    }
-
-    private func featureShowcaseCard(title: String, subtitle: String, icon: String, accent: Color, theme: WeatherTheme) -> some View {
-        let iconColor = accent == .teal ? Color.teal.opacity(0.95) : accent
-
-        return HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(accent.opacity(0.24))
-                    .frame(width: 58, height: 58)
-                Image(systemName: icon)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(iconColor)
-            }
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(theme.textColor)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(theme.textColor.opacity(0.72))
-            }
-
-            Spacer()
-        }
-        .padding(16)
-        .background(onboardingCardBackground(theme: theme))
     }
 
     private func locationChoiceCard(title: String, subtitle: String, icon: String, accent: Color, isSelected: Bool, theme: WeatherTheme) -> some View {
