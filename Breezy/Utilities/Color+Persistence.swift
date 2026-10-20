@@ -4,7 +4,7 @@ import UIKit
 extension Color {
     func toData() -> Data? {
         let uiColor = UIColor(self)
-        return try? NSKeyedArchiver.archivedData(withRootObject: uiColor, requiringSecureCoding: false)
+        return try? NSKeyedArchiver.archivedData(withRootObject: uiColor, requiringSecureCoding: true)
     }
     
     static func fromData(_ data: Data) -> Color? {

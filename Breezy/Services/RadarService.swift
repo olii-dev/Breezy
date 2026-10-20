@@ -380,7 +380,7 @@ class WeatherTileOverlay: MKTileOverlay {
             y: path.y,
             zoom: path.z,
             framePath: framePath
-        ) ?? URL(string: "http://about:blank")! // Ensure valid URL
+        ) ?? URL(fileURLWithPath: "/dev/null") // Never fetched: loadTile serves transparent data itself
     }
 
     override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, (any Error)?) -> Void) {

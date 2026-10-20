@@ -42,7 +42,7 @@ full_build.txt
 *.pem
 *.key
 AuthKey_*
-Breezy/RadarSecrets.plist
+**/RadarSecrets.plist
 
 # IDE and editor files
 .idea/
