@@ -49,6 +49,11 @@ enum LiveActivityTheme {
         return 0.2126 * red + 0.7152 * green + 0.0722 * blue
     }
 
+    /// User-picked accent (Live Activity settings) or the family default.
+    static func accent(activity: String, fallback: Color) -> Color {
+        LiveActivityAccent.current(activity: activity) ?? fallback
+    }
+
     /// Background tint for an activity. `accent` keeps per-activity identity
     /// (severe red etc.) when the user's theme isn't applicable.
     static func backgroundTint(accent: Color, isSevere: Bool = false) -> Color {

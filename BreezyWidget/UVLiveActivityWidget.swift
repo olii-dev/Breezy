@@ -10,12 +10,15 @@ import SwiftUI
 import ActivityKit
 
 struct UVLiveActivityWidget: Widget {
+    /// User-picked accent (Live Activity settings) or the family default.
+    private var accent: Color { LiveActivityTheme.accent(activity: "uv", fallback: accent) }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: UVActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
                 .widgetURL(URL(string: "breezy://alerts"))
-                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .cyan))
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: accent))
                 .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in
             DynamicIsland {

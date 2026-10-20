@@ -69,7 +69,7 @@ struct StargazingWidgetEntryView: View {
         }
     }
 
-    // MARK: Home Screen small
+    // MARK: Home Screen small — Kp only, per user feedback
 
     private var smallView: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -88,28 +88,15 @@ struct StargazingWidgetEntryView: View {
             }
 
             if let snapshot = entry.snapshot, let kp = snapshot.kp {
-                Text(AuroraKit.formatted(kp))
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                Text("Kp of \(snapshot.requiredKp.map(AuroraKit.formatted) ?? "—") needed")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-
                 Spacer(minLength: 0)
-
-                HStack(spacing: 8) {
-                    if let cloud = snapshot.cloudFraction {
-                        Label("\(Int((cloud * 100).rounded()))%", systemImage: "cloud.fill")
-                            .font(.caption2)
-                            .foregroundStyle(cloud < 0.35 ? Color.green : .secondary)
-                    }
-                    if let moon = snapshot.moonIllumination {
-                        Label("\(Int((moon * 100).rounded()))%", systemImage: "moon.fill")
-                            .font(.caption2)
-                            .foregroundStyle(moon < 0.4 ? Color.green : .secondary)
-                    }
-                    Spacer()
-                }
+                Text(AuroraKit.formatted(kp))
+                    .font(.system(size: 46, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(snapshot.isActive ? Color.purple : .primary)
+                Text("Kp")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
             } else {
                 Spacer()
                 Text("Open Breezy to pull tonight's space weather")

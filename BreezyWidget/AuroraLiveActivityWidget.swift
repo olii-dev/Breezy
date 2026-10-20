@@ -12,12 +12,15 @@ import SwiftUI
 import ActivityKit
 
 struct AuroraLiveActivityWidget: Widget {
+    /// User-picked accent (Live Activity settings) or the family default.
+    private var accent: Color { LiveActivityTheme.accent(activity: "aurora", fallback: accent) }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: AuroraActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
                 .widgetURL(URL(string: "breezy://alerts"))
-                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .purple))
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: accent))
                 .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in
             DynamicIsland {
@@ -25,7 +28,7 @@ struct AuroraLiveActivityWidget: Widget {
                     VStack(alignment: .leading, spacing: 2) {
                         Label("Aurora", systemImage: "sparkles")
                             .font(.headline)
-                            .foregroundStyle(.purple)
+                            .foregroundStyle(accent)
                         Text("Kp \(AuroraKit.formatted(context.state.kp)) of \(AuroraKit.formatted(context.state.requiredKp)) needed")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -35,7 +38,7 @@ struct AuroraLiveActivityWidget: Widget {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(context.state.verdict)
                             .font(.headline)
-                            .foregroundStyle(.purple)
+                            .foregroundStyle(accent)
                         Text("until \(context.state.dawnDate.formatted(date: .omitted, time: .shortened))")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -68,16 +71,16 @@ struct AuroraLiveActivityWidget: Widget {
                 }
             } compactLeading: {
                 Image(systemName: "sparkles")
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(accent)
             } compactTrailing: {
                 Text("Kp\(AuroraKit.formatted(context.state.kp))")
                     .font(.caption.weight(.bold))
                     .monospacedDigit()
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(accent)
                     .frame(maxWidth: 44)
             } minimal: {
                 Image(systemName: "sparkles")
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(accent)
             }
         }
     }
@@ -87,7 +90,7 @@ struct AuroraLiveActivityWidget: Widget {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "sparkles")
                 .font(.title2)
-                .foregroundStyle(.purple)
+                .foregroundStyle(accent)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Aurora watch — \(context.attributes.cityName)")
@@ -114,7 +117,7 @@ struct AuroraLiveActivityWidget: Widget {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(context.state.verdict)
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(accent)
                 Text("till \(context.state.dawnDate.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)

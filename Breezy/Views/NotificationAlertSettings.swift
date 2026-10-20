@@ -513,6 +513,24 @@ struct LiveActivitySettingsView: View {
                 .padding(16)
                 .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
 
+                // Colours
+                VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
+                    StudioHeader(title: "COLOURS", icon: "paintpalette.fill", theme: theme)
+
+                    Text("Pick each activity's accent. Default keeps the family colour.")
+                        .font(.caption2)
+                        .foregroundColor(theme.textColor.opacity(0.5))
+
+                    colourRow(title: "Rain Countdown", activity: "rain", fallback: .cyan, theme: theme)
+                    colourRow(title: "UV Protection", activity: "uv", fallback: .yellow, theme: theme)
+                    colourRow(title: "Severe Weather", activity: "severe", fallback: .red, theme: theme)
+                    colourRow(title: "High Wind", activity: "wind", fallback: .teal, theme: theme)
+                    colourRow(title: "Daily Card", activity: "daily", fallback: .orange, theme: theme)
+                    colourRow(title: "Aurora", activity: "aurora", fallback: .purple, theme: theme)
+                }
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+
                 Text("Live Activities need to be allowed for Breezy in Settings → Notifications → Live Activities.")
                     .font(.caption2)
                     .foregroundColor(theme.textColor.opacity(0.4))
@@ -524,6 +542,72 @@ struct LiveActivitySettingsView: View {
         )
         .navigationTitle("Live Activities")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func colourRow(title: String, activity: String, fallback: Color, theme: WeatherTheme) -> some View {
+        let currentName = LiveActivityAccent.storedName(activity: activity)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(theme.textColor)
+                Spacer()
+                if currentName != "default" {
+                    Button {
+                        HapticsManager.shared.selectionChanged()
+                        LiveActivityAccent.set("default", activity: activity)
+                        WidgetCenter.shared.reloadAllTimelines()
+                    } label: {
+                        Text("Reset")
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(theme.textColor.opacity(0.6))
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                ForEach(LiveActivityAccent.names, id: \.self) { name in
+                    let isDefault = name == "default"
+                    let isSelected = currentName == name
+                    Button {
+                        HapticsManager.shared.selectionChanged()
+                        LiveActivityAccent.set(name, activity: activity)
+                        WidgetCenter.shared.reloadAllTimelines()
+                    } label: {
+                        ZStack {
+                            if isDefault {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(Circle().stroke(theme.textColor.opacity(0.4), lineWidth: 1))
+                                Image(systemName: "slash.circle")
+                                    .font(.caption2)
+                                    .foregroundColor(theme.textColor.opacity(0.7))
+                            } else {
+                                Circle().fill(LiveActivityAccent.color(for: name) ?? .gray)
+                            }
+                            if isSelected {
+                                Circle()
+                                    .stroke(theme.textColor, lineWidth: 2)
+                                    .frame(width: 30, height: 30)
+                            }
+                        }
+                        .frame(width: 26, height: 26)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(isDefault ? "Default" : name) for \(title)")
+                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                }
+                Spacer(minLength: 0)
+                if fallback != .clear {
+                    Circle()
+                        .fill(fallback.opacity(0.35))
+                        .frame(width: 10, height: 10)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private var liveActivityStyleCaption: String {

@@ -57,7 +57,10 @@ final class WidgetOpenMeteoClient {
         var locationCalendar = Calendar(identifier: .gregorian)
         locationCalendar.timeZone = timezone
         displayCalendar = locationCalendar
-        let condition = WidgetOpenMeteoCondition.description(from: response.current.weatherCode)
+        let condition = WidgetOpenMeteoCondition.description(
+            from: response.current.weatherCode,
+            visibilityMeters: response.current.visibility
+        )
         let currentDate = parseTimestamp(response.current.time, timezone: timezone) ?? Date()
         let currentHour = hourly.first(where: { Calendar.current.isDate($0.date, equalTo: currentDate, toGranularity: .hour) })
 
@@ -419,13 +422,20 @@ private struct OpenMeteoWidgetDay {
 }
 
 private enum WidgetOpenMeteoCondition {
-    static func description(from code: Int) -> String {
+    static func description(from code: Int, visibilityMeters: Double? = nil) -> String {
         switch code {
         case 0: return "Clear"
         case 1: return "Mostly Clear"
         case 2: return "Partly Cloudy"
         case 3: return "Cloudy"
-        case 45, 48: return "Foggy"
+        case 45, 48:
+            // Observed visibility beats the model's humidity heuristic.
+            if let v = visibilityMeters {
+                if v < 1_000 { return "Foggy" }
+                if v < 5_000 { return "Misty" }
+                return "Cloudy"
+            }
+            return "Foggy"
         case 51, 53, 55: return "Drizzle"
         case 56, 57: return "Freezing Drizzle"
         case 61, 63: return "Rain"

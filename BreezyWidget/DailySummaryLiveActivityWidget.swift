@@ -11,6 +11,9 @@ import SwiftUI
 import ActivityKit
 
 struct DailySummaryLiveActivityWidget: Widget {
+    /// User-picked accent (Live Activity settings) or the family default.
+    private var accent: Color { LiveActivityTheme.accent(activity: "daily", fallback: accent) }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DailySummaryActivityAttributes.self) { context in
             lockScreenView(context: context)
@@ -24,7 +27,7 @@ struct DailySummaryLiveActivityWidget: Widget {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(context.attributes.dayLabel)
                             .font(.headline)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(accent)
                         Text(context.attributes.cityName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -35,7 +38,7 @@ struct DailySummaryLiveActivityWidget: Widget {
                     Text(context.state.highLowText)
                         .font(.title3.weight(.bold))
                         .monospacedDigit()
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(accent)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.state.conditionText)
@@ -57,7 +60,7 @@ struct DailySummaryLiveActivityWidget: Widget {
                 }
             } compactLeading: {
                 Image(systemName: "sun.horizon.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(accent)
             } compactTrailing: {
                 Text(context.state.highLowText)
                     .font(.caption.weight(.bold))
@@ -67,7 +70,7 @@ struct DailySummaryLiveActivityWidget: Widget {
                     .frame(maxWidth: 64)
             } minimal: {
                 Image(systemName: "sun.horizon.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(accent)
             }
         }
     }
@@ -77,7 +80,7 @@ struct DailySummaryLiveActivityWidget: Widget {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "sun.horizon.fill")
                 .font(.title2)
-                .foregroundStyle(.orange)
+                .foregroundStyle(accent)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(context.attributes.dayLabel) in \(context.attributes.cityName)")
@@ -101,7 +104,7 @@ struct DailySummaryLiveActivityWidget: Widget {
             Text(context.state.highLowText)
                 .font(.title3.weight(.bold))
                 .monospacedDigit()
-                .foregroundStyle(.orange)
+                .foregroundStyle(accent)
                 .lineLimit(1)
         }
     }

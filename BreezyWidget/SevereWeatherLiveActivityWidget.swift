@@ -10,19 +10,22 @@ import SwiftUI
 import ActivityKit
 
 struct SevereWeatherLiveActivityWidget: Widget {
+    /// User-picked accent (Live Activity settings) or the family default.
+    private var accent: Color { LiveActivityTheme.accent(activity: "severe", fallback: accent) }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SevereWeatherActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
                 .widgetURL(URL(string: "breezy://alerts"))
-                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .red, isSevere: true))
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: accent, isSevere: true))
                 .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Image(systemName: context.state.symbolName)
                         .font(.headline)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(accent)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.attributes.cityName)
@@ -42,13 +45,13 @@ struct SevereWeatherLiveActivityWidget: Widget {
                 }
             } compactLeading: {
                 Image(systemName: context.state.symbolName)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(accent)
             } compactTrailing: {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(accent)
             } minimal: {
                 Image(systemName: context.state.symbolName)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(accent)
             }
         }
     }
@@ -58,7 +61,7 @@ struct SevereWeatherLiveActivityWidget: Widget {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: context.state.symbolName)
                 .font(.title2)
-                .foregroundStyle(.red)
+                .foregroundStyle(accent)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(context.state.headline) — \(context.attributes.cityName)")

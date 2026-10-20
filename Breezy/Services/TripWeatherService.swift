@@ -315,7 +315,8 @@ final class TripWeatherService: @unchecked Sendable {
         }
         if weather.condition.localizedCaseInsensitiveContains("storm") { score += 4 }
         if weather.condition.localizedCaseInsensitiveContains("snow") { score += 2.5 }
-        if weather.condition.localizedCaseInsensitiveContains("fog") { score += 1.5 }
+        if weather.condition.localizedCaseInsensitiveContains("fog")
+            || weather.condition.localizedCaseInsensitiveContains("mist") { score += 1.5 }
         return score
     }
 

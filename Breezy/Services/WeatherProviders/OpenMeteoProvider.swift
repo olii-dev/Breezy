@@ -230,7 +230,10 @@ final class OpenMeteoProvider: WeatherProviding {
             .filter { $0.date >= startOfToday }
 
         let currentDate = parseCurrentDate(response.current.time, timezone: timezone)
-        let currentCondition = OpenMeteoWeatherCodeConverter.description(from: response.current.weatherCode)
+        let currentCondition = OpenMeteoWeatherCodeConverter.description(
+            from: response.current.weatherCode,
+            visibilityMeters: response.current.visibility
+        )
         let current = ProviderCurrentWeather(
             temperatureCelsius: response.current.temperature2M,
             feelsLikeCelsius: response.current.apparentTemperature,
@@ -490,13 +493,22 @@ final class OpenMeteoProvider: WeatherProviding {
 }
 
 private enum OpenMeteoWeatherCodeConverter {
-    static func description(from code: Int) -> String {
+    static func description(from code: Int, visibilityMeters: Double? = nil) -> String {
         switch code {
         case 0: return "Clear"
         case 1: return "Mostly Clear"
         case 2: return "Partly Cloudy"
         case 3: return "Cloudy"
-        case 45, 48: return "Foggy"
+        case 45, 48:
+            // WMO: fog = visibility under 1 km, mist 1-5 km. Open-Meteo
+            // flags 45/48 on humidity heuristics even in clear air, which
+            // read as "always foggy" at dawn — trust observed visibility.
+            if let v = visibilityMeters {
+                if v < 1_000 { return "Foggy" }
+                if v < 5_000 { return "Misty" }
+                return "Cloudy"
+            }
+            return "Foggy"
         case 51, 53, 55: return "Drizzle"
         case 56, 57: return "Freezing Drizzle"
         case 61, 63: return "Rain"

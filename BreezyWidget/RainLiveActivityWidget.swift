@@ -11,12 +11,15 @@ import SwiftUI
 import ActivityKit
 
 struct RainLiveActivityWidget: Widget {
+    /// User-picked accent (Live Activity settings) or the family default.
+    private var accent: Color { LiveActivityTheme.accent(activity: "rain", fallback: accent) }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RainActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
                 .widgetURL(URL(string: "breezy://alerts"))
-                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .cyan))
+                .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: accent))
                 .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in
             DynamicIsland {
@@ -24,7 +27,7 @@ struct RainLiveActivityWidget: Widget {
                     VStack(alignment: .leading, spacing: 2) {
                         Label("Rain", systemImage: "cloud.rain.fill")
                             .font(.headline)
-                            .foregroundStyle(.cyan)
+                            .foregroundStyle(accent)
                         Text("\(context.state.chancePercent)% chance")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -35,7 +38,7 @@ struct RainLiveActivityWidget: Widget {
                         Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.rainStart), countsDown: true)
                             .font(.title3.weight(.bold))
                             .monospacedDigit()
-                            .foregroundStyle(.cyan)
+                            .foregroundStyle(accent)
                         Text("until rain")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -65,7 +68,7 @@ struct RainLiveActivityWidget: Widget {
                 }
             } compactLeading: {
                 Image(systemName: "cloud.rain.fill")
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(accent)
             } compactTrailing: {
                 Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.rainStart), countsDown: true)
                     .font(.caption.weight(.bold))
@@ -73,7 +76,7 @@ struct RainLiveActivityWidget: Widget {
                     .frame(maxWidth: 44)
             } minimal: {
                 Image(systemName: "cloud.rain.fill")
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(accent)
             }
         }
     }
@@ -83,7 +86,7 @@ struct RainLiveActivityWidget: Widget {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "cloud.rain.fill")
                 .font(.title2)
-                .foregroundStyle(.cyan)
+                .foregroundStyle(accent)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Rain approaching \(context.attributes.cityName)")
@@ -110,7 +113,7 @@ struct RainLiveActivityWidget: Widget {
                 Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.rainStart), countsDown: true)
                     .font(.title3.weight(.bold))
                     .monospacedDigit()
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(accent)
                 Text("until rain")
                     .font(.caption2)
                     .foregroundStyle(.secondary)

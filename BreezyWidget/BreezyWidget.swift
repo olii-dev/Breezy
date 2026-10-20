@@ -624,7 +624,7 @@ struct WidgetIconHelper {
         if c.contains("drizzle") { return "cloud.drizzle" }
         if c.contains("thunder") { return "cloud.bolt" }
         if c.contains("snow") { return "snow" }
-        if c.contains("fog") || c.contains("haze") { return "cloud.fog" }
+        if c.contains("fog") || c.contains("mist") || c.contains("haze") { return "cloud.fog" }
         if c.contains("wind") { return "wind" }
         return isDaylight ? "sun.max" : "moon.stars"
     }
@@ -638,7 +638,7 @@ struct WidgetIconHelper {
         if c.contains("drizzle") { return "🌦️" }
         if c.contains("thunder") { return "⛈️" }
         if c.contains("snow") { return "❄️" }
-        if c.contains("fog") || c.contains("haze") { return "🌫️" }
+        if c.contains("fog") || c.contains("mist") || c.contains("haze") { return "🌫️" }
         return isDaylight ? "☀️" : "🌙"
     }
     

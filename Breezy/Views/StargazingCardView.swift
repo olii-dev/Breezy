@@ -23,7 +23,6 @@ struct StargazingCardView: View {
 
             if let snapshot, let kp = snapshot.kp {
                 kpRow(snapshot: snapshot, kp: kp)
-                factorRow(snapshot: snapshot)
                 Text(snapshot.detail)
                     .font(.caption)
                     .foregroundColor(textColor.opacity(0.6))
@@ -96,57 +95,17 @@ struct StargazingCardView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 if let required = snapshot.requiredKp {
-                    Text("Needs Kp \(AuroraKit.formatted(required)) from your latitude")
+                    Text("Needs Kp \(AuroraKit.formatted(required)) at your latitude")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(textColor)
                 }
-                if let bz = snapshot.bzNanoteslas {
-                    HStack(spacing: 4) {
-                        Image(systemName: bz <= -5 ? "arrow.down.circle.fill" : "minus.circle")
-                            .font(.caption)
-                            .foregroundColor(bz <= -5 ? .green : textColor.opacity(0.5))
-                        Text("Bz \(Int(bz)) nT")
-                            .font(.caption)
-                            .foregroundColor(textColor.opacity(0.7))
-                    }
-                }
-                if let moon = snapshot.moonIllumination {
-                    Text("Moon \(Int((moon * 100).rounded()))% — darker is better")
+                if snapshot.isActive {
+                    Text("Face \(snapshot.latitude < 0 ? "south" : "north") — darker spots help")
                         .font(.caption)
                         .foregroundColor(textColor.opacity(0.7))
                 }
             }
             Spacer()
         }
-    }
-
-    private func factorRow(snapshot: AuroraKit.Snapshot) -> some View {
-        HStack(spacing: 8) {
-            if let cloud = snapshot.cloudFraction {
-                chip(icon: "cloud.fill", text: "\(Int((cloud * 100).rounded()))% cloud",
-                     good: cloud < 0.35)
-            }
-            if let speed = snapshot.solarWindSpeed {
-                chip(icon: "wind", text: "\(Int(speed)) km/s", good: speed > 450)
-            }
-            if !snapshot.isNight {
-                chip(icon: "sun.max.fill", text: "daylight", good: false)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func chip(icon: String, text: String, good: Bool) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(text)
-                .font(.caption.weight(.medium))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Capsule().fill((good ? Color.green : textColor).opacity(0.12)))
-        .foregroundColor(textColor.opacity(0.85))
     }
 }
