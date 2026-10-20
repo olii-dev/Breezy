@@ -14,6 +14,7 @@ struct SevereWeatherLiveActivityWidget: Widget {
         ActivityConfiguration(for: SevereWeatherActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
+                .widgetURL(URL(string: "breezy://alerts"))
                 .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .red, isSevere: true))
                 .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in

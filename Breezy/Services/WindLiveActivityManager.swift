@@ -32,6 +32,13 @@ final class WindLiveActivityManager {
         activity = Activity<WindActivityAttributes>.activities.first { $0.activityState == .active }
     }
 
+    /// Self-heal for when the launch restore missed one: without this, the
+    /// ease-off floor misjudges and reconcile would stack a duplicate card.
+    private func adoptExistingActivityIfNeeded() {
+        guard activity == nil else { return }
+        activity = Activity<WindActivityAttributes>.activities.first { $0.activityState == .active }
+    }
+
     /// Reconcile the Live Activity with the latest forecast. Called after every
     /// successful weather fetch.
     func update(with weather: WeatherInfo) {
@@ -39,6 +46,8 @@ final class WindLiveActivityManager {
             end()
             return
         }
+
+        adoptExistingActivityIfNeeded()
 
         guard let windSpeedText = weather.metrics?.windSpeed,
               let speedMetersPerSecond = NotificationManager.parseWindSpeedMetersPerSecond(windSpeedText) else {
@@ -76,14 +85,19 @@ final class WindLiveActivityManager {
 
     func end() {
         startedAt = nil
-        guard let current = activity else { return }
         activity = nil
+        // Sweep every active activity of this type — a held-reference-only end
+        // would leave strays behind if restore ever missed one.
+        let strays = Activity<WindActivityAttributes>.activities.filter { $0.activityState == .active }
+        guard !strays.isEmpty else { return }
         Task {
-            let final = current.content.state
-            await current.end(
-                .init(state: final, staleDate: nil),
-                dismissalPolicy: .immediate
-            )
+            for current in strays {
+                let final = current.content.state
+                await current.end(
+                    .init(state: final, staleDate: nil),
+                    dismissalPolicy: .immediate
+                )
+            }
         }
     }
 

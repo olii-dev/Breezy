@@ -36,6 +36,14 @@ final class RainLiveActivityManager {
         activity = Activity<RainActivityAttributes>.activities.first { $0.activityState == .active }
     }
 
+    /// Self-heal for when the launch restore missed one (clock timing, or an
+    /// activity left by an older build): without this, hysteresis misjudges
+    /// and reconcile would stack a duplicate card.
+    private func adoptExistingActivityIfNeeded() {
+        guard activity == nil else { return }
+        activity = Activity<RainActivityAttributes>.activities.first { $0.activityState == .active }
+    }
+
     /// Reconcile the Live Activity with the latest forecast. Called after every
     /// successful weather fetch.
     func update(with weather: WeatherInfo) {
@@ -44,6 +52,7 @@ final class RainLiveActivityManager {
             return
         }
 
+        adoptExistingActivityIfNeeded()
         let now = Date()
 
         if let onset = rainOnset(in: weather, now: now) {
@@ -54,14 +63,19 @@ final class RainLiveActivityManager {
     }
 
     func end() {
-        guard let current = activity else { return }
         activity = nil
+        // Sweep every active activity of this type — a held-reference-only end
+        // would leave strays behind if restore ever missed one.
+        let strays = Activity<RainActivityAttributes>.activities.filter { $0.activityState == .active }
+        guard !strays.isEmpty else { return }
         Task {
-            let final = current.content.state
-            await current.end(
-                .init(state: final, staleDate: nil),
-                dismissalPolicy: .immediate
-            )
+            for current in strays {
+                let final = current.content.state
+                await current.end(
+                    .init(state: final, staleDate: nil),
+                    dismissalPolicy: .immediate
+                )
+            }
         }
     }
 

@@ -37,6 +37,10 @@ final class DailySummaryLiveActivityManager {
         guard shownSlotKey != slot else { return }
         guard let today = weather.dailyForecast.first else { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        // Never stack: a card lingering from this slot (e.g. after a
+        // crash-relaunch inside the window) means today is already covered —
+        // ended-but-dismissal-pending cards still appear here.
+        guard Activity<DailySummaryActivityAttributes>.activities.isEmpty else { return }
 
         let attributes = DailySummaryActivityAttributes(cityName: weather.location.city, dayLabel: "Today")
         let state = DailySummaryActivityAttributes.ContentState(

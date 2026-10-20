@@ -79,6 +79,14 @@ final class WidgetOpenMeteoClient {
         let pollenResponse = try? await fetchPollen(latitude: latitude, longitude: longitude)
         let pollen = makePollenData(from: pollenResponse?.current)
 
+        let todaySunrise = parseTimestamp(response.daily.sunrise.first ?? "", timezone: timezone)
+        let todaySunset = parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone)
+        let isDaylightNow: Bool? = {
+            guard let todaySunrise, let todaySunset, todaySunset > todaySunrise else { return nil }
+            let now = Date()
+            return now >= todaySunrise && now < todaySunset
+        }()
+
         return WidgetWeatherData(
             city: city,
             temperature: formatTemperature(response.current.temperature2M, isFahrenheit: isFahrenheit),
@@ -86,8 +94,8 @@ final class WidgetOpenMeteoClient {
             emoji: WidgetIconHelper.getIcon(
                 for: condition,
                 isMinimalist: false,
-                sunrise: parseTimestamp(response.daily.sunrise.first ?? "", timezone: timezone),
-                sunset: parseTimestamp(response.daily.sunset.first ?? "", timezone: timezone)
+                conditionCode: condition,
+                isDaylight: isDaylightNow
             ),
             highTemp: daily.first?.highTemp,
             lowTemp: daily.first?.lowTemp,
@@ -112,8 +120,8 @@ final class WidgetOpenMeteoClient {
             latitude: latitude,
             longitude: longitude,
             feelsLike: response.current.apparentTemperature.map { formatTemperature($0, isFahrenheit: isFahrenheit) },
-            conditionCode: String(response.current.weatherCode),
-            isDaylight: nil,
+            conditionCode: condition,
+            isDaylight: isDaylightNow,
             minTemp: daily.first?.lowTemp,
             maxTemp: daily.first?.highTemp,
             humidity: response.current.relativeHumidity2M.map { String(format: "%.0f%%", $0) },

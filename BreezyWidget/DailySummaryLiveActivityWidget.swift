@@ -15,6 +15,7 @@ struct DailySummaryLiveActivityWidget: Widget {
         ActivityConfiguration(for: DailySummaryActivityAttributes.self) { context in
             lockScreenView(context: context)
                 .padding()
+                .widgetURL(URL(string: "breezy://alerts"))
                 .activityBackgroundTint(LiveActivityTheme.backgroundTint(accent: .cyan))
                 .activitySystemActionForegroundColor(LiveActivityTheme.foregroundColor())
         } dynamicIsland: { context in

@@ -132,16 +132,20 @@ final class TripLiveActivityManager {
         lastLocation = nil
         consecutiveOffRouteFixes = 0
         lastWeatherRefreshAt = nil
-        let current = activity
+        // Sweep every active activity of this type — a held-reference-only end
+        // would leave strays behind if restore ever missed one.
+        let strays = Activity<TripActivityAttributes>.activities.filter { $0.activityState == .active }
         activity = nil
         TripStore.clearGoNowSnapshot()
-        guard let current else { return }
+        guard !strays.isEmpty else { return }
         Task {
-            let final = current.content.state
-            await current.end(
-                .init(state: final, staleDate: nil),
-                dismissalPolicy: .immediate
-            )
+            for current in strays {
+                let final = current.content.state
+                await current.end(
+                    .init(state: final, staleDate: nil),
+                    dismissalPolicy: .immediate
+                )
+            }
         }
     }
 

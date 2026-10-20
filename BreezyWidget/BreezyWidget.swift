@@ -1123,7 +1123,7 @@ struct SmallWidgetView: View {
             
             // Main weather display - centered
             VStack(spacing: 4) {
-                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons)
+                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
 
                 if entry.weather.useMinimalistIcons ?? true {
                     Image(systemName: icon)
@@ -1222,7 +1222,7 @@ struct MediumWidgetView: View {
                         .minimumScaleFactor(0.6)
                     
                     // Main icon
-                    let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons)
+                    let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
                     
                     if entry.weather.useMinimalistIcons ?? true {
                         Image(systemName: icon)
@@ -1389,7 +1389,7 @@ struct LargeWidgetView: View {
             
             // Current weather - centered (FIXED FONT SIZES)
             VStack(spacing: 8) {
-                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons)
+                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
 
                 if entry.weather.useMinimalistIcons ?? true {
                     Image(systemName: icon)
@@ -1731,7 +1731,7 @@ struct CustomWidgetView: View {
         case .condition:
             if position == .center {
                 let isMin = config.iconStyle == .minimalist
-                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: isMin)
+                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: isMin, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
                 if isMin {
                     Image(systemName: icon)
                         .font(font(size: 40, weight: .regular))
@@ -1742,7 +1742,7 @@ struct CustomWidgetView: View {
                 }
             } else {
                 let isMin = config.iconStyle == .minimalist
-                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: isMin)
+                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: isMin, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
                 if isMin {
                     Image(systemName: icon)
                         .font(font(size: 20, weight: .regular))
@@ -2919,7 +2919,7 @@ struct CompactSmallWidgetView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons)
+            let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
             
             if entry.weather.useMinimalistIcons ?? true {
                 Image(systemName: icon)
@@ -2959,7 +2959,7 @@ struct CompactMediumWidgetView: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons)
+                let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
                 
                 if entry.weather.useMinimalistIcons ?? true {
                     Image(systemName: icon)
@@ -3141,7 +3141,7 @@ struct DetailedLargeWidgetView: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 4) {
-                    let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons)
+                    let icon = WidgetIconHelper.getIcon(for: entry.weather.condition, isMinimalist: entry.weather.useMinimalistIcons, conditionCode: entry.weather.conditionCode, isDaylight: entry.weather.isDaylight)
                     
                     if entry.weather.useMinimalistIcons ?? true {
                         Image(systemName: icon)

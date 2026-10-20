@@ -265,13 +265,7 @@ struct ContentView: View {
                     TripModeView(weatherViewModel: viewModel, locationHelper: locationHelper)
                 }
                 .onOpenURL { url in
-                    // Deep links from widgets and Live Activities.
-                    if url.absoluteString == "breezy://trip" {
-                        showingTripMode = true
-                    }
-                    if url.absoluteString == "breezy://radar" {
-                        showingRadarDeepLink = true
-                    }
+                    handleDeepLink(url)
                 }
                 .fullScreenCover(isPresented: $showingRadarDeepLink) {
                     FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
@@ -500,6 +494,17 @@ struct ContentView: View {
     }
     
     // MARK: - Dashboard Rendering Functions
+
+    /// Deep links from widgets and Live Activities. The weather LAs route to
+    /// Settings so a tap answers "why am I seeing this / how do I tune it".
+    private func handleDeepLink(_ url: URL) {
+        switch url.absoluteString {
+        case "breezy://trip": showingTripMode = true
+        case "breezy://radar": showingRadarDeepLink = true
+        case "breezy://alerts": showingSettings = true
+        default: break
+        }
+    }
 
 #if DEBUG
     /// Screenshot driver: `-BreezyShot <mode>` launch argument navigates to
