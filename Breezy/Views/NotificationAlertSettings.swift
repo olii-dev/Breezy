@@ -467,6 +467,10 @@ struct LiveActivitySettingsView: View {
     @AppStorage("Breezy.liveActivityStyle", store: UserDefaults(suiteName: "group.com.breezy.weather"))
     private var liveActivityStyleRaw: String = LiveActivityStyle.darkGlass.rawValue
 
+    /// Swatches/chips read UserDefaults directly; bumping this after a tap
+    /// re-evaluates the body so the selected ring and chip states move.
+    @State private var customiseSeed = 0
+
     private struct ActivityCard {
         let activity: String
         let title: String
@@ -518,6 +522,7 @@ struct LiveActivitySettingsView: View {
                 VStack(spacing: DesignSystem.spacingS) {
                     ForEach(activityCards, id: \.activity) { card in
                         activityCardView(card, theme: theme)
+                            .id(customiseSeed)
                     }
                 }
 
@@ -635,6 +640,7 @@ struct LiveActivitySettingsView: View {
                         HapticsManager.shared.selectionChanged()
                         LiveActivityAccent.set("default", activity: activity)
                         WidgetCenter.shared.reloadAllTimelines()
+                        customiseSeed += 1
                     } label: {
                         Text("Reset")
                             .font(.caption2.weight(.medium))
@@ -651,6 +657,7 @@ struct LiveActivitySettingsView: View {
                             HapticsManager.shared.selectionChanged()
                             LiveActivityElements.set(!on, activity: activity, element: element.id)
                             WidgetCenter.shared.reloadAllTimelines()
+                            customiseSeed += 1
                         } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: on ? "checkmark" : "minus")
@@ -682,6 +689,7 @@ struct LiveActivitySettingsView: View {
                             HapticsManager.shared.selectionChanged()
                             LiveActivityAccent.set(name, activity: activity)
                             WidgetCenter.shared.reloadAllTimelines()
+                            customiseSeed += 1
                         } label: {
                             ZStack {
                                 if isDefault {

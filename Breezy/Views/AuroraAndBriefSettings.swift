@@ -191,6 +191,21 @@ struct MorningBriefSettingsView: View {
                         )
                         .foregroundColor(theme.textColor)
 
+                        Toggle(isOn: Binding(
+                            get: { settings.onlyWeekdayForecast },
+                            set: { settings.onlyWeekdayForecast = $0; onSave() }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Weekdays only")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(theme.textColor)
+                                Text("Skips weekends")
+                                    .font(.caption2)
+                                    .foregroundColor(theme.textColor.opacity(0.5))
+                            }
+                        }
+                        .tint(.orange)
+
                         Text("Replaces the basic daily-forecast notification at this time — the brief covers it, with more useful detail.")
                             .font(.caption2)
                             .foregroundColor(theme.textColor.opacity(0.5))
