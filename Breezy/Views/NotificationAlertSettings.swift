@@ -594,48 +594,68 @@ struct LiveActivitySettingsView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                ForEach(LiveActivityAccent.names, id: \.self) { name in
-                    let isDefault = name == "default"
-                    let isSelected = currentName == name
-                    Button {
-                        HapticsManager.shared.selectionChanged()
-                        LiveActivityAccent.set(name, activity: activity)
-                        WidgetCenter.shared.reloadAllTimelines()
-                    } label: {
-                        ZStack {
-                            if isDefault {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(Circle().stroke(theme.textColor.opacity(0.4), lineWidth: 1))
-                                Image(systemName: "slash.circle")
-                                    .font(.caption2)
-                                    .foregroundColor(theme.textColor.opacity(0.7))
-                            } else {
-                                Circle().fill(LiveActivityAccent.color(for: name) ?? .gray)
+            // 12 fixed swatches overflow narrow screens and drag the whole
+            // card edge-to-edge — deal them a horizontal scroller instead.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(LiveActivityAccent.names, id: \.self) { name in
+                        let isDefault = name == "default"
+                        let isSelected = currentName == name
+                        Button {
+                            HapticsManager.shared.selectionChanged()
+                            LiveActivityAccent.set(name, activity: activity)
+                            WidgetCenter.shared.reloadAllTimelines()
+                        } label: {
+                            ZStack {
+                                if isDefault {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .overlay(Circle().stroke(theme.textColor.opacity(0.4), lineWidth: 1))
+                                    Image(systemName: "slash.circle")
+                                        .font(.caption2)
+                                        .foregroundColor(theme.textColor.opacity(0.7))
+                                } else {
+                                    Circle().fill(LiveActivityAccent.color(for: name) ?? .gray)
+                                }
+                                if isSelected {
+                                    Circle()
+                                        .stroke(theme.textColor, lineWidth: 2)
+                                        .frame(width: 30, height: 30)
+                                }
                             }
-                            if isSelected {
-                                Circle()
-                                    .stroke(theme.textColor, lineWidth: 2)
-                                    .frame(width: 30, height: 30)
-                            }
+                            .frame(width: 26, height: 26)
                         }
-                        .frame(width: 26, height: 26)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(isDefault ? "Default" : name) for \(title)")
+                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(isDefault ? "Default" : name) for \(title)")
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                 }
-                Spacer(minLength: 0)
-                if fallback != .clear {
+            }
+            if fallback != .clear {
+                HStack(spacing: 4) {
                     Circle()
                         .fill(fallback.opacity(0.35))
                         .frame(width: 10, height: 10)
-                        .accessibilityHidden(true)
+                    Text("family default: \(fallbackName(fallback))")
+                        .font(.caption2)
+                        .foregroundColor(theme.textColor.opacity(0.45))
                 }
+                .accessibilityHidden(true)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func fallbackName(_ color: Color) -> String {
+        switch color {
+        case .cyan: return "Cyan"
+        case .yellow: return "Yellow"
+        case .red: return "Red"
+        case .teal: return "Teal"
+        case .orange: return "Orange"
+        case .purple: return "Purple"
+        default: return "—"
+        }
     }
 
     private var liveActivityStyleCaption: String {
