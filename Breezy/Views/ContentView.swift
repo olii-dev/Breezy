@@ -154,25 +154,10 @@ struct ContentView: View {
                                     .padding(8)
                             }
                             .accessibilityLabel("Add widget")
-                        } else {
-                            Button(action: {
-                                HapticsManager.shared.impact(style: .light)
-                                showingLocationPicker = true
-                            }) {
-                                HStack(spacing: 5) {
-                                    Image(systemName: "location.fill")
-                                        .font(.subheadline)
-                                    Text(viewModel.weather?.location.city ?? "Location")
-                                        .font(.subheadline.weight(.medium))
-                                        // Long suburb names must compress, never
-                                        // collide with the trailing toolbar buttons.
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.55)
-                                        .truncationMode(.tail)
-                                }
-                                .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                            }
                         }
+                        // Non-edit mode: the location pill renders as a floating
+                        // overlay below — UIKit caps toolbar item widths, which
+                        // truncated long place names ("Evanston Sou").
                     }
                     
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -269,6 +254,19 @@ struct ContentView: View {
                 }
                 .fullScreenCover(isPresented: $showingRadarDeepLink) {
                     FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
+                }
+                .overlay(alignment: .top) {
+                    // Location pill lives here, not in the toolbar: UIKit caps
+                    // toolbar item widths, which clipped long place names.
+                    if !isEditMode {
+                        FloatingLocationPill(
+                            city: viewModel.weather?.location.city ?? "Location",
+                            textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor
+                        ) {
+                            HapticsManager.shared.impact(style: .light)
+                            showingLocationPicker = true
+                        }
+                    }
                 }
                 .overlay(alignment: .top) {
                     if sharedTripVM.isTripLive, TripStore.isGoNowActive() {
@@ -494,6 +492,34 @@ struct ContentView: View {
     }
     
     // MARK: - Dashboard Rendering Functions
+
+    /// Floating location pill (top-leading overlay). Lives outside the UIKit
+    /// toolbar, whose item-width cap truncated long place names.
+    private struct FloatingLocationPill: View {
+        let city: String
+        let textColor: Color
+        let action: () -> Void
+
+        var body: some View {
+            HStack(spacing: 5) {
+                Button(action: action) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "location.fill")
+                            .font(.subheadline)
+                        Text(city)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .allowsTightening(true)
+                    }
+                    .foregroundColor(textColor)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+        }
+    }
 
     /// Deep links from widgets and Live Activities. The weather LAs route to
     /// Settings so a tap answers "why am I seeing this / how do I tune it".

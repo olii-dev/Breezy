@@ -26,8 +26,14 @@ struct SettingsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: DesignSystem.spacingL) {
                         
-                        // Main Sections
-                        // Design Studio
+                        HStack {
+                            Text("PERSONALISE")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(theme.textColor.opacity(0.55))
+                                .padding(.leading, 8)
+                            Spacer()
+                        }
+                        .padding(.horizontal, DesignSystem.spacingM)
                         VStack(spacing: DesignSystem.spacingM) {
                             SettingsNavCard(
                                 title: "Design Studio",
@@ -49,7 +55,14 @@ struct SettingsView: View {
                         }
                         .padding(.horizontal, DesignSystem.spacingM)
                         
-                        // Main Sections
+                        HStack {
+                            Text("ALERTS & ACTIVITY")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(theme.textColor.opacity(0.55))
+                                .padding(.leading, 8)
+                            Spacer()
+                        }
+                        .padding(.horizontal, DesignSystem.spacingM)
                         VStack(spacing: DesignSystem.spacingM) {
                             SettingsNavCard(
                                 title: "Notifications",
@@ -68,7 +81,17 @@ struct SettingsView: View {
                                 glassOpacity: viewModel.glassOpacity,
                                 destination: LiveActivitySettingsView(viewModel: viewModel)
                             )
+                        }
                             
+                        HStack {
+                            Text("GENERAL")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(theme.textColor.opacity(0.55))
+                                .padding(.leading, 8)
+                            Spacer()
+                        }
+                        .padding(.horizontal, DesignSystem.spacingM)
+                        VStack(spacing: DesignSystem.spacingM) {
                             SettingsNavCard(
                                 title: "Units & Data",
                                 icon: "thermometer.medium",
@@ -680,6 +703,7 @@ struct NotificationSettingsView: View {
     @State private var showResetConfirmation = false
     @State private var previousWindUnit: WindSpeedUnit?
     @State private var previousTempUnit: TemperatureUnit?
+    @State private var digestStyle: String = UserDefaults.standard.notificationSettings.morningBriefEnabled ? "brief" : "forecast"
     
     init(viewModel: WeatherViewModel) {
         self.viewModel = viewModel
@@ -723,17 +747,10 @@ struct NotificationSettingsView: View {
                             .padding(.leading, 8)
 
                         VStack(spacing: DesignSystem.spacingS) {
-                            alertRow(
-                                "Daily Forecast", icon: "sunrise.fill", color: .orange, theme: theme,
-                                isOn: notificationSettings.dailyForecastEnabled,
-                                set: { notificationSettings.dailyForecastEnabled = $0 },
-                                config: AlertDetailSettingsView.AlertDetailConfig(
-                                    title: "Daily Forecast", icon: "sunrise.fill", color: .orange,
-                                    soundPath: \NotificationSettings.dailyForecastSound,
-                                    content: .daily,
-                                    isDailyForecast: true
-                                )
-                            )
+                            digestCard(theme: theme)
+                            .onChange(of: digestStyle) { _, newValue in
+                                applyDigestStyle(newValue)
+                            }
 
                             alertRow(
                                 "Severe Weather", icon: "exclamationmark.triangle.fill", color: .red, theme: theme,
@@ -810,36 +827,6 @@ struct NotificationSettingsView: View {
                             }
                             .buttonStyle(.plain)
 
-                            NavigationLink {
-                                MorningBriefSettingsView(
-                                    settings: $notificationSettings,
-                                    viewModel: viewModel,
-                                    onSave: { saveNotificationSettings() }
-                                )
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "sun.and.horizon.fill")
-                                        .font(.title3)
-                                        .foregroundColor(.orange)
-                                        .frame(width: 26)
-
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text("Morning Brief")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundColor(theme.textColor)
-                                        Text("One genuinely useful summary when you wake")
-                                            .font(.caption2)
-                                            .foregroundColor(theme.textColor.opacity(0.5))
-                                    }
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundColor(theme.textColor.opacity(0.4))
-                                }
-                                .padding()
-                                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-                            }
-                            .buttonStyle(.plain)
 
                             alertRow(
                                 "Rain Alerts", icon: "cloud.rain.fill", color: .blue, theme: theme,
@@ -1046,6 +1033,89 @@ struct NotificationSettingsView: View {
         saveNotificationSettings()
     }
     
+    private func digestCard(theme: WeatherTheme) -> some View {
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "sun.and.horizon.fill")
+                    .font(.title3)
+                    .foregroundColor(.orange)
+                    .frame(width: 26)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Daily Digest")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(theme.textColor)
+                    Text(notificationSettings.morningBriefEnabled ? "Smart brief enabled" : "Classic forecast enabled")
+                        .font(.caption2)
+                        .foregroundColor(theme.textColor.opacity(0.5))
+                }
+                Spacer(minLength: 0)
+            }
+
+            Picker("Style", selection: $digestStyle) {
+                Text("Forecast").tag("forecast")
+                Text("Morning Brief").tag("brief")
+            }
+            .pickerStyle(.segmented)
+
+            if notificationSettings.morningBriefEnabled {
+                NavigationLink {
+                    MorningBriefSettingsView(
+                        settings: $notificationSettings,
+                        viewModel: viewModel,
+                        onSave: { saveNotificationSettings() }
+                    )
+                } label: {
+                    HStack {
+                        Text("Brief options")
+                            .font(.subheadline)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(theme.textColor.opacity(0.4))
+                    }
+                    .foregroundColor(theme.textColor)
+                }
+            } else {
+                NavigationLink {
+                    AlertDetailSettingsView(
+                        settings: $notificationSettings,
+                        viewModel: viewModel,
+                        config: AlertDetailSettingsView.AlertDetailConfig(
+                            title: "Daily Forecast", icon: "sunrise.fill", color: .orange,
+                            soundPath: \NotificationSettings.dailyForecastSound,
+                            content: .daily,
+                            isDailyForecast: true
+                        ),
+                        onSave: { saveNotificationSettings() }
+                    )
+                } label: {
+                    HStack {
+                        Text("Forecast options")
+                            .font(.subheadline)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(theme.textColor.opacity(0.4))
+                    }
+                    .foregroundColor(theme.textColor)
+                }
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
+        .onChange(of: digestStyle) { _, newValue in
+            applyDigestStyle(newValue)
+        }
+    }
+
+    private func applyDigestStyle(_ style: String) {
+        let brief = style == "brief"
+        notificationSettings.morningBriefEnabled = brief
+        notificationSettings.dailyForecastEnabled = !brief
+        saveNotificationSettings()
+    }
+
     private func saveNotificationSettings() {
         UserDefaults.standard.notificationSettings = notificationSettings
         NotificationManager.shared.updateSettings(notificationSettings, weather: viewModel.weather, temperatureUnit: viewModel.temperatureUnit)

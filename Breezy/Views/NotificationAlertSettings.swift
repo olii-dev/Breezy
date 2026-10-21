@@ -467,13 +467,43 @@ struct LiveActivitySettingsView: View {
     @AppStorage("Breezy.liveActivityStyle", store: UserDefaults(suiteName: "group.com.breezy.weather"))
     private var liveActivityStyleRaw: String = LiveActivityStyle.darkGlass.rawValue
 
-    private struct ActivityRow {
+    private struct ActivityCard {
+        let activity: String
         let title: String
         let icon: String
-        let color: Color
+        let fallback: Color
+        let toggleKey: String
         let caption: String
-        let key: String
         let onDisable: () -> Void
+    }
+
+    private var activityCards: [ActivityCard] {
+        [
+            ActivityCard(activity: "rain", title: "Rain Countdown", icon: "cloud.rain.fill", fallback: .cyan,
+                         toggleKey: "Breezy.rainLiveActivityEnabled",
+                         caption: "Counts down to rain arriving within two hours.",
+                         onDisable: { RainLiveActivityManager.shared.end() }),
+            ActivityCard(activity: "uv", title: "UV Protection", icon: "sun.max.fill", fallback: .yellow,
+                         toggleKey: "Breezy.uvLiveActivityEnabled",
+                         caption: "Shows the UV index while it's high, and when it drops.",
+                         onDisable: { UVLiveActivityManager.shared.end() }),
+            ActivityCard(activity: "severe", title: "Severe Weather", icon: "exclamationmark.triangle.fill", fallback: .red,
+                         toggleKey: "Breezy.severeLiveActivityEnabled",
+                         caption: "A persistent warning while severe weather is possible.",
+                         onDisable: { SevereWeatherLiveActivityManager.shared.end() }),
+            ActivityCard(activity: "wind", title: "High Wind", icon: "wind", fallback: .teal,
+                         toggleKey: "Breezy.windLiveActivityEnabled",
+                         caption: "Tracks strong winds until they ease.",
+                         onDisable: { WindLiveActivityManager.shared.end() }),
+            ActivityCard(activity: "daily", title: "Daily Forecast Card", icon: "sun.horizon.fill", fallback: .orange,
+                         toggleKey: "Breezy.dailySummaryLiveActivityEnabled",
+                         caption: "Today's summary for about 90 minutes after your forecast time.",
+                         onDisable: { DailySummaryLiveActivityManager.shared.end() }),
+            ActivityCard(activity: "aurora", title: "Aurora", icon: "sparkles", fallback: .purple,
+                         toggleKey: "Breezy.auroraLiveActivityEnabled",
+                         caption: "Space-weather watch card on active nights.",
+                         onDisable: { AuroraLiveActivityManager.shared.end() }),
+        ]
     }
 
     var body: some View {
@@ -486,8 +516,8 @@ struct LiveActivitySettingsView: View {
                     .foregroundColor(theme.textColor.opacity(0.6))
 
                 VStack(spacing: DesignSystem.spacingS) {
-                    ForEach(activityRows, id: \.title) { row in
-                        activityToggle(row, theme: theme)
+                    ForEach(activityCards, id: \.activity) { card in
+                        activityCardView(card, theme: theme)
                     }
                 }
 
@@ -513,24 +543,6 @@ struct LiveActivitySettingsView: View {
                 .padding(16)
                 .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
 
-                // Colours
-                VStack(alignment: .leading, spacing: DesignSystem.spacingS) {
-                    StudioHeader(title: "COLOURS", icon: "paintpalette.fill", theme: theme)
-
-                    Text("Pick each activity's accent. Default keeps the family colour.")
-                        .font(.caption2)
-                        .foregroundColor(theme.textColor.opacity(0.5))
-
-                    colourRow(title: "Rain Countdown", activity: "rain", fallback: .cyan, theme: theme)
-                    colourRow(title: "UV Protection", activity: "uv", fallback: .yellow, theme: theme)
-                    colourRow(title: "Severe Weather", activity: "severe", fallback: .red, theme: theme)
-                    colourRow(title: "High Wind", activity: "wind", fallback: .teal, theme: theme)
-                    colourRow(title: "Daily Card", activity: "daily", fallback: .orange, theme: theme)
-                    colourRow(title: "Aurora", activity: "aurora", fallback: .purple, theme: theme)
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: DesignSystem.radiusM).fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
-
                 Text("Live Activities need to be allowed for Breezy in Settings → Notifications → Live Activities.")
                     .font(.caption2)
                     .foregroundColor(theme.textColor.opacity(0.4))
@@ -544,12 +556,77 @@ struct LiveActivitySettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    private var liveActivityStyleCaption: String {
+        switch LiveActivityStyle(rawValue: liveActivityStyleRaw) {
+        case .matchTheme:
+            return "Activities use your Custom theme's gradient. Restyles on their next update."
+        case .pureBlack:
+            return "True-black backgrounds — sharpest on OLED and easiest on battery."
+        default:
+            return "The classic translucent dark look."
+        }
+    }
+
+    /// One card per activity: master toggle in the header, expandable
+    /// customisation (colour + elements) underneath so the screen stays calm.
+    private func activityCardView(_ card: ActivityCard, theme: WeatherTheme) -> some View {
+        let isEnabled = UserDefaults.standard.object(forKey: card.toggleKey) as? Bool ?? true
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: card.icon)
+                    .font(.title3)
+                    .foregroundColor(card.fallback)
+                    .frame(width: 30)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(card.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(theme.textColor)
+                    Text(card.caption)
+                        .font(.caption2)
+                        .foregroundColor(theme.textColor.opacity(0.5))
+                }
+
+                Spacer(minLength: 0)
+
+                Toggle("", isOn: Binding(
+                    get: { UserDefaults.standard.object(forKey: card.toggleKey) as? Bool ?? true },
+                    set: { newValue in
+                        UserDefaults.standard.set(newValue, forKey: card.toggleKey)
+                        if !newValue {
+                            card.onDisable()
+                        }
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+                ))
+                .labelsHidden()
+                .tint(card.fallback)
+            }
+            .padding()
+
+            if isEnabled {
+                Divider()
+                    .background(theme.textColor.opacity(0.12))
+                VStack(alignment: .leading, spacing: 12) {
+                    colourRow(title: card.title, activity: card.activity, fallback: card.fallback, theme: theme)
+                }
+                .padding()
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
+        )
+        .accessibilityElement(children: .combine)
+    }
+
     private func colourRow(title: String, activity: String, fallback: Color, theme: WeatherTheme) -> some View {
         let currentName = LiveActivityAccent.storedName(activity: activity)
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(title)
+                Text("Colour")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(theme.textColor)
                 Spacer()
@@ -656,104 +733,5 @@ struct LiveActivitySettingsView: View {
         case .purple: return "Purple"
         default: return "—"
         }
-    }
-
-    private var liveActivityStyleCaption: String {
-        switch LiveActivityStyle(rawValue: liveActivityStyleRaw) {
-        case .matchTheme:
-            return "Activities use your Custom theme's gradient. Restyles on their next update."
-        case .pureBlack:
-            return "True-black backgrounds — sharpest on OLED and easiest on battery."
-        default:
-            return "The classic translucent dark look."
-        }
-    }
-
-    private var activityRows: [ActivityRow] {
-        [
-            ActivityRow(
-                title: "Rain Countdown",
-                icon: "cloud.rain.fill",
-                color: .cyan,
-                caption: "Counts down to rain arriving within two hours.",
-                key: "Breezy.rainLiveActivityEnabled",
-                onDisable: { RainLiveActivityManager.shared.end() }
-            ),
-            ActivityRow(
-                title: "UV Protection",
-                icon: "sun.max.fill",
-                color: .yellow,
-                caption: "Shows the UV index while it's high, and when it drops.",
-                key: "Breezy.uvLiveActivityEnabled",
-                onDisable: { UVLiveActivityManager.shared.end() }
-            ),
-            ActivityRow(
-                title: "Severe Weather",
-                icon: "exclamationmark.triangle.fill",
-                color: .red,
-                caption: "A persistent warning while severe weather is possible.",
-                key: "Breezy.severeLiveActivityEnabled",
-                onDisable: { SevereWeatherLiveActivityManager.shared.end() }
-            ),
-            ActivityRow(
-                title: "High Wind",
-                icon: "wind",
-                color: .teal,
-                caption: "Tracks strong winds until they ease.",
-                key: "Breezy.windLiveActivityEnabled",
-                onDisable: { WindLiveActivityManager.shared.end() }
-            ),
-            ActivityRow(
-                title: "Daily Forecast Card",
-                icon: "sun.horizon.fill",
-                color: .orange,
-                caption: "Today's summary for about 90 minutes after your forecast time.",
-                key: "Breezy.dailySummaryLiveActivityEnabled",
-                onDisable: { DailySummaryLiveActivityManager.shared.end() }
-            )
-        ]
-    }
-
-    private func activityToggle(_ row: ActivityRow, theme: WeatherTheme) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: row.icon)
-                .font(.title3)
-                .foregroundColor(row.color)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(theme.textColor)
-                Text(row.caption)
-                    .font(.caption2)
-                    .foregroundColor(theme.textColor.opacity(0.5))
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-
-            Toggle("", isOn: Binding(
-                get: { UserDefaults.standard.object(forKey: row.key) as? Bool ?? true },
-                set: { newValue in
-                    UserDefaults.standard.set(newValue, forKey: row.key)
-                    if !newValue {
-                        row.onDisable()
-                    }
-                }
-            ))
-            .labelsHidden()
-            .tint(row.color)
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.radiusM)
-                .fill(.ultraThinMaterial.opacity(viewModel.glassOpacity))
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.title)
-        .accessibilityValue((UserDefaults.standard.object(forKey: row.key) as? Bool ?? true) ? "On" : "Off")
-        .accessibilityHint("Double tap to toggle")
-        .accessibilityAddTraits(.isButton)
     }
 }

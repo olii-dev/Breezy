@@ -80,7 +80,8 @@ final class DailySummaryLiveActivityManager {
     /// The current forecast slot if `now` falls within its start window:
     /// the start-of-day anchored date for hour/minute. Nil otherwise.
     static func activeSlot(now: Date, settings: NotificationSettings = UserDefaults.standard.notificationSettings) -> Date? {
-        guard settings.dailyForecastEnabled else { return nil }
+        // The digest slot fires with either the plain forecast or the brief.
+        guard settings.dailyForecastEnabled || settings.morningBriefEnabled else { return nil }
 
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: now)

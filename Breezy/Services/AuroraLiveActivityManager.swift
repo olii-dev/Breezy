@@ -29,7 +29,15 @@ final class AuroraLiveActivityManager {
         activity = Activity<AuroraActivityAttributes>.activities.first { $0.activityState == .active }
     }
 
+    private var enabled: Bool {
+        UserDefaults.standard.object(forKey: "Breezy.auroraLiveActivityEnabled") as? Bool ?? true
+    }
+
     func update(snapshot: AuroraKit.Snapshot, weather: WeatherInfo) {
+        guard enabled else {
+            end()
+            return
+        }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         adoptExistingActivityIfNeeded()
