@@ -81,11 +81,17 @@ struct WatchRadarView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Edge-to-edge radar — the image IS the page.
+            // Edge-to-edge radar — the image IS the page. Tap cycles zoom.
             radarImage(theme: theme)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    viewModel.playHaptic(.click)
+                    zoomIndex = (zoomIndex + 1) % Self.zoomLevels.count
+                }
                 .accessibilityLabel("Radar map for \(viewModel.weather?.city ?? "your location")")
+                .accessibilityHint("Double tap to cycle zoom")
 
             // Overlaid chrome
             VStack(spacing: 4) {
@@ -122,13 +128,25 @@ struct WatchRadarView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    viewModel.playHaptic(.click)
-                    showLayerPicker = true
-                } label: {
-                    Image(systemName: "square.stack.3d.up")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(theme.textColor)
+                HStack(spacing: 10) {
+                    Button {
+                        viewModel.playHaptic(.click)
+                        Task { await loadRadar() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(theme.textColor)
+                    }
+                    .accessibilityLabel("Refresh radar")
+
+                    Button {
+                        viewModel.playHaptic(.click)
+                        showLayerPicker = true
+                    } label: {
+                        Image(systemName: "square.stack.3d.up")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(theme.textColor)
+                    }
                 }
             }
         }
@@ -209,6 +227,14 @@ struct WatchRadarView: View {
                     Text(frame.time, style: .time)
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundColor(theme.textColor.opacity(0.6))
+                    if !frame.isNowcast {
+                        let age = Int(Date().timeIntervalSince(frame.time) / 60)
+                        if age >= 1 {
+                            Text("\(min(age, 99))m ago")
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .foregroundColor(age > 20 ? .orange : theme.textColor.opacity(0.45))
+                        }
+                    }
                 }
             }
         }
@@ -266,7 +292,7 @@ struct WatchRadarView: View {
                 viewModel.playHaptic(.click)
                 zoomIndex = (zoomIndex + 1) % Self.zoomLevels.count
             } label: {
-                Label(Self.zoomLevels[zoomIndex].label, systemImage: "minus.magnifyingplus")
+                Label("Zoom \(Self.zoomLevels[zoomIndex].label)", systemImage: "arrow.up.left.and.arrow.down.right")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.textColor)
                     .padding(.horizontal, 8)

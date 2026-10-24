@@ -134,54 +134,82 @@ struct StargazingPageView: View {
     var body: some View {
         let theme = viewModel.currentTheme(isSystemDark: colorScheme == .dark)
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                if let snapshot = WatchAuroraStore.load() {
-                    auroraCard(snapshot: snapshot, theme: theme)
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let snapshot = WatchAuroraStore.load() {
+                        auroraCard(snapshot: snapshot, theme: theme)
 
-                    if let evening = snapshot.goldenEvening {
-                        goldenCard(title: "Evening golden hour", window: evening, theme: theme)
+                        if let evening = snapshot.goldenEvening {
+                            goldenCard(title: "Evening golden hour", window: evening, theme: theme, now: context.date)
+                        }
+                        if let morning = snapshot.goldenMorning {
+                            goldenCard(title: "Morning golden hour", window: morning, theme: theme, now: context.date)
+                        }
+
+                        freshnessLine(snapshot, theme: theme)
+                    } else {
+                        Text("Open Breezy on your iPhone to pull tonight's space weather.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 8)
                     }
-                    if let morning = snapshot.goldenMorning {
-                        goldenCard(title: "Morning golden hour", window: morning, theme: theme)
-                    }
-                } else {
-                    Text("Open Breezy on your iPhone to pull tonight's space weather.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 8)
                 }
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 4)
         }
     }
 
-    private func auroraCard(snapshot: WatchAuroraStore.Snapshot, theme: WatchWeatherTheme) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("Aurora", systemImage: "sparkles")
-                .font(.headline)
-                .foregroundStyle(.purple)
+    // MARK: Aurora card
 
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if let kp = snapshot.kp {
-                    Text(AuroraKitLite.formatted(kp))
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    Text("Kp")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+    private func auroraCard(snapshot: WatchAuroraStore.Snapshot, theme: WatchWeatherTheme) -> some View {
+        let kp = snapshot.kp ?? 0
+        let required = snapshot.requiredKp ?? 9
+        let active = snapshot.verdict == "Aurora possible" || snapshot.verdict == "Marginal"
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Aurora", systemImage: "sparkles")
+                    .font(.headline)
+                    .foregroundStyle(.purple)
                 Spacer()
                 Text(snapshot.verdict.isEmpty ? "—" : snapshot.verdict)
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(.purple)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(snapshot.verdict == "Aurora possible" ? Color.purple : theme.textColor.opacity(0.8))
             }
 
-            if let required = snapshot.requiredKp, snapshot.kp != nil {
-                Text("Needs Kp \(AuroraKitLite.formatted(required)) at your latitude")
-                    .font(.caption2)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(AuroraKitLite.formatted(kp))
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(snapshot.verdict == "Aurora possible" ? Color.purple : theme.textColor)
+                Text("Kp")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("needs \(AuroraKitLite.formatted(required))")
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
             }
+
+            // Kp scale 0-9: filled to current, tick at the latitude threshold.
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(theme.textColor.opacity(0.15))
+                    Capsule()
+                        .fill(active ? Color.purple : Color.purple.opacity(0.45))
+                        .frame(width: max(6, proxy.size.width * min(kp / 9, 1)))
+                    if required > 0, required < 9 {
+                        Rectangle()
+                            .fill(theme.textColor.opacity(0.8))
+                            .frame(width: 1.5, height: 10)
+                            .offset(x: proxy.size.width * (required / 9) - 0.75)
+                    }
+                }
+            }
+            .frame(height: 8)
+
             if !snapshot.detail.isEmpty {
                 Text(snapshot.detail)
                     .font(.caption2)
@@ -202,11 +230,35 @@ struct StargazingPageView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.purple.opacity(0.12)))
     }
 
-    private func goldenCard(title: String, window: (start: Date, end: Date), theme: WatchWeatherTheme) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: title.contains("Evening") ? "sunset.fill" : "sunrise.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.orange)
+    // MARK: Golden hour cards
+
+    private func goldenCard(title: String, window: (start: Date, end: Date), theme: WatchWeatherTheme, now: Date) -> some View {
+        let state: (label: String, active: Bool) = {
+            if now >= window.start && now <= window.end {
+                return ("Now", true)
+            }
+            if now < window.start {
+                let interval = Int(window.start.timeIntervalSince(now))
+                let hours = interval / 3600
+                let minutes = (interval % 3600) / 60
+                return (hours > 0 ? "in \(hours)h \(minutes)m" : "in \(minutes)m", false)
+            }
+            return ("ended", false)
+        }()
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label(title, systemImage: title.contains("Evening") ? "sunset.fill" : "sunrise.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Spacer()
+                Text(state.label)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(state.active ? .orange : theme.textColor.opacity(0.55))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.orange.opacity(state.active ? 0.25 : 0.1)))
+            }
             Text("\(time(window.start)) – \(time(window.end))")
                 .font(.title3.weight(.bold).monospacedDigit())
                 .foregroundStyle(theme.textColor)
@@ -214,6 +266,29 @@ struct StargazingPageView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.12)))
+    }
+
+    // MARK: Freshness
+
+    private func freshnessLine(_ snapshot: WatchAuroraStore.Snapshot, theme: WatchWeatherTheme) -> some View {
+        let age = Date().timeIntervalSince(snapshot.updatedAt)
+        let stale = age > 6 * 3600
+        let text: String
+        if age < 90 {
+            text = "Updated just now"
+        } else if age < 3600 {
+            text = "Updated \(Int(age / 60)) min ago"
+        } else {
+            text = String(format: "Updated %dh ago", Int(age / 3600))
+        }
+
+        return HStack(spacing: 4) {
+            Image(systemName: stale ? "exclamationmark.triangle" : "clock")
+                .font(.caption2)
+            Text(stale ? "\(text) — open Breezy on iPhone to refresh" : text)
+                .font(.caption2)
+        }
+        .foregroundStyle(stale ? Color.orange : theme.textColor.opacity(0.45))
     }
 
     private func chip(icon: String, text: String, theme: WatchWeatherTheme, good: Bool) -> some View {
