@@ -154,15 +154,81 @@ struct ContentView: View {
                                     .padding(8)
                             }
                             .accessibilityLabel("Add widget")
+                        } else {
+                            // Long place names: UIKit caps toolbar item width,
+                            // so offer progressively shorter variants and let
+                            // ViewThatFits pick the fullest one that fits.
+                            Button(action: {
+                                HapticsManager.shared.impact(style: .light)
+                                showingLocationPicker = true
+                            }) {
+                                LocationPillLabel(city: viewModel.weather?.location.city)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                                    .allowsTightening(true)
+                                    .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                            }
                         }
-                        // Normal mode renders no toolbar items at all: the
-                        // whole header (pill + buttons) is a floating overlay
-                        // row, because UIKit caps toolbar item widths and
-                        // truncated long place names.
                     }
-                    
+
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if isEditMode {
+                            Button("Done") {
+                                endDashboardEditing()
+                            }
+                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
+                            .fontWeight(.bold)
+                        } else {
+                            let theme = viewModel.currentTheme(colorScheme: colorScheme)
+                            HStack(spacing: 12) {
+                                Button {
+                                    HapticsManager.shared.impact(style: .light)
+                                    showShareCard = true
+                                } label: {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(theme.textColor)
+                                        .frame(width: 36, height: 36)
+                                }
+                                .accessibilityLabel("Share Weather")
+
+                                Button {
+                                    HapticsManager.shared.impact(style: .light)
+                                    showingTimeMachine = true
+                                } label: {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(theme.textColor)
+                                        .frame(width: 36, height: 36)
+                                }
+                                .accessibilityLabel("Time Machine")
+
+                                Button {
+                                    HapticsManager.shared.impact(style: .light)
+                                    showingTripMode = true
+                                } label: {
+                                    Image(systemName: "road.lanes")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(theme.textColor)
+                                        .frame(width: 36, height: 36)
+                                }
+                                .accessibilityLabel("On the Way")
+
+                                Button {
+                                    HapticsManager.shared.impact(style: .light)
+                                    showingSettings = true
+                                } label: {
+                                    Image(systemName: "gearshape.fill")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(theme.textColor)
+                                        .frame(width: 36, height: 36)
+                                }
+                                .accessibilityLabel("Settings")
+                            }
+                        }
+                    }
                 }
-                // Listen for dashboard changes
+                // Listen for dashboard changes                // Listen for dashboard changes
                 .onReceive(NotificationCenter.default.publisher(for: WeatherSection.sectionOrderChanged)) { _ in
                     loadDashboard()
                 }
@@ -200,25 +266,7 @@ struct ContentView: View {
                 .fullScreenCover(isPresented: $showingRadarDeepLink) {
                     FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
                 }
-                .overlay(alignment: .top) {
-                    // The whole header lives here, not in the toolbar: UIKit
-                    // caps toolbar item widths, which clipped long place names.
-                    if !isEditMode {
-                        FloatingHeaderBar(
-                            city: viewModel.weather?.location.city ?? "Location",
-                            textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
-                            glassOpacity: viewModel.glassOpacity,
-                            onLocation: {
-                                HapticsManager.shared.impact(style: .light)
-                                showingLocationPicker = true
-                            },
-                            onShare: { showShareCard = true },
-                            onTimeMachine: { showingTimeMachine = true },
-                            onTrip: { showingTripMode = true },
-                            onSettings: { showingSettings = true }
-                        )
-                    }
-                }
+
                 .overlay(alignment: .top) {
                     if sharedTripVM.isTripLive, TripStore.isGoNowActive() {
                         TripBannerView(
@@ -443,77 +491,6 @@ struct ContentView: View {
     }
     
     // MARK: - Dashboard Rendering Functions
-
-    /// Floating header row — location pill (left) and action buttons (right),
-    /// living outside the UIKit toolbar whose per-item width cap truncated
-    /// long place names. Matches the iOS 26 glass-capsule toolbar look.
-    private struct FloatingHeaderBar: View {
-        let city: String
-        let textColor: Color
-        let glassOpacity: Double
-        let onLocation: () -> Void
-        let onShare: () -> Void
-        let onTimeMachine: () -> Void
-        let onTrip: () -> Void
-        let onSettings: () -> Void
-
-        var body: some View {
-            HStack(spacing: 12) {
-                Button(action: onLocation) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "location.fill")
-                            .font(.subheadline)
-                        Text(city)
-                            .font(.subheadline.weight(.medium))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                            .allowsTightening(true)
-                    }
-                    .foregroundColor(textColor)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(.ultraThinMaterial.opacity(glassOpacity))
-                        .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 1))
-                )
-                .accessibilityLabel("Change location, currently \(city)")
-
-                Spacer(minLength: 0)
-
-                HStack(spacing: 12) {
-                    headerButton("square.and.arrow.up", "Share Weather", onShare)
-                    headerButton("clock.arrow.circlepath", "Time Machine", onTimeMachine)
-                    headerButton("road.lanes", "On the Way", onTrip)
-                    headerButton("gearshape.fill", "Settings", onSettings)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(.ultraThinMaterial.opacity(glassOpacity))
-                        .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 1))
-                )
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 4)
-        }
-
-        private func headerButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
-            Button(action: {
-                HapticsManager.shared.impact(style: .light)
-                action()
-            }) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(textColor)
-                    .frame(width: 36, height: 36)
-            }
-            .accessibilityLabel(label)
-        }
-    }
 
     /// Deep links from widgets and Live Activities. The weather LAs route to
     /// Settings so a tap answers "why am I seeing this / how do I tune it".
@@ -7034,6 +7011,38 @@ struct ShareCardStatChip: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(Capsule().fill(theme.textColor.opacity(0.1)))
+    }
+}
+
+/// Toolbar pill label: progressively shorter variants — full name, name
+/// without its last word, then compressed — so long place names never
+/// truncate mid-word inside the width-capped toolbar.
+struct LocationPillLabel: View {
+    var city: String?
+
+    var body: some View {
+        let name = city ?? "Location"
+        ViewThatFits(in: .horizontal) {
+            label(name)
+            label(LocationShortener.dropLastWord(name))
+            label(name).minimumScaleFactor(0.6)
+        }
+    }
+
+    private func label(_ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "location.fill")
+                .font(.subheadline)
+            Text(text)
+        }
+    }
+}
+
+enum LocationShortener {
+    static func dropLastWord(_ name: String?) -> String {
+        guard let name, !name.isEmpty else { return "" }
+        let parts = name.split(separator: " ")
+        return parts.count > 1 ? parts.dropLast().joined(separator: " ") : name
     }
 }
 
