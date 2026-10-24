@@ -155,67 +155,12 @@ struct ContentView: View {
                             }
                             .accessibilityLabel("Add widget")
                         }
-                        // Non-edit mode: the location pill renders as a floating
-                        // overlay below — UIKit caps toolbar item widths, which
-                        // truncated long place names ("Evanston Sou").
+                        // Normal mode renders no toolbar items at all: the
+                        // whole header (pill + buttons) is a floating overlay
+                        // row, because UIKit caps toolbar item widths and
+                        // truncated long place names.
                     }
                     
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        if isEditMode {
-                            Button("Done") {
-                                endDashboardEditing()
-                            }
-                            .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
-                            .fontWeight(.bold)
-                        } else {
-                            let theme = viewModel.currentTheme(colorScheme: colorScheme)
-                            HStack(spacing: 12) {
-                                Button {
-                                    HapticsManager.shared.impact(style: .light)
-                                    showShareCard = true
-                                } label: {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
-                                }
-                                .accessibilityLabel("Share Weather")
-                                
-                                Button {
-                                    HapticsManager.shared.impact(style: .light)
-                                    showingTimeMachine = true
-                                } label: {
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
-                                }
-                                .accessibilityLabel("Time Machine")
-
-                                Button {
-                                    HapticsManager.shared.impact(style: .light)
-                                    showingTripMode = true
-                                } label: {
-                                    Image(systemName: "road.lanes")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
-                                }
-                                .accessibilityLabel("On the Way")
-                                
-                                Button {
-                                    HapticsManager.shared.impact(style: .light)
-                                    showingSettings = true
-                                } label: {
-                                    Image(systemName: "gearshape.fill")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
-                                }
-                                .accessibilityLabel("Settings")
-                            }
-                        }
-                    }
                 }
                 // Listen for dashboard changes
                 .onReceive(NotificationCenter.default.publisher(for: WeatherSection.sectionOrderChanged)) { _ in
@@ -256,16 +201,22 @@ struct ContentView: View {
                     FullScreenRadarView(viewModel: viewModel, locationHelper: locationHelper)
                 }
                 .overlay(alignment: .top) {
-                    // Location pill lives here, not in the toolbar: UIKit caps
-                    // toolbar item widths, which clipped long place names.
+                    // The whole header lives here, not in the toolbar: UIKit
+                    // caps toolbar item widths, which clipped long place names.
                     if !isEditMode {
-                        FloatingLocationPill(
+                        FloatingHeaderBar(
                             city: viewModel.weather?.location.city ?? "Location",
-                            textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor
-                        ) {
-                            HapticsManager.shared.impact(style: .light)
-                            showingLocationPicker = true
-                        }
+                            textColor: viewModel.currentTheme(colorScheme: colorScheme).textColor,
+                            glassOpacity: viewModel.glassOpacity,
+                            onLocation: {
+                                HapticsManager.shared.impact(style: .light)
+                                showingLocationPicker = true
+                            },
+                            onShare: { showShareCard = true },
+                            onTimeMachine: { showingTimeMachine = true },
+                            onTrip: { showingTripMode = true },
+                            onSettings: { showingSettings = true }
+                        )
                     }
                 }
                 .overlay(alignment: .top) {
@@ -493,16 +444,22 @@ struct ContentView: View {
     
     // MARK: - Dashboard Rendering Functions
 
-    /// Floating location pill (top-leading overlay). Lives outside the UIKit
-    /// toolbar, whose item-width cap truncated long place names.
-    private struct FloatingLocationPill: View {
+    /// Floating header row — location pill (left) and action buttons (right),
+    /// living outside the UIKit toolbar whose per-item width cap truncated
+    /// long place names. Matches the iOS 26 glass-capsule toolbar look.
+    private struct FloatingHeaderBar: View {
         let city: String
         let textColor: Color
-        let action: () -> Void
+        let glassOpacity: Double
+        let onLocation: () -> Void
+        let onShare: () -> Void
+        let onTimeMachine: () -> Void
+        let onTrip: () -> Void
+        let onSettings: () -> Void
 
         var body: some View {
-            HStack(spacing: 5) {
-                Button(action: action) {
+            HStack(spacing: 12) {
+                Button(action: onLocation) {
                     HStack(spacing: 5) {
                         Image(systemName: "location.fill")
                             .font(.subheadline)
@@ -514,10 +471,47 @@ struct ContentView: View {
                     }
                     .foregroundColor(textColor)
                 }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial.opacity(glassOpacity))
+                        .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 1))
+                )
+                .accessibilityLabel("Change location, currently \(city)")
+
                 Spacer(minLength: 0)
+
+                HStack(spacing: 12) {
+                    headerButton("square.and.arrow.up", "Share Weather", onShare)
+                    headerButton("clock.arrow.circlepath", "Time Machine", onTimeMachine)
+                    headerButton("road.lanes", "On the Way", onTrip)
+                    headerButton("gearshape.fill", "Settings", onSettings)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial.opacity(glassOpacity))
+                        .overlay(Capsule().stroke(textColor.opacity(0.22), lineWidth: 1))
+                )
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
+        }
+
+        private func headerButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
+            Button(action: {
+                HapticsManager.shared.impact(style: .light)
+                action()
+            }) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(textColor)
+                    .frame(width: 36, height: 36)
+            }
+            .accessibilityLabel(label)
         }
     }
 
