@@ -125,11 +125,16 @@ enum BackgroundRefreshScheduler {
 
             let notificationManager = NotificationManager.shared
             await notificationManager.checkAuthorizationStatus()
-            guard notificationManager.authorizationStatus == .authorized else { return }
 
-            notificationManager.runAllAlertChecks(weather: weather, temperatureUnit: Self.temperatureUnit())
+            // Live Activities follow the forecast regardless of notification
+            // permission — gating them here starved background updates for
+            // users who declined notifications.
             LiveActivityHub.updateAll(with: weather)
+            AuroraAlertManager.shared.update(with: weather)
             WidgetCenter.shared.reloadAllTimelines()
+
+            guard notificationManager.authorizationStatus == .authorized else { return }
+            notificationManager.runAllAlertChecks(weather: weather, temperatureUnit: Self.temperatureUnit())
 
             #if DEBUG
             logger.debug("background refresh ran checks")

@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import os.log
 import ActivityKit
 
 @MainActor
@@ -46,6 +47,8 @@ final class RainLiveActivityManager {
 
     /// Reconcile the Live Activity with the latest forecast. Called after every
     /// successful weather fetch.
+    private static let logger = Logger(subsystem: "com.breezy.weather", category: "liveactivities.rain")
+
     func update(with weather: WeatherInfo) {
         guard enabled else {
             end()
@@ -56,8 +59,14 @@ final class RainLiveActivityManager {
         let now = Date()
 
         if let onset = rainOnset(in: weather, now: now) {
+            #if DEBUG
+            Self.logger.debug("rain onset \(onset.start, privacy: .public) chance \(onset.chance, privacy: .public)")
+            #endif
             reconcile(cityName: weather.location.city, onset: onset, now: now)
         } else {
+            #if DEBUG
+            Self.logger.debug("no rain onset — ending activity if held")
+            #endif
             end()
         }
     }

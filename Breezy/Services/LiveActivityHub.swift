@@ -8,10 +8,16 @@
 //
 
 import Foundation
+import os.log
 
 @MainActor
 enum LiveActivityHub {
+    private static let logger = Logger(subsystem: "com.breezy.weather", category: "liveactivities")
+
     static func updateAll(with weather: WeatherInfo) {
+        #if DEBUG
+        logger.debug("updateAll: \(weather.condition, privacy: .public) @ \(weather.location.city, privacy: .public)")
+        #endif
         RainLiveActivityManager.shared.update(with: weather)
         UVLiveActivityManager.shared.update(with: weather)
         SevereWeatherLiveActivityManager.shared.update(with: weather)
