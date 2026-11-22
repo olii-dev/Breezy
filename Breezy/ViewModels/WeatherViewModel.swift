@@ -1820,7 +1820,9 @@ class WeatherViewModel: ObservableObject {
                 temperature: self.formattedTemperature(hour.temperatureRaw),
                 emoji: hour.emoji ?? "",
                 condition: hour.condition ?? "",
-                sourceDate: hour.sourceDate
+                sourceDate: hour.sourceDate,
+                precipChance: hour.precipitationChance,
+                precipMillimeters: hour.precipitationAmount
             ))
         }
         

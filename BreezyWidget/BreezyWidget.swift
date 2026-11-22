@@ -169,6 +169,9 @@ struct WidgetWeatherData: Codable {
         /// widget match timeline entries by time instead of clock labels,
         /// which repeat every 12/24h and follow the location's timezone.
         var sourceDate: Date? = nil
+        /// Rain chance 0-1 and expected millimetres — powers the timeline widget.
+        var precipChance: Double? = nil
+        var precipMillimeters: Double? = nil
     }
 
     struct WidgetDailyForecast: Codable {
@@ -1004,7 +1007,9 @@ struct Provider: TimelineProvider {
                 temperature: hTempStr,
                 emoji: WidgetIconHelper.getIcon(for: hCond, isMinimalist: true, at: hour.date, sunrise: todaySunrise, sunset: todaySunset),
                 condition: hCond,
-                sourceDate: hour.date
+                sourceDate: hour.date,
+                precipChance: hour.precipitationChance,
+                precipMillimeters: hour.precipitationAmount.converted(to: .millimeters).value
             ))
         }
 
@@ -2057,6 +2062,7 @@ struct BreezyWidgetBundle: WidgetBundle {
         #endif
         RadarWidget()
         BreezyStargazingWidget()
+        BreezyRainTimelineWidget()
         BreezyWeatherWidget() // Custom Widget moved to end
     }
 }

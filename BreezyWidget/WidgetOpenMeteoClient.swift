@@ -110,7 +110,9 @@ final class WidgetOpenMeteoClient {
                     temperature: $0.temperature,
                     emoji: $0.emoji,
                     condition: $0.condition,
-                    sourceDate: $0.date
+                    sourceDate: $0.date,
+                    precipChance: $0.precipChance,
+                    precipMillimeters: $0.precipMillimeters
                 )
             },
             timestamp: Date(),
@@ -155,7 +157,7 @@ final class WidgetOpenMeteoClient {
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "current", value: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,visibility,cloud_cover"),
-            URLQueryItem(name: "hourly", value: "temperature_2m,weather_code,uv_index"),
+            URLQueryItem(name: "hourly", value: "temperature_2m,weather_code,uv_index,precipitation_probability,precipitation"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset"),
             URLQueryItem(name: "forecast_days", value: "14")
         ]
@@ -193,7 +195,9 @@ final class WidgetOpenMeteoClient {
                 temperature: formatTemperature(block.temperature2M[safe: index] ?? 0, isFahrenheit: isFahrenheit),
                 condition: condition,
                 emoji: icon,
-                uvIndex: block.uvIndex?[safe: index].map { Int(round($0)) }
+                uvIndex: block.uvIndex?[safe: index].map { Int(round($0)) },
+                precipChance: block.precipitationProbability?[safe: index].flatMap { $0 }.map { $0 / 100 },
+                precipMillimeters: block.precipitation?[safe: index].flatMap { $0 }
             )
         }
     }
@@ -409,6 +413,8 @@ private struct OpenMeteoWidgetHour {
     let condition: String
     let emoji: String
     let uvIndex: Int?
+    let precipChance: Double?   // 0-1
+    let precipMillimeters: Double?
 }
 
 private struct OpenMeteoWidgetDay {
@@ -493,12 +499,16 @@ private struct HourlyBlock: Decodable {
     let temperature2M: [Double]
     let weatherCode: [Int]
     let uvIndex: [Double]?
+    let precipitationProbability: [Double]?
+    let precipitation: [Double]?
 
     enum CodingKeys: String, CodingKey {
         case time
         case temperature2M = "temperature_2m"
         case weatherCode = "weather_code"
         case uvIndex = "uv_index"
+        case precipitationProbability = "precipitation_probability"
+        case precipitation
     }
 }
 

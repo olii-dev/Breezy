@@ -58,6 +58,9 @@ struct WidgetWeatherData: Codable {
         /// widget match timeline entries by time instead of clock labels,
         /// which repeat every 12/24h and follow the location's timezone.
         var sourceDate: Date? = nil
+        /// Rain chance 0-1 and expected millimetres — powers the timeline widget.
+        var precipChance: Double? = nil
+        var precipMillimeters: Double? = nil
     }
 
     struct WidgetDailyForecast: Codable {
