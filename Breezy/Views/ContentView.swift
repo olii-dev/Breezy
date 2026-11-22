@@ -199,7 +199,7 @@ struct ContentView: View {
                                     } label: { Label("Settings", systemImage: "gearshape.fill") }
                                 } label: {
                                     Image(systemName: "ellipsis")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.system(.subheadline).weight(.semibold))
                                         .foregroundColor(theme.textColor)
                                         .frame(width: 36, height: 36)
                                 }
@@ -210,7 +210,7 @@ struct ContentView: View {
                                     showShareCard = true
                                 } label: {
                                     Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.system(.subheadline).weight(.semibold))
                                         .foregroundColor(theme.textColor)
                                         .frame(width: 36, height: 36)
                                 }
@@ -221,7 +221,7 @@ struct ContentView: View {
                                     showingTimeMachine = true
                                 } label: {
                                     Image(systemName: "clock.arrow.circlepath")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.system(.subheadline).weight(.semibold))
                                         .foregroundColor(theme.textColor)
                                         .frame(width: 36, height: 36)
                                 }
@@ -232,7 +232,7 @@ struct ContentView: View {
                                     showingTripMode = true
                                 } label: {
                                     Image(systemName: "road.lanes")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.system(.subheadline).weight(.semibold))
                                         .foregroundColor(theme.textColor)
                                         .frame(width: 36, height: 36)
                                 }
@@ -243,7 +243,7 @@ struct ContentView: View {
                                     showingSettings = true
                                 } label: {
                                     Image(systemName: "gearshape.fill")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.system(.subheadline).weight(.semibold))
                                         .foregroundColor(theme.textColor)
                                         .frame(width: 36, height: 36)
                                 }
@@ -465,7 +465,7 @@ struct ContentView: View {
                         beginDashboardEditing()
                     } label: {
                         Image(systemName: "pencil.circle")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(.footnote).weight(.medium))
                             .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.5))
                             .padding(8)
                             .background(Circle().fill(.ultraThinMaterial.opacity(viewModel.glassOpacity)))
@@ -1155,13 +1155,13 @@ struct WeatherHeaderView: View {
             VStack(spacing: 10) {
                 if viewModel.useMinimalistIcons {
                     Image(systemName: viewModel.weatherIcon(for: weather.condition, isDaylight: viewModel.isDaylightAtLocation()))
-                        .font(.system(size: 54, weight: .light)) // Smaller icon
+                        .font(.system(.largeTitle).weight(.light)) // Smaller icon
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                         .symbolRenderingMode(.hierarchical)
                         .padding(.bottom, 4)
                 } else {
                     Text(weather.emoji)
-                        .font(.system(size: 48))
+                        .font(.system(.largeTitle))
                         .padding(.bottom, 4)
                         .background(Circle().fill(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.1)).padding(4))
                 }
@@ -1288,7 +1288,7 @@ struct HourlyForecastChartView: View {
                         AxisValueLabel {
                             if let hourInt = value.as(Int.self), hourInt >= 0 && hourInt < 24 {
                                 Text(format12HourTime(hourInt))
-                                    .font(.system(size: 11))
+                                    .font(.system(.caption))
                                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                             }
                         }
@@ -1470,7 +1470,7 @@ struct HourDetailSheet: View {
                 
                 VStack(spacing: 24) {
                     Text(hour.emoji ?? "☁️")
-                        .font(.system(size: 80))
+                        .font(.system(.largeTitle))
                     
                     Text(hour.time)
                         .font(.title)
@@ -1478,7 +1478,7 @@ struct HourDetailSheet: View {
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                     
                     Text(viewModel.formattedTemperature(hour.temperatureRaw))
-                        .font(.system(size: 64, weight: .light))
+                        .font(.system(.largeTitle).weight(.light))
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                     
                     Text(hour.condition ?? "Unknown")
@@ -1686,7 +1686,7 @@ struct HighlightCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(.body).weight(.semibold))
                     .foregroundColor(textColor)
                 Text(title)
                     .font(.caption.weight(.medium))
@@ -1746,7 +1746,7 @@ struct NewWeatherHeaderView: View {
             
             // Huge temperature
             Text(weather.temperature)
-                .font(.system(size: 72, weight: .thin))
+                .font(.system(.largeTitle).weight(.thin))
                 .fontDesign(viewModel.typography.design)
                 .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                 .accessibilityLabel("Temperature: \(weather.temperature)")
@@ -2071,7 +2071,7 @@ struct MoonPhaseCardView: View {
                         if let rise = moonrise {
                             HStack(spacing: 8) {
                                 Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: 16))
+                                    .font(.system(.subheadline))
                                     .foregroundColor(textColor.opacity(0.6))
                                 VStack(alignment: .leading, spacing: 0) {
                                     Text("Moonrise").font(.caption2).opacity(0.7)
@@ -2082,7 +2082,7 @@ struct MoonPhaseCardView: View {
                         if let set = moonset {
                             HStack(spacing: 8) {
                                 Image(systemName: "arrow.down.circle.fill")
-                                    .font(.system(size: 16))
+                                    .font(.system(.subheadline))
                                     .foregroundColor(textColor.opacity(0.6))
                                 VStack(alignment: .leading, spacing: 0) {
                                     Text("Moonset").font(.caption2).opacity(0.7)
@@ -2602,7 +2602,7 @@ struct HourlyTemperaturesWidget: View {
                 AxisValueLabel {
                     if let index = value.as(Int.self), hours.indices.contains(index) {
                         Text(hours[index].time)
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(.caption2).weight(.medium))
                             .foregroundColor(theme.textColor.opacity(0.72))
                     }
                 }
@@ -2615,7 +2615,7 @@ struct HourlyTemperaturesWidget: View {
                 AxisValueLabel {
                     if let temp = value.as(Double.self) {
                         Text(viewModel.formattedTemperature(temp))
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(.caption2).weight(.medium))
                             .foregroundColor(theme.textColor.opacity(0.72))
                     }
                 }
@@ -3023,7 +3023,7 @@ struct WindGraphWidget: View {
                         AxisValueLabel {
                             if let index = value.as(Int.self), windPoints.indices.contains(index) {
                                 Text(windPoints[index].time)
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -3036,7 +3036,7 @@ struct WindGraphWidget: View {
                         AxisValueLabel {
                             if let speed = value.as(Double.self) {
                                 Text(viewModel.formattedWindSpeedValue(speed))
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -3180,7 +3180,7 @@ struct HumidityStripWidget: View {
                         AxisValueLabel {
                             if let index = value.as(Int.self), hours.indices.contains(index) {
                                 Text(hours[index].time)
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(.caption2).weight(.medium))
                                     .foregroundColor(textColor.opacity(0.72))
                             }
                         }
@@ -3193,7 +3193,7 @@ struct HumidityStripWidget: View {
                         AxisValueLabel {
                             if let pct = value.as(Int.self) {
                                 Text("\(pct)%")
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(.caption2).weight(.medium))
                                     .foregroundColor(textColor.opacity(0.72))
                             }
                         }
@@ -3326,7 +3326,7 @@ struct PrecipitationTimelineWidget: View {
                             AxisValueLabel {
                                 if let pct = value.as(Int.self) {
                                     Text("\(pct)%")
-                                        .font(.system(size: 9, weight: .medium))
+                                        .font(.system(.caption2).weight(.medium))
                                         .foregroundColor(textColor.opacity(0.65))
                                 }
                             }
@@ -3338,7 +3338,7 @@ struct PrecipitationTimelineWidget: View {
                         AxisValueLabel {
                             if let name = value.as(String.self) {
                                 Text(name)
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(.caption2).weight(.medium))
                                     .foregroundColor(textColor.opacity(0.72))
                             }
                         }
@@ -3916,7 +3916,7 @@ struct WindHistoryWidget: View {
                         AxisValueLabel {
                             if let idx = value.as(Int.self), windPoints.indices.contains(idx) {
                                 Text(windPoints[idx].time)
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -3929,7 +3929,7 @@ struct WindHistoryWidget: View {
                         AxisValueLabel {
                             if let speed = value.as(Double.self) {
                                 Text(viewModel.formattedWindSpeedValue(speed))
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -4095,7 +4095,7 @@ struct HourlyPrecipitationWidget: View {
                         AxisValueLabel {
                             if let idx = value.as(Int.self), points.indices.contains(idx) {
                                 Text(points[idx].time)
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -4108,7 +4108,7 @@ struct HourlyPrecipitationWidget: View {
                         AxisValueLabel {
                             if let amount = value.as(Double.self) {
                                 Text(formattedAmount(amount))
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -4262,7 +4262,7 @@ struct AQITrendWidget: View {
                         AxisValueLabel {
                             if let idx = value.as(Int.self), points.indices.contains(idx) {
                                 Text(points[idx].time)
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -4275,7 +4275,7 @@ struct AQITrendWidget: View {
                         AxisValueLabel {
                             if let aqi = value.as(Int.self) {
                                 Text("\(aqi)")
-                                    .font(.system(size: 10))
+                                    .font(.system(.caption2))
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                         }
@@ -4581,7 +4581,7 @@ struct EditableSectionContainer<Content: View>: View {
                     if let onConfigure = onConfigure {
                         Button(action: onConfigure) {
                             Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(.footnote).weight(.semibold))
                                 .foregroundColor(.white.opacity(0.65))
                                 .frame(width: 44, height: 36)
                         }
@@ -4592,7 +4592,7 @@ struct EditableSectionContainer<Content: View>: View {
 
                     Button(action: onRemove) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(.footnote).weight(.bold))
                             .foregroundColor(.red.opacity(0.6))
                             .frame(width: 44, height: 36)
                     }
@@ -4864,11 +4864,11 @@ struct SmartStackWidget: View {
 
                             if viewModel.useMinimalistIcons {
                                 Image(systemName: WeatherIconHelper.minimalistIcon(for: hour.condition ?? weather.condition))
-                                    .font(.system(size: 18, weight: .medium))
+                                    .font(.system(.body).weight(.medium))
                                     .foregroundColor(theme.textColor)
                             } else {
                                 Text(hour.emoji ?? weather.emoji)
-                                    .font(.system(size: 18))
+                                    .font(.system(.body))
                             }
 
                             Text(formatTemperature(hour.temperatureRaw))
@@ -5345,7 +5345,7 @@ private struct SmartStackPageCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(.subheadline).weight(.semibold))
                     .foregroundColor(accent)
                     .frame(width: 34, height: 34)
                     .background(
@@ -5511,7 +5511,7 @@ struct WidgetGalleryView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(.system(.body).weight(.semibold))
                             .foregroundColor(theme.textColor.opacity(0.8))
                     }
                     .accessibilityLabel("Close")
@@ -5574,7 +5574,7 @@ struct WidgetGalleryView: View {
                                                             .fill(DesignSystem.skyBlue.opacity(0.15))
                                                             .frame(width: 44, height: 44)
                                                         Image(systemName: type.icon)
-                                                            .font(.system(size: 22, weight: .medium))
+                                                            .font(.system(.title3).weight(.medium))
                                                             .foregroundColor(DesignSystem.skyBlue)
                                                     }
 
@@ -6700,9 +6700,9 @@ struct ShareWeatherCardView: View {
                             ) {
                                 HStack(spacing: 10) {
                                     Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 17, weight: .semibold))
+                                        .font(.system(.body).weight(.semibold))
                                     Text("Share")
-                                        .font(.system(size: 17, weight: .semibold))
+                                        .font(.system(.body).weight(.semibold))
                                 }
                                 .foregroundStyle(theme.textColor)
                                 .frame(maxWidth: .infinity)
@@ -6726,7 +6726,7 @@ struct ShareWeatherCardView: View {
                                 }
                             } label: {
                                 Image(systemName: "ellipsis.circle")
-                                    .font(.system(size: 20, weight: .semibold))
+                                    .font(.system(.title3).weight(.semibold))
                                     .foregroundStyle(theme.textColor)
                                     .frame(width: 52, height: 52)
                                     .background(
@@ -6825,11 +6825,11 @@ struct ShareWeatherCardView: View {
     private var cardHeader: some View {
         HStack {
             Text(weather.location.city)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(.footnote).weight(.semibold))
                 .foregroundStyle(cardTheme.textColor.opacity(0.7))
             Spacer()
             Text(Date(), style: .date)
-                .font(.system(size: 12))
+                .font(.system(.caption))
                 .foregroundStyle(cardTheme.textColor.opacity(0.5))
         }
     }
@@ -6841,11 +6841,11 @@ struct ShareWeatherCardView: View {
             HStack(alignment: .center, spacing: 16) {
                 if viewModel.useMinimalistIcons {
                     Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
-                        .font(.system(size: 48))
+                        .font(.system(.largeTitle))
                         .foregroundStyle(cardTheme.textColor)
                 } else {
                     Text(weather.emoji)
-                        .font(.system(size: 48))
+                        .font(.system(.largeTitle))
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -6854,7 +6854,7 @@ struct ShareWeatherCardView: View {
                         .foregroundStyle(cardTheme.textColor)
 
                     Text(weather.condition)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(.subheadline).weight(.medium))
                         .foregroundStyle(cardTheme.textColor.opacity(0.85))
                 }
 
@@ -6888,19 +6888,19 @@ struct ShareWeatherCardView: View {
             HStack(spacing: 8) {
                 if viewModel.useMinimalistIcons {
                     Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
-                        .font(.system(size: 18))
+                        .font(.system(.body))
                         .foregroundStyle(cardTheme.textColor)
                 } else {
                     Text(weather.emoji)
-                        .font(.system(size: 18))
+                        .font(.system(.body))
                 }
                 Text(weather.condition)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(.subheadline).weight(.medium))
                     .foregroundStyle(cardTheme.textColor.opacity(0.85))
             }
 
             Text(weather.location.city)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(.footnote).weight(.semibold))
                 .foregroundStyle(cardTheme.textColor.opacity(0.6))
         }
         .frame(maxWidth: .infinity)
@@ -6995,7 +6995,7 @@ private extension View {
             HStack {
                 Spacer()
                 Text("Breezy")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(.caption).weight(.semibold))
                     .foregroundStyle(theme.textColor.opacity(0.3))
             }
         }
@@ -7028,9 +7028,9 @@ struct ShareCardStatChip: View {
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(.caption).weight(.semibold))
             Text(label)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(.caption).weight(.semibold))
         }
         .foregroundStyle(theme.textColor.opacity(0.75))
         .padding(.horizontal, 10)

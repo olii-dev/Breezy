@@ -205,7 +205,7 @@ struct SettingsView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(.subheadline).weight(.bold))
                             .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                     }
                 }
@@ -254,7 +254,7 @@ struct SettingsNavCard<Destination: View>: View {
                         .fill(color.opacity(0.2))
                         .frame(width: 36, height: 36)
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(.subheadline).weight(.semibold))
                         .foregroundColor(color)
                 }
                 
@@ -1314,7 +1314,7 @@ struct DesignStudioView: View {
                                             .frame(width: 32, height: 32)
                                         Image(systemName: "swatchpalette.fill")
                                             .foregroundColor(.white)
-                                            .font(.system(size: 16))
+                                            .font(.system(.subheadline))
                                     }
                                     
                                     Text("Themes")
@@ -1388,7 +1388,7 @@ struct DesignStudioView: View {
                                             .frame(width: 32, height: 32)
                                         Image(systemName: "app.fill")
                                             .foregroundColor(.white)
-                                            .font(.system(size: 16))
+                                            .font(.system(.subheadline))
                                     }
 
                                     Text("App Icons")
@@ -1419,7 +1419,7 @@ struct DesignStudioView: View {
                                     } label: {
                                         VStack(spacing: 8) {
                                             Text("Aa")
-                                                .font(.system(size: 32, weight: .bold))
+                                                .font(.system(.title).weight(.bold))
                                                 .fontDesign(font.design)
                                             Text(font.rawValue)
                                                 .font(.caption.weight(.medium))
@@ -1462,7 +1462,7 @@ struct DesignStudioView: View {
 
                                     Image(systemName: "slider.horizontal.3")
                                         .foregroundColor(.white)
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.system(.subheadline).weight(.semibold))
                                 }	
 
                                 VStack(alignment: .leading, spacing: 4) {

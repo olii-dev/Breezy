@@ -122,7 +122,7 @@ struct RadarCardView: View {
                         Image(systemName: selectedLayer.icon)
                         Text(selectedLayer.displayName)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(.caption2).weight(.bold))
                     }
                     .font(.caption2.weight(.bold))
                     .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.8))
@@ -160,7 +160,7 @@ struct RadarCardView: View {
                 if showLightning, let distance = nearestStrikeDistance {
                     HStack(spacing: 4) {
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(.caption2).weight(.bold))
                             .foregroundColor(.yellow)
                         Text(formatStrikeDistance(distance))
                             .font(.caption2.weight(.bold))
@@ -194,7 +194,7 @@ struct RadarCardView: View {
                     }
                 } label: {
                     Image(systemName: "map.fill")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(.caption2).weight(.bold))
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                         .padding(8)
                         .background(.ultraThinMaterial.opacity(viewModel.glassOpacity))
@@ -629,7 +629,7 @@ struct LightningStatusChip: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "bolt.slash.fill")
-                .font(.system(size: 9, weight: .bold))
+                .font(.system(.caption2).weight(.bold))
                 .foregroundColor(.orange)
             Text(text)
                 .font(.caption2.weight(.bold))

@@ -19,10 +19,10 @@ struct SettingsView: View {
                 VStack(spacing: 14) {
                     HStack {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16))
+                            .font(.system(.subheadline))
                             .foregroundColor(theme.textColor.opacity(0.8))
                         Text("Settings")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.system(.body, design: .rounded).weight(.bold))
                             .foregroundColor(theme.textColor)
                         Spacer()
                     }
@@ -81,7 +81,7 @@ struct SettingsView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
                         }
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -92,7 +92,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 4)
                     
                     Text("Breezy v1.0")
-                        .font(.system(size: 10, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundColor(theme.textColor.opacity(0.5))
                         .padding(.bottom, 8)
                 }
@@ -150,7 +150,7 @@ struct WatchNotificationSettingsView: View {
         ScrollView {
             VStack(spacing: 14) {
                 Text("Watch alerts fire only when your iPhone isn't reachable — otherwise its own notifications mirror to the watch.")
-                    .font(.system(size: 12, design: .rounded))
+                    .font(.system(.caption, design: .rounded))
                     .foregroundColor(theme.textColor.opacity(0.7))
 
                 if !authorized {
@@ -160,7 +160,7 @@ struct WatchNotificationSettingsView: View {
                         }
                     } label: {
                         Label("Allow Notifications", systemImage: "bell.badge.fill")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(.system(.footnote, design: .rounded).weight(.semibold))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
@@ -238,10 +238,10 @@ struct WatchNotificationSettingsView: View {
                     .foregroundColor(theme.textColor.opacity(0.8))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
                         .foregroundColor(theme.textColor)
                     Text(caption)
-                        .font(.system(size: 10, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundColor(theme.textColor.opacity(0.55))
                 }
                 Spacer()
@@ -276,7 +276,7 @@ struct SettingsCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .font(.system(.caption2, design: .rounded).weight(.bold))
                 .foregroundColor(textColor.opacity(0.6))
                 .padding(.leading, 4)
             
@@ -299,7 +299,7 @@ struct UnitButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
                 .minimumScaleFactor(0.8)
                 .foregroundColor(isSelected ? textColor : textColor.opacity(0.5))
                 .frame(maxWidth: .infinity)
@@ -326,12 +326,12 @@ struct SettingsDestinationRow<Destination: View>: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .foregroundColor(textColor)
                     Text(subtitle)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded).weight(.medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .foregroundColor(textColor.opacity(0.62))
@@ -374,7 +374,7 @@ struct AppearanceSettingsView: View {
                                     viewModel.updateAppearanceMode(mode)
                                 } label: {
                                     Text(mode.rawValue)
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .font(.system(.caption, design: .rounded).weight(.medium))
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.8)
                                         .foregroundColor(viewModel.appearanceMode == mode ? theme.textColor : theme.textColor.opacity(0.6))
@@ -399,7 +399,7 @@ struct AppearanceSettingsView: View {
                                     Image(systemName: "wand.and.stars")
                                         .foregroundColor(theme.textColor)
                                     Text("Dynamic")
-                                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                                        .font(.system(.footnote, design: .rounded).weight(.medium))
                                         .foregroundColor(theme.textColor)
                                     Spacer()
                                     if viewModel.themeMode == .auto {
@@ -447,7 +447,7 @@ struct AppearanceSettingsView: View {
                                 Image(systemName: "paintbrush.fill")
                                     .foregroundColor(theme.textColor)
                                 Text("Custom Theme Builder")
-                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .font(.system(.footnote, design: .rounded).weight(.medium))
                                     .foregroundColor(theme.textColor)
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -517,7 +517,7 @@ struct AppearanceSettingsView: View {
                                         }
                                     } label: {
                                         Text("Aa")
-                                            .font(.system(size: 16, weight: .bold))
+                                            .font(.system(.subheadline).weight(.bold))
                                             .fontDesign(font.design)
                                             .frame(width: 40, height: 40)
                                             .background(viewModel.typography == font ? theme.textColor.opacity(0.2) : theme.textColor.opacity(0.05))
@@ -767,7 +767,7 @@ struct DataSettingsView: View {
                                     Image(systemName: "trash")
                                         .foregroundColor(.red.opacity(0.9))
                                     Text("Clear Cached Weather")
-                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                        .font(.system(.footnote, design: .rounded).weight(.semibold))
                                         .foregroundColor(theme.textColor)
                                     Spacer()
                                 }
@@ -975,7 +975,7 @@ struct LayoutEditorView: View {
                             .frame(width: 16) // Slightly smaller icon
                             .foregroundColor(.gray)
                         Text(section.rawValue)
-                            .font(.system(size: 14))
+                            .font(.system(.footnote))
                             .lineLimit(1)
                             .minimumScaleFactor(0.6) // Allow significant scaling
                         Spacer()
@@ -988,7 +988,7 @@ struct LayoutEditorView: View {
                                 }
                             } label: {
                                 Image(systemName: "chevron.up")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.system(.caption).weight(.bold))
                             }
                             .buttonStyle(.plain)
                             .frame(width: 24, height: 24)
@@ -1006,7 +1006,7 @@ struct LayoutEditorView: View {
                                 }
                             } label: {
                                 Image(systemName: "chevron.down")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.system(.caption).weight(.bold))
                             }
                             .buttonStyle(.plain)
                             .frame(width: 24, height: 24)
@@ -1078,7 +1078,7 @@ struct WatchChartsSettingsView: View {
                 .frame(width: 20)
                 .foregroundColor(theme(for: colorScheme).textColor)
             Toggle(title, isOn: isOn)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(.footnote, design: .rounded).weight(.medium))
                 .foregroundColor(theme(for: colorScheme).textColor)
         }
         .padding(.vertical, 2)

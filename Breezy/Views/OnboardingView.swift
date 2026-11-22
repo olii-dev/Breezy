@@ -237,7 +237,7 @@ struct OnboardingView: View {
                         }
                     } label: {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(.subheadline).weight(.bold))
                             .foregroundColor(theme.textColor)
                             .frame(width: 40, height: 40)
                             .background(.ultraThinMaterial.opacity(viewModel.glassOpacity), in: Circle())
@@ -678,7 +678,7 @@ struct OnboardingView: View {
                         RoundedRectangle(cornerRadius: 18)
                             .fill(LinearGradient(colors: [.blue, .cyan, .mint], startPoint: .topLeading, endPoint: .bottomTrailing))
                             .frame(width: 72, height: 72)
-                            .overlay(Image(systemName: "cloud.sun.fill").font(.system(size: 28)).foregroundColor(.white))
+                            .overlay(Image(systemName: "cloud.sun.fill").font(.system(.title2)).foregroundColor(.white))
 
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Weather Reactive")
@@ -826,7 +826,7 @@ struct OnboardingView: View {
 
                     HStack(spacing: 12) {
                         Image(systemName: selectedLocationChoice == .current ? "location.fill" : "mappin.circle.fill")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(.body).weight(.bold))
                             .foregroundColor(theme.textColor)
 
                         VStack(alignment: .leading, spacing: 3) {
@@ -907,7 +907,7 @@ struct OnboardingView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "mappin.circle.fill")
-                                    .font(.system(size: 18, weight: .semibold))
+                                    .font(.system(.body).weight(.semibold))
                                     .foregroundColor(theme.textColor.opacity(0.76))
 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -1051,7 +1051,7 @@ struct OnboardingView: View {
                     .fill(accent.opacity(0.24))
                     .frame(width: 48, height: 48)
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(.body).weight(.bold))
                     .foregroundColor(accent)
             }
 
@@ -1091,7 +1091,7 @@ struct OnboardingView: View {
                     .fill(accent.opacity(0.22))
                     .frame(width: 42, height: 42)
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(.subheadline).weight(.bold))
                     .foregroundColor(accent)
             }
 
@@ -1124,7 +1124,7 @@ struct OnboardingView: View {
     private func summaryRow(title: String, value: String, icon: String, theme: WeatherTheme) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(.subheadline).weight(.semibold))
                 .foregroundColor(theme.textColor.opacity(0.76))
                 .frame(width: 24)
 

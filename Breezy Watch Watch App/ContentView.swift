@@ -130,13 +130,13 @@ struct AlwaysOnGlanceView: View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             VStack(spacing: 6) {
                 Text(Self.timeFormatter.string(from: timeline.date))
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.white.opacity(0.55))
                     .monospacedDigit()
 
                 if let weather {
                     Text(weather.temperature)
-                        .font(.system(size: 44, weight: .medium, design: .rounded))
+                        .font(.system(.largeTitle, design: .rounded).weight(.medium))
                         .foregroundStyle(.white)
                         .monospacedDigit()
 
@@ -145,14 +145,14 @@ struct AlwaysOnGlanceView: View {
                             .font(.body)
                             .foregroundStyle(.white.opacity(0.8))
                         Text(weather.condition)
-                            .font(.system(size: 12, design: .rounded))
+                            .font(.system(.caption, design: .rounded))
                             .foregroundStyle(.white.opacity(0.7))
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }
 
                     Text(weather.city)
-                        .font(.system(size: 10, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundStyle(.white.opacity(0.45))
                         .lineLimit(1)
 
@@ -161,7 +161,7 @@ struct AlwaysOnGlanceView: View {
                             Image(systemName: "cloud.rain.fill")
                                 .font(.caption2)
                             Text(summary.title)
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .font(.system(.caption, design: .rounded).weight(.semibold))
                         }
                         .foregroundStyle(Color.cyan.opacity(0.9))
                     }
@@ -243,7 +243,7 @@ struct CurrentOverviewView: View {
                         }
                     } label: {
                         Label("Refresh", systemImage: "arrow.clockwise.circle.fill")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(.system(.footnote, design: .rounded).weight(.semibold))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                             .foregroundColor(theme.textColor)
@@ -338,11 +338,11 @@ struct WatchRainCountdownBanner: View {
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text(summary.title)
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .font(.system(.footnote, design: .rounded).weight(.bold))
                             .foregroundStyle(theme.textColor)
                         if let detail = summary.detail {
                             Text(detail)
-                                .font(.system(size: 10, design: .rounded))
+                                .font(.system(.caption2, design: .rounded))
                                 .foregroundStyle(theme.textColor.opacity(0.65))
                         }
                     }
@@ -374,9 +374,9 @@ struct MainInfoSection: View {
             NavigationLink(destination: WatchLocationPickerView().environmentObject(viewModel)) {
                 HStack(spacing: 4) {
                     Image(systemName: viewModel.selectedLocationID == nil ? "location.fill" : "mappin.circle.fill")
-                        .font(.system(size: 12))
+                        .font(.system(.caption))
                     Text(weather.city)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(.subheadline).weight(.medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -392,16 +392,16 @@ struct MainInfoSection: View {
             if viewModel.useMinimalistIcons {
                 Image(systemName: weather.iconName)
                     .symbolRenderingMode(.multicolor)
-                    .font(.system(size: 60))
+                    .font(.system(.largeTitle))
                     .shadow(color: .white.opacity(0.2), radius: 10, x: 0, y: 0)
             } else {
                 Text(weather.emoji)
-                    .font(.system(size: 60))
+                    .font(.system(.largeTitle))
             }
             
             // Large Thin Temperature
             Text(weather.temperature)
-                .font(.system(size: 52, weight: .thin))
+                .font(.system(.largeTitle).weight(.thin))
                 .fontDesign(viewModel.typography.design)
                 .foregroundColor(theme.textColor)
                 .shadow(color: theme.textColor.opacity(0.1), radius: 2, x: 0, y: 1)
@@ -409,13 +409,13 @@ struct MainInfoSection: View {
             // Feels Like
             if let feelsLike = weather.feelsLike {
                 Text("Feels Like \(feelsLike)")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(.footnote).weight(.medium))
                     .foregroundColor(theme.textColor.opacity(0.8))
             }
             
             // Condition
             Text(weather.condition)
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(.subheadline).weight(.medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundColor(theme.textColor.opacity(0.9))
@@ -426,7 +426,7 @@ struct MainInfoSection: View {
                     Text("H: \(high)")
                     Text("L: \(low)")
                 }
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(.footnote).weight(.medium))
                 .foregroundColor(theme.textColor.opacity(0.8))
                 .padding(.top, 2)
             }
@@ -456,7 +456,7 @@ struct DailyForecastView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("10-DAY OUTLOOK")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(.caption).weight(.bold))
                         .foregroundColor(theme.textColor.opacity(0.8))
                         .padding(.top, 4)
                         .id("top")
@@ -512,7 +512,7 @@ struct LocationPermissionView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "location.fill")
-                .font(.system(size: 36))
+                .font(.system(.title))
                 .foregroundColor(.white.opacity(0.8))
             
             Text("Location Needed")
@@ -558,7 +558,7 @@ struct ErrorView: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 32))
+                .font(.system(.title))
                 .foregroundColor(.white.opacity(0.6))
             Text("Error")
                 .font(.caption.weight(.semibold))
@@ -587,7 +587,7 @@ struct NoDataView: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "cloud")
-                .font(.system(size: 32))
+                .font(.system(.title))
                 .foregroundColor(.white.opacity(0.6))
             Text("No weather data")
                 .font(.caption.weight(.semibold))

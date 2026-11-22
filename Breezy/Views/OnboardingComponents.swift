@@ -97,7 +97,7 @@ struct WidgetMockupView: View {
                 .overlay(
                     VStack(spacing: 12) {
                         Image(systemName: "wind")
-                            .font(.system(size: 40))
+                            .font(.system(.largeTitle))
                             .foregroundColor(DesignSystem.skyBlue)
                         Text("Wind Gauge")
                             .font(.caption.bold())
@@ -181,11 +181,11 @@ struct TimeMachineMockupView: View {
                 // Comparison Card 1
                 VStack(spacing: 12) {
                     Text("JUL 12, 2021")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
                         .foregroundColor(.white.opacity(0.6))
                     
                     Image(systemName: "sun.max.fill")
-                        .font(.system(size: 30))
+                        .font(.system(.title))
                         .foregroundColor(.yellow)
                     
                     Text("24°")
@@ -202,11 +202,11 @@ struct TimeMachineMockupView: View {
                 // Comparison Card 2
                 VStack(spacing: 12) {
                     Text("JUL 12, 2024")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
                         .foregroundColor(.white.opacity(0.6))
                     
                     Image(systemName: "cloud.rain.fill")
-                        .font(.system(size: 30))
+                        .font(.system(.title))
                         .foregroundColor(DesignSystem.softBlue)
                     
                     Text("18°")

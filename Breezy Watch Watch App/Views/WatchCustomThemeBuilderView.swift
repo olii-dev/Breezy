@@ -39,7 +39,7 @@ struct WatchCustomThemeBuilderView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     Text("CUSTOM THEME")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(.caption).weight(.bold))
                         .foregroundColor(textColor.opacity(0.6))
                     
                     previewCard
@@ -55,7 +55,7 @@ struct WatchCustomThemeBuilderView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark")
                             Text("Apply Theme")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(.footnote).weight(.semibold))
                         }
                         .foregroundColor(textColor)
                         .frame(maxWidth: .infinity)
@@ -76,7 +76,7 @@ struct WatchCustomThemeBuilderView: View {
     private var previewCard: some View {
         VStack(spacing: 8) {
             Text("Preview")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(.caption).weight(.semibold))
                 .foregroundColor(textColor.opacity(0.6))
             
             ZStack {
@@ -94,14 +94,14 @@ struct WatchCustomThemeBuilderView: View {
                 
                 HStack(spacing: 10) {
                     Image(systemName: "sun.max.fill")
-                        .font(.system(size: 22))
+                        .font(.system(.title3))
                         .foregroundColor(textColor)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("22°")
-                            .font(.system(size: 20, weight: .thin))
+                            .font(.system(.title3).weight(.thin))
                             .foregroundColor(textColor)
                         Text("Sunny")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(.caption).weight(.medium))
                             .foregroundColor(textColor.opacity(0.8))
                     }
                 }
@@ -113,7 +113,7 @@ struct WatchCustomThemeBuilderView: View {
     private func colorSection(title: String, selection: Binding<Color>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(.caption).weight(.semibold))
                 .foregroundColor(textColor.opacity(0.7))
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
@@ -143,7 +143,7 @@ struct WatchCustomThemeBuilderView: View {
     private var textColorSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Text Color")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(.caption).weight(.semibold))
                 .foregroundColor(textColor.opacity(0.7))
             
             HStack(spacing: 12) {

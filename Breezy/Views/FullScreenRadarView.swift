@@ -132,7 +132,7 @@ struct FullScreenRadarView: View {
                     if showLightning, let distance = nearestStrikeDistance {
                         HStack(spacing: 5) {
                             Image(systemName: "bolt.fill")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(.caption).weight(.bold))
                                 .foregroundColor(.yellow)
                             Text("Nearest strike \(formattedStrikeDistance(distance))")
                                 .font(.caption.weight(.bold))
@@ -164,7 +164,7 @@ struct FullScreenRadarView: View {
                                     togglePlayback()
                                 } label: {
                                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                        .font(.system(size: 14, weight: .bold))
+                                        .font(.system(.footnote).weight(.bold))
                                         .foregroundColor(.white)
                                         .frame(width: 36, height: 36)
                                         .background(Color.white.opacity(0.18), in: Circle())
@@ -231,15 +231,15 @@ struct FullScreenRadarView: View {
 
                                     HStack {
                                         Text("-3h")
-                                            .font(.system(size: 9, weight: .medium))
+                                            .font(.system(.caption2).weight(.medium))
                                         Spacer()
                                         if let time = activeFrameTime {
                                             Text(time, style: .time)
-                                                .font(.system(size: 10, weight: .semibold))
+                                                .font(.system(.caption2).weight(.semibold))
                                         }
                                         Spacer()
                                         Text("+2h")
-                                            .font(.system(size: 9, weight: .medium))
+                                            .font(.system(.caption2).weight(.medium))
                                     }
                                     .foregroundColor(.white.opacity(0.75))
                                 }
@@ -267,7 +267,7 @@ struct FullScreenRadarView: View {
                                 }
                             } label: {
                                 Image(systemName: "location.fill")
-                                    .font(.system(size: 15, weight: .bold))
+                                    .font(.system(.subheadline).weight(.bold))
                                     .foregroundColor(.white)
                                     .frame(width: 44, height: 44)
                             }
@@ -310,7 +310,7 @@ struct FullScreenRadarView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(.subheadline).weight(.bold))
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
                 }
@@ -340,7 +340,7 @@ struct FullScreenRadarView: View {
                     }
                 } label: {
                     Image(systemName: "map.fill")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(.subheadline).weight(.semibold))
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
                 }
@@ -354,7 +354,7 @@ struct FullScreenRadarView: View {
                     showLayerMenu = true
                 } label: {
                     Image(systemName: "square.3.layers.3d.down.right")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(.subheadline).weight(.semibold))
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
                 }

@@ -35,13 +35,13 @@ struct RadarLegendView: View {
 
             HStack(spacing: 0) {
                 Text(gradient.first?.label ?? "")
-                    .font(.system(size: 8))
+                    .font(.system(.caption2))
                     .foregroundColor(.white.opacity(0.9))
 
                 Spacer()
 
                 Text(gradient.last?.label ?? "")
-                    .font(.system(size: 8))
+                    .font(.system(.caption2))
                     .foregroundColor(.white.opacity(0.9))
             }
             .frame(width: 92)

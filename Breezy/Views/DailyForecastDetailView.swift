@@ -456,7 +456,7 @@ struct DailyForecastDetailView: View {
                 .padding(.bottom, DesignSystem.spacingXS)
             } else {
                 Text(day.emoji)
-                    .font(.system(size: 80))
+                    .font(.system(.largeTitle))
                     .padding(.bottom, DesignSystem.spacingXS)
             }
 
@@ -741,7 +741,7 @@ struct DailyForecastDetailView: View {
                             if let rise = day.moonrise {
                                 HStack(spacing: 8) {
                                     Image(systemName: "arrow.up.circle.fill")
-                                        .font(.system(size: 16))
+                                        .font(.system(.subheadline))
                                         .foregroundColor(theme.textColor.opacity(0.6))
                                     VStack(alignment: .leading, spacing: 0) {
                                         Text("Moonrise").font(.caption2).opacity(0.7)
@@ -753,7 +753,7 @@ struct DailyForecastDetailView: View {
                             if let set = day.moonset {
                                 HStack(spacing: 8) {
                                     Image(systemName: "arrow.down.circle.fill")
-                                        .font(.system(size: 16))
+                                        .font(.system(.subheadline))
                                         .foregroundColor(theme.textColor.opacity(0.6))
                                     VStack(alignment: .leading, spacing: 0) {
                                         Text("Moonset").font(.caption2).opacity(0.7)
@@ -856,7 +856,7 @@ struct DailyForecastDetailView: View {
                 AxisValueLabel {
                     if let hour = value.as(Int.self), let match = hours.first(where: { $0.hourValue == hour }) {
                         Text(match.time)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(.caption).weight(.medium))
                             .foregroundColor(theme.textColor.opacity(0.72))
                     }
                 }
@@ -869,7 +869,7 @@ struct DailyForecastDetailView: View {
                 AxisValueLabel {
                     if let temperature = value.as(Double.self) {
                         Text(viewModel.formattedTemperature(temperature))
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(.caption).weight(.medium))
                             .foregroundColor(theme.textColor.opacity(0.72))
                     }
                 }
@@ -1054,9 +1054,9 @@ struct HourlyDetailCard: View {
             if let rain = hour.precipitationChance, rain > 0 {
                 HStack(spacing: 3) {
                     Image(systemName: "drop.fill")
-                        .font(.system(size: 9))
+                        .font(.system(.caption2))
                     Text("\(Int(rain * 100))%")
-                        .font(.system(size: 10))
+                        .font(.system(.caption2))
                 }
                 .foregroundColor(textColor.opacity(0.75))
             }
@@ -1064,9 +1064,9 @@ struct HourlyDetailCard: View {
             if let amount = hour.precipitationAmount, amount > 0.05 {
                 HStack(spacing: 3) {
                     Image(systemName: "umbrella.fill")
-                        .font(.system(size: 9))
+                        .font(.system(.caption2))
                     Text(viewModel.formattedPrecipitationAmount(amount))
-                        .font(.system(size: 10))
+                        .font(.system(.caption2))
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                 }
@@ -1077,9 +1077,9 @@ struct HourlyDetailCard: View {
             if let wind = hour.windSpeed {
                 HStack(spacing: 3) {
                     Image(systemName: "wind")
-                        .font(.system(size: 9))
+                        .font(.system(.caption2))
                     Text(wind)
-                        .font(.system(size: 10))
+                        .font(.system(.caption2))
                 }
                 .foregroundColor(textColor.opacity(0.7))
             }

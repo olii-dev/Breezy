@@ -23,11 +23,11 @@ struct IconGalleryView: View {
                     // Header
                     VStack(spacing: 8) {
                         Text("App Icons")
-                            .font(.system(size: 34, weight: .bold))
+                            .font(.system(.title).weight(.bold))
                             .foregroundColor(theme.textColor)
                         
                         Text("Customise your Breezy experience")
-                            .font(.system(size: 16))
+                            .font(.system(.subheadline))
                             .foregroundColor(theme.textColor.opacity(0.7))
                     }
                     .padding(.top, 20)
@@ -60,7 +60,7 @@ struct IconGalleryView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(.body).weight(.semibold))
                         .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor.opacity(0.7))
                 }
             }
@@ -108,7 +108,7 @@ struct IconCard: View {
                             .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
                     } else {
                         Image(systemName: icon.previewImage)
-                            .font(.system(size: 50))
+                            .font(.system(.largeTitle))
                             .foregroundColor(textColor)
                     }
                     
@@ -118,7 +118,7 @@ struct IconCard: View {
                             HStack {
                                 Spacer()
                                 Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 24))
+                                    .font(.system(.title2))
                                     .foregroundStyle(Color.blue, Color.white)
                                     .padding(12)
                             }
@@ -129,7 +129,7 @@ struct IconCard: View {
                 
                 // Icon name
                 Text(icon.displayName)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(.subheadline).weight(.semibold))
                     .foregroundColor(textColor)
             }
         }

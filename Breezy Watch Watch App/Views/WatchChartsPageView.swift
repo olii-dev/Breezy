@@ -27,7 +27,7 @@ struct WatchChartsPageView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     Text("CHARTS")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(.footnote).weight(.bold))
                         .foregroundColor(theme.textColor.opacity(0.78))
                         .padding(.top, 4)
                         .id("top")
@@ -115,11 +115,11 @@ struct WatchTemperatureChartView: View {
                 Image(systemName: "thermometer.medium")
                     .font(.caption.weight(.semibold))
                 Text("Temperature")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(.caption).weight(.semibold))
                 Spacer()
                 if let point = selectedPoint {
                     Text(String(format: "%.0f°", point.temp))
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(.caption).weight(.bold))
                         .foregroundColor(.orange)
                 }
             }
@@ -161,7 +161,7 @@ struct WatchTemperatureChartView: View {
                         AxisValueLabel {
                             if let index = value.as(Int.self), index < hourly.count {
                                 Text(hourly[index].time)
-                                    .font(.system(size: 9, weight: .medium))
+                                    .font(.system(.caption2).weight(.medium))
                                     .foregroundColor(textColor.opacity(0.58))
                             }
                         }
@@ -270,7 +270,7 @@ struct WatchUVGaugeView: View {
                 Image(systemName: "sun.max.fill")
                     .font(.caption2)
                 Text("UV Index")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(.caption).weight(.semibold))
                 Spacer()
             }
             .foregroundColor(textColor.opacity(0.7))
@@ -288,9 +288,9 @@ struct WatchUVGaugeView: View {
                 
                 VStack(spacing: 2) {
                     Text("\(uvIndex)")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(.title3).weight(.bold))
                     Text(category)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(.caption2).weight(.medium))
                 }
                 .foregroundColor(textColor)
             }
@@ -314,7 +314,7 @@ struct WatchWindDetailView: View {
                 Image(systemName: "wind")
                     .font(.caption2)
                 Text("Wind")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(.caption).weight(.semibold))
                 Spacer()
             }
             .foregroundColor(textColor.opacity(0.7))
@@ -322,20 +322,20 @@ struct WatchWindDetailView: View {
             HStack(spacing: 16) {
                 VStack(spacing: 4) {
                     Text(windSpeed ?? "--")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(.body).weight(.semibold))
                         .foregroundColor(textColor)
                     Text("Speed")
-                        .font(.system(size: 9))
+                        .font(.system(.caption2))
                         .foregroundColor(textColor.opacity(0.5))
                 }
                 
                 if let dir = windDirection {
                     VStack(spacing: 4) {
                         Text(dir)
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.system(.body).weight(.semibold))
                             .foregroundColor(textColor)
                         Text("Direction")
-                            .font(.system(size: 9))
+                            .font(.system(.caption2))
                             .foregroundColor(textColor.opacity(0.5))
                     }
                 }
@@ -360,7 +360,7 @@ struct WatchHumidityBarView: View {
                 Image(systemName: "humidity.fill")
                     .font(.caption2)
                 Text("Conditions")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(.caption).weight(.semibold))
                 Spacer()
             }
             .foregroundColor(textColor.opacity(0.7))
@@ -368,11 +368,11 @@ struct WatchHumidityBarView: View {
             if let humidity = humidity {
                 HStack {
                     Text("Humidity")
-                        .font(.system(size: 11))
+                        .font(.system(.caption))
                         .foregroundColor(textColor.opacity(0.7))
                     Spacer()
                     Text("\(humidity)%")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(.footnote).weight(.semibold))
                         .foregroundColor(textColor)
                 }
                 
@@ -392,11 +392,11 @@ struct WatchHumidityBarView: View {
             if let cloud = cloudCover {
                 HStack {
                     Text("Cloud Cover")
-                        .font(.system(size: 11))
+                        .font(.system(.caption))
                         .foregroundColor(textColor.opacity(0.7))
                     Spacer()
                     Text(cloud)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(.footnote).weight(.semibold))
                         .foregroundColor(textColor)
                 }
             }

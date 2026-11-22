@@ -84,7 +84,7 @@ struct StargazingCardView: View {
                     .rotationEffect(.degrees(-90))
                 VStack(spacing: 0) {
                     Text(AuroraKit.formatted(kp))
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .font(.system(.title2, design: .rounded).weight(.bold))
                         .monospacedDigit()
                     Text("Kp")
                         .font(.caption2.weight(.semibold))

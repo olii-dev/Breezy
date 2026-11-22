@@ -24,7 +24,7 @@ struct MetricPill: View {
                     .font(.caption2)
             }
             Text(value)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(.caption).weight(.semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(textColor.opacity(0.9))
@@ -56,7 +56,7 @@ struct WatchDailyForecastRow: View {
         HStack(alignment: .center, spacing: 8) {
             // Day Name
             Text(day.dayName)
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(.subheadline).weight(.medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundColor(textColor.opacity(0.8))
@@ -67,10 +67,10 @@ struct WatchDailyForecastRow: View {
                 if isMinimalist {
                     Image(systemName: day.iconName)
                         .symbolRenderingMode(.multicolor)
-                        .font(.system(size: 20)) // Slightly larger
+                        .font(.system(.title3)) // Slightly larger
                 } else {
                     Text(day.emoji)
-                        .font(.system(size: 20))
+                        .font(.system(.title3))
                 }
             }
             .frame(width: 24)
@@ -101,7 +101,7 @@ struct WatchDailyForecastRow: View {
             // High Temp (low temp lives in the bar geometry — carried into
             // the accessibility label below)
             Text(day.highTemp)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(.subheadline).weight(.semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundColor(textColor)
@@ -165,7 +165,7 @@ struct HourlyForecastHorizontalView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("HOURLY")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(.caption).weight(.bold))
                 .foregroundColor(textColor.opacity(0.6))
                 .padding(.horizontal)
 
@@ -218,7 +218,7 @@ struct HourlyForecastHorizontalView: View {
                         Text("· \(wind)")
                     }
                 }
-                .font(.system(size: 10, design: .rounded))
+                .font(.system(.caption2, design: .rounded))
                 .foregroundColor(textColor.opacity(0.7))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -252,7 +252,7 @@ struct HourlyCard: View {
     var body: some View {
         VStack(spacing: 6) {
             Text(hour.time)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(.caption2).weight(.medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundColor(.white.opacity(0.7))
@@ -260,14 +260,14 @@ struct HourlyCard: View {
             if isMinimalist {
                 Image(systemName: hour.iconName)
                     .symbolRenderingMode(.multicolor)
-                    .font(.system(size: 16))
+                    .font(.system(.subheadline))
             } else {
                 Text(hour.emoji)
-                    .font(.system(size: 16))
+                    .font(.system(.subheadline))
             }
 
             Text(hour.temperature)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(.footnote).weight(.semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -432,20 +432,20 @@ struct SunScheduleView: View {
             if isMinimalist {
                 Image(systemName: systemIcon)
                     .symbolRenderingMode(.multicolor)
-                    .font(.system(size: 13))
+                    .font(.system(.footnote))
             } else {
                 Text(emoji)
-                    .font(.system(size: 13))
+                    .font(.system(.footnote))
             }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title.uppercased())
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(.caption2).weight(.bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                     .foregroundColor(textColor.opacity(0.55))
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(.footnote).weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .foregroundColor(textColor)
@@ -476,21 +476,21 @@ struct DayDetailView: View {
             Section {
                 VStack(alignment: .center, spacing: 8) {
                     Text(day.dayName)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(.body, design: .rounded).weight(.bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     
                     if viewModel.useMinimalistIcons {
                         Image(systemName: day.iconName)
                             .symbolRenderingMode(.multicolor)
-                            .font(.system(size: 36))
+                            .font(.system(.title))
                     } else {
                         Text(day.emoji)
-                            .font(.system(size: 36))
+                            .font(.system(.title))
                     }
                     
                     Text(day.condition)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -504,18 +504,18 @@ struct DayDetailView: View {
                     Spacer()
                     VStack(alignment: .center, spacing: 4) {
                         Text("HIGH")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(.caption2).weight(.bold))
                             .foregroundColor(theme.textColor.opacity(0.6))
                         Text(day.highTemp)
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(.title3).weight(.semibold))
                     }
                     Spacer()
                     VStack(alignment: .center, spacing: 4) {
                         Text("LOW")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(.caption2).weight(.bold))
                             .foregroundColor(theme.textColor.opacity(0.6))
                         Text(day.lowTemp)
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(.title3).weight(.semibold))
                     }
                     Spacer()
                 }
@@ -566,21 +566,21 @@ struct DayDetailView: View {
                             ForEach(day.hourlyForecast) { hour in
                                 VStack(spacing: 4) {
                                     Text(hour.time)
-                                        .font(.system(size: 9, weight: .medium))
+                                        .font(.system(.caption2).weight(.medium))
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.7)
                                     
                                     if viewModel.useMinimalistIcons {
                                         Image(systemName: hour.iconName)
                                             .symbolRenderingMode(.multicolor)
-                                            .font(.system(size: 14))
+                                            .font(.system(.footnote))
                                     } else {
                                         Text(hour.emoji)
-                                            .font(.system(size: 14))
+                                            .font(.system(.footnote))
                                     }
                                     
                                     Text(hour.temperature)
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.system(.caption).weight(.semibold))
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.8)
                                 }
@@ -629,10 +629,10 @@ struct DayDetailView: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(phase)
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .font(.system(.footnote, design: .rounded).weight(.semibold))
                             if let illumination = day.moonIllumination {
                                 Text("\(Int((illumination * 100).rounded()))% illuminated")
-                                    .font(.system(size: 11, design: .rounded))
+                                    .font(.system(.caption, design: .rounded))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -697,23 +697,23 @@ struct DetailRow: View {
             
             if isSystemImage {
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(.footnote).weight(.semibold))
                     .frame(width: 18)
             } else {
                 Text(icon)
-                    .font(.system(size: 13))
+                    .font(.system(.footnote))
                     .frame(width: 18)
             }
             
             VStack(alignment: .center, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(.caption2).weight(.medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .opacity(0.7)
                 
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(.footnote).weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .allowsTightening(true)

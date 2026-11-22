@@ -64,7 +64,7 @@ struct LocationPickerView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(.system(.body).weight(.semibold))
                             .foregroundStyle(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                     }
                 }
@@ -139,7 +139,7 @@ struct LocationPickerView: View {
                         .fill(Color.blue.opacity(0.8))
                         .frame(width: 36, height: 36)
                     Image(systemName: "location.fill")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(.subheadline).weight(.semibold))
                         .foregroundColor(viewModel.currentTheme(colorScheme: colorScheme).textColor)
                 }
                 

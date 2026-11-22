@@ -152,7 +152,7 @@ struct CustomThemeBuilderView: View {
                     .foregroundColor(textColor.opacity(0.88))
 
                 Text("72°")
-                    .font(.system(size: 56, weight: .thin))
+                    .font(.system(.largeTitle).weight(.thin))
                     .foregroundColor(textColor)
 
                 HStack(spacing: 8) {
@@ -300,7 +300,7 @@ struct CustomThemeBuilderView: View {
                 .foregroundColor(textColor.opacity(0.65))
 
             Image(systemName: symbol)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(.body).weight(.medium))
                 .foregroundColor(textColor)
 
             Text(value)

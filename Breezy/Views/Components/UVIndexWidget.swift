@@ -87,7 +87,7 @@ struct UVIndexWidget: View {
                     if isMinimalStyle {
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text("\(uvIndex)")
-                                .font(.system(size: 34, weight: .bold))
+                                .font(.system(.title).weight(.bold))
                                 .foregroundColor(theme.textColor)
 
                             if showsCategory {

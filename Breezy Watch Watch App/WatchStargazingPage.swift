@@ -180,7 +180,7 @@ struct StargazingPageView: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(AuroraKitLite.formatted(kp))
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .font(.system(.title, design: .rounded).weight(.bold))
                     .monospacedDigit()
                     .foregroundStyle(snapshot.verdict == "Aurora possible" ? Color.purple : theme.textColor)
                 Text("Kp")

@@ -108,7 +108,7 @@ struct TripLocationSearchSheet: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(.system(.body).weight(.semibold))
                             .foregroundStyle(theme.textColor.opacity(0.7))
                     }
                 }

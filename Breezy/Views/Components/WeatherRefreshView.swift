@@ -46,7 +46,7 @@ struct WeatherRefreshView: View {
             if isRefreshing {
                 HStack(spacing: 12) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(.body).weight(.semibold))
                         .rotationEffect(.degrees(isAnimating ? 360 : 0))
                         .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: isAnimating)
                         .onAppear { isAnimating = true }

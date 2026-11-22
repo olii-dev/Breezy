@@ -60,7 +60,7 @@ struct TimeMachineView: View {
                             dismiss()
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 17, weight: .semibold))
+                                .font(.system(.body).weight(.semibold))
                                 .foregroundStyle(theme.textColor.opacity(0.7))
                         }
                         .accessibilityLabel("Close")
@@ -173,7 +173,7 @@ struct TimeMachineView: View {
     private func historicalErrorView(_ error: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "cloud.slash")
-                .font(.system(size: 40))
+                .font(.system(.largeTitle))
                 .foregroundStyle(theme.textColor.opacity(0.5))
 
             Text("No Data Available")
@@ -210,7 +210,7 @@ struct TimeMachineView: View {
     private var historicalEmptyStateView: some View {
         VStack(spacing: 16) {
             Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 48))
+                .font(.system(.largeTitle))
                 .foregroundStyle(theme.textColor.opacity(0.3))
 
             Text("Pick a date to travel back in time")
@@ -334,15 +334,15 @@ struct TimeMachineView: View {
                         HStack(alignment: .center, spacing: 16) {
                             if viewModel.useMinimalistIcons {
                                 Image(systemName: WeatherIconHelper.minimalistIcon(for: history.condition))
-                                    .font(.system(size: 54))
+                                    .font(.system(.largeTitle))
                                     .foregroundStyle(theme.textColor)
                             } else {
                                 Text(history.emoji)
-                                    .font(.system(size: 54))
+                                    .font(.system(.largeTitle))
                             }
                             
                             Text(history.temperature)
-                                .font(.system(size: 64, weight: .thin))
+                                .font(.system(.largeTitle).weight(.thin))
                                 .foregroundStyle(theme.textColor)
                         }
                         
@@ -541,7 +541,7 @@ struct TimeMachineView: View {
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "calendar.badge.clock")
-                        .font(.system(size: 56))
+                        .font(.system(.largeTitle))
                         .foregroundStyle(theme.textColor.opacity(0.3))
                     
                     Text("Select two dates to compare")
@@ -883,15 +883,15 @@ struct EnhancedComparisonCard: View {
             
             if useIcon {
                 Image(systemName: WeatherIconHelper.minimalistIcon(for: weather.condition))
-                    .font(.system(size: 44))
+                    .font(.system(.largeTitle))
                     .foregroundStyle(theme.textColor)
             } else {
                 Text(weather.emoji)
-                    .font(.system(size: 44))
+                    .font(.system(.largeTitle))
             }
             
             Text(weather.temperature)
-                .font(.system(size: 42, weight: .regular))
+                .font(.system(.largeTitle))
                 .foregroundStyle(theme.textColor)
             
             Text(weather.condition)

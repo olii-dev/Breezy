@@ -128,7 +128,7 @@ struct MoonPhaseView2: View {
             
             if showsCaptions {
                 Text("\(Int(phase.illumination * 100))%")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(.footnote).weight(.bold))
                     .foregroundColor(color)
                 
                 Text(phase.phase)

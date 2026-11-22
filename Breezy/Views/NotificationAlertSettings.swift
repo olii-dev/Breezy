@@ -370,7 +370,7 @@ struct NotificationContentEditor: View {
                     .foregroundColor(theme.textColor)
                 Spacer()
                 Image(systemName: preference[keyPath: keyPath] ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(.body).weight(.semibold))
                     .foregroundColor(preference[keyPath: keyPath] ? DesignSystem.skyBlue : theme.textColor.opacity(0.35))
             }
             .padding(.vertical, 4)

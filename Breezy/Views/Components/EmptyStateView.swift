@@ -37,7 +37,7 @@ struct EmptyStateView: View {
                     .blur(radius: 30)
                 
                 iconView
-                    .font(.system(size: 60))
+                    .font(.system(.largeTitle))
                     .foregroundStyle(iconGradient)
                     .symbolEffect(.pulse, isActive: state == .loading)
                     .offset(y: state == .loading ? 0 : 4)

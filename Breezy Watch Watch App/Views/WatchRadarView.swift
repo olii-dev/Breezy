@@ -123,7 +123,7 @@ struct WatchRadarView: View {
         }
         .navigationTitle {
             Text("Radar")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(.caption, design: .rounded).weight(.semibold))
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -134,7 +134,7 @@ struct WatchRadarView: View {
                         Task { await loadRadar() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(.footnote).weight(.medium))
                             .foregroundColor(theme.textColor)
                     }
                     .accessibilityLabel("Refresh radar")
@@ -144,7 +144,7 @@ struct WatchRadarView: View {
                         showLayerPicker = true
                     } label: {
                         Image(systemName: "square.stack.3d.up")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(.footnote).weight(.medium))
                             .foregroundColor(theme.textColor)
                     }
                 }
@@ -202,11 +202,11 @@ struct WatchRadarView: View {
     private func headerRow(theme: WatchWeatherTheme) -> some View {
         HStack(spacing: 6) {
             Image(systemName: selectedLayer.iconName)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(.caption).weight(.semibold))
                 .foregroundColor(theme.textColor.opacity(0.85))
 
             Text(viewModel.weather?.city ?? "Radar")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundColor(theme.textColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -218,20 +218,20 @@ struct WatchRadarView: View {
                     // Future frames must never masquerade as observed.
                     if frame.isNowcast {
                         Text("FCST")
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .font(.system(.caption2, design: .rounded).weight(.bold))
                             .foregroundColor(.cyan)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Color.cyan.opacity(0.25), in: Capsule())
                     }
                     Text(frame.time, style: .time)
-                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .font(.system(.caption2, design: .rounded).weight(.medium))
                         .foregroundColor(theme.textColor.opacity(0.6))
                     if !frame.isNowcast {
                         let age = Int(Date().timeIntervalSince(frame.time) / 60)
                         if age >= 1 {
                             Text("\(min(age, 99))m ago")
-                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .font(.system(.caption2, design: .rounded).weight(.medium))
                                 .foregroundColor(age > 20 ? .orange : theme.textColor.opacity(0.45))
                         }
                     }
@@ -255,23 +255,23 @@ struct WatchRadarView: View {
                     ProgressView()
                         .tint(theme.textColor)
                     Text("Loading radar")
-                        .font(.system(size: 9, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundColor(theme.textColor.opacity(0.6))
                 }
             } else if let errorMessage {
                 VStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 16))
+                        .font(.system(.subheadline))
                         .foregroundColor(.yellow)
                     Text(errorMessage)
-                        .font(.system(size: 9, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundColor(theme.textColor.opacity(0.7))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 8)
             } else {
                 Image(systemName: selectedLayer.iconName)
-                    .font(.system(size: 30))
+                    .font(.system(.title))
                     .foregroundColor(theme.textColor.opacity(0.3))
             }
 
@@ -293,7 +293,7 @@ struct WatchRadarView: View {
                 zoomIndex = (zoomIndex + 1) % Self.zoomLevels.count
             } label: {
                 Label("Zoom \(Self.zoomLevels[zoomIndex].label)", systemImage: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.system(.caption2, design: .rounded).weight(.semibold))
                     .foregroundColor(theme.textColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
@@ -307,7 +307,7 @@ struct WatchRadarView: View {
                     togglePlayback()
                 } label: {
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(.caption).weight(.bold))
                         .foregroundColor(theme.textColor)
                         .frame(width: 28, height: 28)
                         .background(.black.opacity(0.45), in: Circle())
@@ -611,10 +611,10 @@ struct WatchRadarLegendBar: View {
 
             HStack {
                 Text(gradient.first?.label ?? "")
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .font(.system(.caption2, design: .rounded).weight(.medium))
                 Spacer()
                 Text(gradient.last?.label ?? "")
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .font(.system(.caption2, design: .rounded).weight(.medium))
             }
             .foregroundColor(textColor.opacity(0.7))
         }
@@ -637,7 +637,7 @@ struct WatchRadarSettingsSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 Text("RADAR OPTIONS")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(.caption2, design: .rounded).weight(.bold))
                     .foregroundColor(theme.textColor.opacity(0.6))
 
                 VStack(spacing: 4) {
@@ -647,19 +647,19 @@ struct WatchRadarSettingsSheet: View {
                         } label: {
                             HStack {
                                 Image(systemName: layer.iconName)
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.system(.caption).weight(.medium))
                                     .foregroundColor(theme.textColor)
                                     .frame(width: 20)
 
                                 Text(layer.displayName)
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .font(.system(.caption, design: .rounded).weight(.medium))
                                     .foregroundColor(theme.textColor)
 
                                 Spacer()
 
                                 if selectedLayerRaw == layer.rawValue {
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .bold))
+                                        .font(.system(.caption).weight(.bold))
                                         .foregroundColor(theme.textColor)
                                 }
                             }
@@ -675,21 +675,21 @@ struct WatchRadarSettingsSheet: View {
 
                 Toggle(isOn: $showBaseMap) {
                     Label("Base Map", systemImage: "map.fill")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded).weight(.medium))
                         .foregroundColor(theme.textColor)
                 }
                 .tint(theme.textColor)
 
                 Toggle(isOn: $showLegend) {
                     Label("Legend", systemImage: "paintpalette")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded).weight(.medium))
                         .foregroundColor(theme.textColor)
                 }
                 .tint(theme.textColor)
 
                 Toggle(isOn: $animationEnabled) {
                     Label("Animation", systemImage: "play.circle.fill")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(.caption, design: .rounded).weight(.medium))
                         .foregroundColor(theme.textColor)
                 }
                 .tint(theme.textColor)
@@ -698,7 +698,7 @@ struct WatchRadarSettingsSheet: View {
                     Divider().background(theme.textColor.opacity(0.15))
 
                     Text("Precipitation source is synced from your iPhone settings.")
-                        .font(.system(size: 9, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundColor(theme.textColor.opacity(0.5))
                 }
             }

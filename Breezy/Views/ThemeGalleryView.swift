@@ -23,7 +23,7 @@ struct ThemeGalleryView: View {
                     // Header
                     VStack(spacing: 8) {
                         Text("Themes")
-                            .font(.system(size: 34, weight: .bold))
+                            .font(.system(.title).weight(.bold))
                             .foregroundColor(theme.textColor)
                         
                         Text("Choose a style or create your own")

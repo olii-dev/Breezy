@@ -93,7 +93,7 @@ struct MinutePrecipitationChartView: View {
             AxisMarks(values: .stride(by: displayedMinuteData.count > 30 ? 15 : 10)) { _ in
                 AxisValueLabel {
                     Text("m")
-                        .font(.system(size: 10))
+                        .font(.system(.caption2))
                         .foregroundColor(textColor.opacity(0.5))
                 }
             }

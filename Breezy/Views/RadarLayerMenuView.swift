@@ -30,7 +30,7 @@ struct RadarLayerMenuView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(.body).weight(.semibold))
                         .foregroundColor(.secondary)
                 }
                 .accessibilityLabel("Close")

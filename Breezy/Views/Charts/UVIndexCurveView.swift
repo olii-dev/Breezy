@@ -237,7 +237,7 @@ struct UVIndexCurveView: View {
                     AxisValueLabel {
                         if let index = value.as(Int.self), chartHours.indices.contains(index) {
                             Text(formatAxisHour(chartHours[index].hourValue))
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(.caption).weight(.medium))
                         }
                     }
                 }
