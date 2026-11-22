@@ -25,7 +25,10 @@ struct TripDrivingView: View {
             arrivalCard
             progressCard
             upcomingCard
-            endButton
+            HStack(spacing: 12) {
+                pauseResumeButton
+                endButton
+            }
         }
         .onReceive(snapshotTimer) { _ in
             snapshot = TripStore.goNowSnapshot
@@ -192,6 +195,29 @@ struct TripDrivingView: View {
         }
         .padding()
         .background(cardBackground)
+    }
+
+    private var pauseResumeButton: some View {
+        Button {
+            HapticsManager.shared.impact(style: .medium)
+            if TripLiveActivityManager.shared.isPaused {
+                TripLiveActivityManager.shared.resume()
+            } else {
+                TripLiveActivityManager.shared.pause()
+            }
+        } label: {
+            HStack {
+                Image(systemName: TripLiveActivityManager.shared.isPaused ? "play.circle.fill" : "pause.circle.fill")
+                Text(TripLiveActivityManager.shared.isPaused ? "Resume" : "Pause")
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.radiusM)
+                    .fill(.orange.opacity(0.2))
+            )
+            .foregroundStyle(.orange)
+        }
     }
 
     private var endButton: some View {

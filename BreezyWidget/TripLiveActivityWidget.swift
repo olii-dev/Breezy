@@ -9,6 +9,7 @@
 import WidgetKit
 import SwiftUI
 import ActivityKit
+import AppIntents
 
 struct TripLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
@@ -22,15 +23,24 @@ struct TripLiveActivityWidget: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.arrival), countsDown: true)
-                            .font(.title3.weight(.bold))
-                            .monospacedDigit()
-                            .foregroundStyle(accent(for: context.state))
-                            .frame(maxWidth: 72, alignment: .leading)
-                            .minimumScaleFactor(0.6)
-                        Text("until arrival")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        if context.state.isPaused == true {
+                            Label("Paused", systemImage: "pause.circle.fill")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(.orange)
+                            Text("tracking off")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.arrival), countsDown: true)
+                                .font(.title3.weight(.bold))
+                                .monospacedDigit()
+                                .foregroundStyle(accent(for: context.state))
+                                .frame(maxWidth: 72, alignment: .leading)
+                                .minimumScaleFactor(0.6)
+                            Text("until arrival")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -58,11 +68,13 @@ struct TripLiveActivityWidget: Widget {
                             destinationName: context.attributes.destinationName,
                             distanceRemainingText: context.state.distanceRemainingText
                         )
+
+                        controlButtons(state: context.state)
                     }
                 }
             } compactLeading: {
-                Image(systemName: heroSymbol(for: context.state))
-                    .foregroundStyle(accent(for: context.state))
+                Image(systemName: context.state.isPaused == true ? "pause.circle.fill" : heroSymbol(for: context.state))
+                    .foregroundStyle(context.state.isPaused == true ? .orange : accent(for: context.state))
             } compactTrailing: {
                 Text("\(context.state.minutesToArrival)m")
                     .font(.caption.weight(.bold))
@@ -87,13 +99,22 @@ struct TripLiveActivityWidget: Widget {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.arrival), countsDown: true)
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(accent(for: context.state))
-                    Text("arrive \(context.state.etaText)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if context.state.isPaused == true {
+                        Label("Paused", systemImage: "pause.circle.fill")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.orange)
+                        Text("tap Resume")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.arrival), countsDown: true)
+                            .font(.title3.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundStyle(accent(for: context.state))
+                        Text("arrive \(context.state.etaText)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -103,6 +124,41 @@ struct TripLiveActivityWidget: Widget {
                 destinationName: context.attributes.destinationName,
                 distanceRemainingText: context.state.distanceRemainingText
             )
+
+            controlButtons(state: context.state)
+        }
+    }
+
+    /// Interactive controls — tappable right on the Lock Screen / Island /
+    /// CarPlay dashboard.
+    @ViewBuilder
+    private func controlButtons(state: TripActivityAttributes.ContentState) -> some View {
+        HStack(spacing: 10) {
+            if state.isPaused == true {
+                Button(intent: ResumeTripIntent()) {
+                    Label("Resume", systemImage: "play.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.green)
+            } else {
+                Button(intent: PauseTripIntent()) {
+                    Label("Pause", systemImage: "pause.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+            }
+
+            Button(intent: EndTripIntent()) {
+                Label("End", systemImage: "stop.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
         }
     }
 

@@ -18,6 +18,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         MainActor.assumeIsolated {
+            // Trip LA buttons run in the app process — hand the Shared bus the
+            // real manager calls.
+            TripControlBus.pause = { TripLiveActivityManager.shared.pause() }
+            TripControlBus.resume = { TripLiveActivityManager.shared.resume() }
+            TripControlBus.end = { TripLiveActivityManager.shared.end() }
             BackgroundRefreshScheduler.register()
             // Aim a wake immediately — apps force-quit from the switcher never
             // reach scenePhase .background, so launch is the only reliable

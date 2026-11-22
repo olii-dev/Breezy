@@ -28,10 +28,36 @@ final class TripLiveActivityManager {
     private var lastLocation: CLLocation?
     private var consecutiveOffRouteFixes = 0
     private var lastWeatherRefreshAt: Date?
+    /// Paused trips freeze GPS + ETA but keep the Live Activity on screen.
+    private(set) var isPaused: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.pausedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.pausedKey) }
+    }
+    private static let pausedKey = "Breezy.TripIsPaused"
 
     private init() {}
 
     var isActive: Bool { activity != nil }
+
+    // MARK: - Pause / resume
+
+    /// Freeze tracking: GPS stops, the activity stays with a Paused state.
+    func pause() {
+        guard route != nil, !isPaused else { return }
+        TripGoNowTracker.shared.stop()
+        isPaused = true
+        pushSyntheticState(offRoute: false)
+    }
+
+    /// Continue the drive: tracking re-arms from the same route.
+    func resume() {
+        guard let route else { return }
+        isPaused = false
+        TripGoNowTracker.shared.start(route: route) { [weak self] location in
+            self?.handleLocation(location)
+        }
+        pushSyntheticState(offRoute: false)
+    }
 
     @discardableResult
     func start(trip: Trip, route: TripRouteOption, destinationName: String) -> TripLiveActivityStartResult {
@@ -40,6 +66,7 @@ final class TripLiveActivityManager {
         self.route = route
         self.destinationName = destinationName
         self.originName = trip.origin.name
+        self.isPaused = false
         self.lastProgress = 0
         self.routeAverageSpeed = max(route.distanceMeters / max(route.expectedTravelTime, 1), 3)
         self.lastLocation = nil
@@ -120,12 +147,15 @@ final class TripLiveActivityManager {
         self.lastLocation = nil
         self.consecutiveOffRouteFixes = 0
         self.lastWeatherRefreshAt = nil
-        TripGoNowTracker.shared.start(route: route) { [weak self] location in
-            self?.handleLocation(location)
+        if !isPaused {
+            TripGoNowTracker.shared.start(route: route) { [weak self] location in
+                self?.handleLocation(location)
+            }
         }
     }
 
     func end() {
+        isPaused = false
         TripGoNowTracker.shared.stop()
         route = nil
         lastProgress = 0
@@ -152,7 +182,7 @@ final class TripLiveActivityManager {
     private func handleLocation(_ location: CLLocation) {
         // Tracking continues even when the Live Activity handle is absent
         // (e.g. LAs disabled mid-trip) so the snapshot and widget stay live.
-        guard let route else { return }
+        guard let route, !isPaused else { return }
         let snap = TripGoNowTracker.progress(along: route, location: location)
 
         // Far off-route (detour, tunnel exit, GPS drift): don't freeze silently
@@ -189,13 +219,19 @@ final class TripLiveActivityManager {
 
     /// Re-push the current state (used when only flags like off-route change).
     private func pushCurrentState() {
+        pushSyntheticState(offRoute: true)
+    }
+
+    /// Rebuild + push state at the last known progress. `offRoute` forces the
+    /// finding-the-route flag; pause/resume pass false.
+    private func pushSyntheticState(offRoute: Bool) {
         guard let route else { return }
         let remaining = max(0, route.distanceMeters * (1 - lastProgress))
         let snap = TripRouteGeometry.Snap(
             distanceAlong: route.distanceMeters - remaining,
             remaining: remaining,
             progress: lastProgress,
-            crossTrackMeters: 1_200, // forces the off-route flag in makeState
+            crossTrackMeters: offRoute ? 1_200 : 0,
             coordinate: lastLocation?.coordinate ?? route.coordinates.first?.coordinate
                 ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
         )
@@ -268,7 +304,8 @@ final class TripLiveActivityManager {
             weatherAheadMinutes: hero?.minutes,
             weatherAheadSymbolName: hero?.symbolName,
             isOffline: offline,
-            isOffRoute: isOffRoute
+            isOffRoute: isOffRoute,
+            isPaused: isPaused
         )
     }
 

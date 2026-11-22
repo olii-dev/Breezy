@@ -31,6 +31,8 @@ struct TripActivityAttributes: ActivityAttributes {
         var isOffline: Bool
         /// GPS can't snap onto the route right now — show "finding the route".
         var isOffRoute: Bool
+        /// Trip paused by the user: tracking frozen, activity stays.
+        var isPaused: Bool? = nil
     }
 
     var originName: String
