@@ -248,7 +248,7 @@ struct ContentView: View {
                     }
 
                     if newPhase == .background {
-                        BackgroundRefreshScheduler.schedule()
+                        BackgroundRefreshScheduler.schedule(weather: viewModel.weather)
                     }
                 }
                 .sheet(isPresented: $showingSettings) {

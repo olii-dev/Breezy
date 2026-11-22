@@ -41,10 +41,10 @@ enum BackgroundRefreshScheduler {
     /// Call when the app backgrounds — aims the next wake at the soonest
     /// interesting weather moment (rain onset, UV crossing, forecast slot),
     /// or the default cadence otherwise.
-    static func schedule() {
+    static func schedule(weather: WeatherInfo? = nil) {
         #if !targetEnvironment(simulator)
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
-        request.earliestBeginDate = Date().addingTimeInterval(secondsUntilNextWake())
+        request.earliestBeginDate = Date().addingTimeInterval(secondsUntilNextWake(weather: weather))
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
@@ -100,6 +100,24 @@ enum BackgroundRefreshScheduler {
             candidates.append(45 * 60)
         }
 
+        // Wind crossing its alert threshold — the wind Live Activity's start
+        // moment. Hourly strings and the threshold share the display unit, so
+        // a leading-number compare is unit-correct.
+        if let weather {
+            let windThreshold = Double(UserDefaults.standard.notificationSettings.windSpeedThreshold)
+            if let windCrossing = (weather.allHourlyData ?? [])
+                .compactMap({ hour -> (date: Date, speed: Double)? in
+                    guard let date = hour.sourceDate, date > now else { return nil }
+                    let value = Double(hour.windSpeed?.prefix { $0.isNumber || $0 == "." } ?? "")
+                    guard let value else { return nil }
+                    return (date, value)
+                })
+                .sorted(by: { $0.date < $1.date })
+                .first(where: { $0.speed >= windThreshold }) {
+                candidates.append(max(windCrossing.date.timeIntervalSince(now), minimumInterval))
+            }
+        }
+
         // Next daily-forecast slot (daily summary Live Activity + freshness).
         let settings = UserDefaults.standard.notificationSettings
         let calendar = Calendar.current
@@ -145,6 +163,12 @@ enum BackgroundRefreshScheduler {
             LiveActivityHub.updateAll(with: weather)
             AuroraAlertManager.shared.update(with: weather)
             WidgetCenter.shared.reloadAllTimelines()
+
+            // Re-aim the next wake with the FRESH forecast: the schedule we
+            // made before fetching aimed at stale targets, so a newly
+            // appeared rain onset would have been missed — the classic
+            // "activity only started once I opened the app".
+            schedule(weather: weather)
 
             guard notificationManager.authorizationStatus == .authorized else { return }
             notificationManager.runAllAlertChecks(weather: weather, temperatureUnit: Self.temperatureUnit())
