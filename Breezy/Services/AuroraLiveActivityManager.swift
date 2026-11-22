@@ -17,6 +17,9 @@ final class AuroraLiveActivityManager {
 
     private var activity: Activity<AuroraActivityAttributes>?
 
+    /// Staleness of the held activity, for background-wake targeting.
+    var activeStaleDate: Date? { activity?.content.staleDate }
+
     private init() {}
 
     func restore() {

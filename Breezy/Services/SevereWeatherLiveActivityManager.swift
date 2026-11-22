@@ -26,6 +26,8 @@ final class SevereWeatherLiveActivityManager {
     private init() {}
 
     var isActive: Bool { activity != nil }
+    /// Staleness of the held activity, for background-wake targeting.
+    var activeStaleDate: Date? { activity?.content.staleDate }
 
     /// Re-adopt a still-running activity after a process restart so updates
     /// and end() work again (activities are system-owned and outlive the app).
@@ -108,7 +110,8 @@ final class SevereWeatherLiveActivityManager {
             let newState = SevereWeatherActivityAttributes.ContentState(
                 headline: assessment.headline,
                 detail: assessment.detail,
-                symbolName: assessment.symbol
+                symbolName: assessment.symbol,
+                expiresAt: (startedAt ?? Date()).addingTimeInterval(maximumDuration)
             )
             Task {
                 await activity.update(.init(state: newState, staleDate: staleDate))
@@ -121,7 +124,8 @@ final class SevereWeatherLiveActivityManager {
             let state = SevereWeatherActivityAttributes.ContentState(
                 headline: assessment.headline,
                 detail: assessment.detail,
-                symbolName: assessment.symbol
+                symbolName: assessment.symbol,
+                expiresAt: (startedAt ?? Date()).addingTimeInterval(maximumDuration)
             )
             do {
                 activity = try Activity.request(

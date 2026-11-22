@@ -60,10 +60,18 @@ struct UVLiveActivityWidget: Widget {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        if on("drops"), let drops = context.state.dropsBelowText {
-                            Text(drops)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        if on("drops") {
+                            if let dropDate = context.state.dropsBelowDate {
+                                // System-rendered countdown — ticks without the app.
+                                Text(timerInterval: Date()...max(Date().addingTimeInterval(60), dropDate), countsDown: true)
+                                    .font(.caption.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            } else if let drops = context.state.dropsBelowText {
+                                Text(drops)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -97,11 +105,18 @@ struct UVLiveActivityWidget: Widget {
                 HStack(spacing: 6) {
                     Text(context.state.categoryText)
                         .font(.caption.weight(.semibold))
-                    if on("drops"), let drops = context.state.dropsBelowText {
-                        Text("· \(drops)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    if on("drops") {
+                        if let dropDate = context.state.dropsBelowDate {
+                            Text(timerInterval: Date()...max(Date().addingTimeInterval(60), dropDate), countsDown: true)
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                                .frame(maxWidth: 64)
+                        } else if let drops = context.state.dropsBelowText {
+                            Text("· \(drops)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }

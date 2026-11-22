@@ -23,6 +23,8 @@ final class UVLiveActivityManager {
     private init() {}
 
     var isActive: Bool { activity != nil }
+    /// Staleness of the held activity, for background-wake targeting.
+    var activeStaleDate: Date? { activity?.content.staleDate }
 
     /// Re-adopt a still-running activity after a process restart so updates
     /// and end() work again (activities are system-owned and outlive the app).
@@ -90,7 +92,9 @@ final class UVLiveActivityManager {
 
     private func reconcile(cityName: String, uvIndex: Int, weather: WeatherInfo) {
         let categoryText = weather.metrics?.uvIndexCategory ?? UVIndexHelper.category(for: uvIndex)
-        let dropsBelowText = Self.uvDropTime(in: weather, threshold: UserDefaults.standard.notificationSettings.uvThreshold)
+        let drop = Self.uvDropTime(in: weather, threshold: UserDefaults.standard.notificationSettings.uvThreshold)
+        let dropsBelowText = drop?.text
+        let dropsBelowDate = drop?.date
         let staleDate = weather.dailyForecast.first?.sunsetDate ?? Date().addingTimeInterval(2 * 60 * 60)
 
         if let activity {
@@ -100,7 +104,8 @@ final class UVLiveActivityManager {
             let newState = UVActivityAttributes.ContentState(
                 uvIndex: uvIndex,
                 categoryText: categoryText,
-                dropsBelowText: dropsBelowText
+                dropsBelowText: dropsBelowText,
+                dropsBelowDate: dropsBelowDate
             )
             Task {
                 await activity.update(.init(state: newState, staleDate: staleDate))
@@ -112,7 +117,8 @@ final class UVLiveActivityManager {
             let state = UVActivityAttributes.ContentState(
                 uvIndex: uvIndex,
                 categoryText: categoryText,
-                dropsBelowText: dropsBelowText
+                dropsBelowText: dropsBelowText,
+                dropsBelowDate: dropsBelowDate
             )
             do {
                 activity = try Activity.request(
@@ -129,7 +135,7 @@ final class UVLiveActivityManager {
     /// "until 4 PM" from the first upcoming hour whose UV index falls below the
     /// threshold; nil when the whole hourly series stays high (the card then
     /// simply shows the index without an end time).
-    private static func uvDropTime(in weather: WeatherInfo, threshold: Int) -> String? {
+    private static func uvDropTime(in weather: WeatherInfo, threshold: Int) -> (text: String, date: Date)? {
         let now = Date()
         let hours = (weather.allHourlyData ?? weather.hourlyForecast)
             .compactMap { hour -> (date: Date, uv: Int)? in
@@ -139,6 +145,6 @@ final class UVLiveActivityManager {
             .sorted { $0.date < $1.date }
 
         guard let drop = hours.first(where: { $0.uv < threshold }) else { return nil }
-        return "until \(drop.date.formatted(date: .omitted, time: .shortened))"
+        return (text: "until \(drop.date.formatted(date: .omitted, time: .shortened))", date: drop.date)
     }
 }

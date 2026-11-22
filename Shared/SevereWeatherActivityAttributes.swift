@@ -13,6 +13,8 @@ struct SevereWeatherActivityAttributes: ActivityAttributes {
         var headline: String
         var detail: String
         var symbolName: String
+        /// When the warning's 12-hour cap lapses — ticking countdown material.
+        var expiresAt: Date? = nil
     }
 
     var cityName: String

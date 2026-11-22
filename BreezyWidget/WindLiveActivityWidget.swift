@@ -63,6 +63,12 @@ struct WindLiveActivityWidget: Widget {
                                 .font(.caption)
                                 .foregroundStyle(accent)
                         }
+                        if let endsAt = context.state.endsAtDate {
+                            Text(timerInterval: Date()...max(Date().addingTimeInterval(60), endsAt), countsDown: true)
+                                .font(.caption2.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
                         Text("Take care outdoors — secure loose items")
                             .font(.caption)

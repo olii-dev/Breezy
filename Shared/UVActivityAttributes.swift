@@ -13,6 +13,9 @@ struct UVActivityAttributes: ActivityAttributes {
         var uvIndex: Int
         var categoryText: String
         var dropsBelowText: String? // e.g. "until 4 PM"
+        /// Absolute drop time — powers the live ticking countdown, which the
+        /// system renders without any app involvement.
+        var dropsBelowDate: Date? = nil
     }
 
     var cityName: String

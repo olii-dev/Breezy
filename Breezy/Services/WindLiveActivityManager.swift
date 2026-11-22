@@ -24,6 +24,8 @@ final class WindLiveActivityManager {
     private init() {}
 
     var isActive: Bool { activity != nil }
+    /// Staleness of the held activity, for background-wake targeting.
+    var activeStaleDate: Date? { activity?.content.staleDate }
 
     /// Re-adopt a still-running activity after a process restart so updates
     /// and end() work again (activities are system-owned and outlive the app).
@@ -108,10 +110,13 @@ final class WindLiveActivityManager {
     // MARK: - Reconciliation
 
     private func reconcile(cityName: String, weather: WeatherInfo, windSpeedText: String) {
+        // The 6-hour cap countdown ticks client-side; the date rides along.
+        let capDate = (startedAt ?? Date()).addingTimeInterval(maximumDuration)
         let state = WindActivityAttributes.ContentState(
             speedText: windSpeedText,
             gustText: weather.metrics?.windGust.map { "gusting \($0)" },
-            directionText: weather.metrics?.windDirectionCardinal.map { "from the \($0)" }
+            directionText: weather.metrics?.windDirectionCardinal.map { "from the \($0)" },
+            endsAtDate: capDate
         )
         let staleDate = Date().addingTimeInterval(90 * 60)
 

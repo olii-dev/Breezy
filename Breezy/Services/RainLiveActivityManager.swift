@@ -29,6 +29,8 @@ final class RainLiveActivityManager {
     private init() {}
 
     var isActive: Bool { activity != nil }
+    /// Staleness of the held activity, for background-wake targeting.
+    var activeStaleDate: Date? { activity?.content.staleDate }
 
     /// Re-adopt a still-running activity after a process restart so updates
     /// and end() work again (activities are system-owned and outlive the app).

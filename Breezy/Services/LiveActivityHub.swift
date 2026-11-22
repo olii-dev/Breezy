@@ -25,6 +25,21 @@ enum LiveActivityHub {
         DailySummaryLiveActivityManager.shared.update(with: weather)
     }
 
+    /// Soonest staleDate across the weather activities — the moment the
+    /// Lock Screen would start showing stale data, so background wakes can
+    /// land just before it.
+    static func earliestStaleDate() -> Date? {
+        [
+            RainLiveActivityManager.shared.activeStaleDate,
+            UVLiveActivityManager.shared.activeStaleDate,
+            SevereWeatherLiveActivityManager.shared.activeStaleDate,
+            WindLiveActivityManager.shared.activeStaleDate,
+            AuroraLiveActivityManager.shared.activeStaleDate,
+        ]
+        .compactMap { $0 }
+        .min()
+    }
+
     /// Re-adopt still-running activities after a process restart, so a
     /// relaunched app can update and dismiss them again. Called at launch.
     static func restoreAll() {

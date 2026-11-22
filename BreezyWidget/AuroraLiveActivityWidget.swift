@@ -44,8 +44,9 @@ struct AuroraLiveActivityWidget: Widget {
                             .font(.headline)
                             .foregroundStyle(accent)
                         if on("dawn") {
-                        Text("until \(context.state.dawnDate.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption2)
+                        Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.dawnDate), countsDown: true)
+                            .font(.caption2.weight(.semibold))
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
                         }
                     }
@@ -125,8 +126,9 @@ struct AuroraLiveActivityWidget: Widget {
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(accent)
                 if on("dawn") {
-                Text("till \(context.state.dawnDate.formatted(date: .omitted, time: .shortened))")
-                    .font(.caption2)
+                Text(timerInterval: Date()...max(Date().addingTimeInterval(60), context.state.dawnDate), countsDown: true)
+                    .font(.caption2.weight(.semibold))
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
                 }
             }

@@ -92,6 +92,14 @@ enum BackgroundRefreshScheduler {
             }
         }
 
+        // Live Activities on the Lock Screen: wake right before the freshest
+        // one goes stale (so its DATA refreshes while visible), and at least
+        // every 45 minutes while any is active.
+        if let stale = LiveActivityHub.earliestStaleDate() {
+            candidates.append(max(stale.timeIntervalSince(now), minimumInterval))
+            candidates.append(45 * 60)
+        }
+
         // Next daily-forecast slot (daily summary Live Activity + freshness).
         let settings = UserDefaults.standard.notificationSettings
         let calendar = Calendar.current

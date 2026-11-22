@@ -42,10 +42,21 @@ struct SevereWeatherLiveActivityWidget: Widget {
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                    HStack(alignment: .firstTextBaseline) {
+                        if on("detail") {
+                            Text(context.state.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        Spacer(minLength: 0)
+                        if let expiresAt = context.state.expiresAt {
+                            Text(timerInterval: Date()...max(Date().addingTimeInterval(60), expiresAt), countsDown: true)
+                                .font(.caption2.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             } compactLeading: {
                 Image(systemName: context.state.symbolName)
