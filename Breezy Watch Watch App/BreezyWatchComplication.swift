@@ -2180,6 +2180,224 @@ struct BreezyAuroraWidget: Widget {
     }
 }
 
+
+// MARK: - AQI / Feels Like / Cloud / Visibility Complications
+
+/// AQI ranks with the index — air quality matters most when it's worst.
+final class AQIComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard let aqi = weather.aqi else { return TimelineEntryRelevance(score: 0.05, duration: 3600) }
+        let score = Float(0.12 + min(Double(aqi) / 150, 1) * 0.75)
+        return TimelineEntryRelevance(score: score, duration: 3600)
+    }
+}
+
+/// Feels-like beats the thermometer on humid/bitter days.
+final class FeelsLikeComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        TimelineEntryRelevance(score: 0.12, duration: 3600)
+    }
+}
+
+/// Cloud cover earns a bump when the sky is fully overcast.
+final class CloudCoverComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard let cloud = weather.cloudCover else { return TimelineEntryRelevance(score: 0.06, duration: 3600) }
+        let pct = Double(cloud.replacingOccurrences(of: "%", with: "")) ?? 0
+        return TimelineEntryRelevance(score: Float(pct > 80 ? 0.3 : 0.1), duration: 3600)
+    }
+}
+
+/// Visibility spikes when it collapses (fog/haze — a genuine hazard).
+final class VisibilityComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard let vis = weather.visibility else { return TimelineEntryRelevance(score: 0.06, duration: 3600) }
+        let km = Double(vis.prefix { $0.isNumber || $0 == "." }) ?? 20
+        if km <= 2 { return TimelineEntryRelevance(score: 0.6, duration: 3600) }
+        if km <= 5 { return TimelineEntryRelevance(score: 0.35, duration: 3600) }
+        return TimelineEntryRelevance(score: 0.08, duration: 3600)
+    }
+}
+
+/// Shared layout for the simple metric complications.
+private struct MetricComplicationView: View {
+    @Environment(\.widgetFamily) private var family
+    let icon: String
+    let title: String
+    let value: String
+    var subtitle: String? = nil
+    var valueColor: Color? = nil
+
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            Text("\(title) \(value)\(subtitle.map { " · \($0)" } ?? "")")
+        case .accessoryCircular:
+            VStack(spacing: 0) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .widgetAccentable()
+                Text(value)
+                    .font(.title3.weight(.bold))
+                    .monospacedDigit()
+                    .widgetAccentable()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+        case .accessoryCorner:
+            Text(value)
+                .font(.title3.weight(.bold))
+                .monospacedDigit()
+                .widgetLabel { Text(subtitle ?? title) }
+        default:
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: icon)
+                        .font(.caption2)
+                        .widgetAccentable()
+                    Text(title)
+                        .font(.caption2.weight(.bold))
+                }
+                Text(value)
+                    .font(.title2.weight(.bold))
+                    .monospacedDigit()
+                    .widgetAccentable()
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+        }
+    }
+}
+
+private func aqiColor(_ aqi: Int) -> Color {
+    let hex = Array(WatchAQIHelper.colorHex(forUSIndex: aqi))
+    func channel(_ a: Character, _ b: Character) -> Double {
+        let digits = String([a, b])
+        return Double(Int(digits, radix: 16) ?? 0) / 255
+    }
+    guard hex.count == 6 else { return .green }
+    return Color(red: channel(hex[0], hex[1]), green: channel(hex[2], hex[3]), blue: channel(hex[4], hex[5]))
+}
+
+struct BreezyAQIWidgetEntryView: View {
+    let entry: WatchWeatherEntry
+    var body: some View {
+        if let aqi = entry.weather.aqi {
+            MetricComplicationView(
+                icon: "aqi.low",
+                title: "AQI",
+                value: "\(aqi)",
+                subtitle: entry.weather.aqiCategory ?? WatchAQIHelper.category(forUSIndex: aqi),
+                valueColor: aqiColor(aqi)
+            )
+        } else {
+            MetricComplicationView(icon: "aqi.low", title: "AQI", value: "—", subtitle: "No data")
+        }
+    }
+}
+
+struct BreezyFeelsLikeWidgetEntryView: View {
+    let entry: WatchWeatherEntry
+    var body: some View {
+        MetricComplicationView(
+            icon: "thermometer.medium",
+            title: "Feels Like",
+            value: entry.weather.feelsLike ?? entry.weather.temperature
+        )
+    }
+}
+
+struct BreezyCloudCoverWidgetEntryView: View {
+    let entry: WatchWeatherEntry
+    var body: some View {
+        MetricComplicationView(
+            icon: "cloud.fill",
+            title: "Cloud",
+            value: entry.weather.cloudCover ?? "—"
+        )
+    }
+}
+
+struct BreezyVisibilityWidgetEntryView: View {
+    let entry: WatchWeatherEntry
+    var body: some View {
+        MetricComplicationView(
+            icon: "eye.fill",
+            title: "Visibility",
+            value: entry.weather.visibility ?? "—"
+        )
+    }
+}
+
+struct BreezyAQIWidget: Widget {
+    let kind: String = "BreezyAQIWidget"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: AQIComplicationProvider()) { entry in
+            BreezyAQIWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Air Quality")
+        .description("US AQI with EPA category.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
+struct BreezyFeelsLikeWidget: Widget {
+    let kind: String = "BreezyFeelsLikeComplicationWidget"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: FeelsLikeComplicationProvider()) { entry in
+            BreezyFeelsLikeWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Feels Like")
+        .description("How the air actually feels.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
+struct BreezyCloudCoverWidget: Widget {
+    let kind: String = "BreezyCloudCoverComplicationWidget"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: CloudCoverComplicationProvider()) { entry in
+            BreezyCloudCoverWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Cloud Cover")
+        .description("Sky coverage right now.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
+struct BreezyVisibilityWidget: Widget {
+    let kind: String = "BreezyVisibilityComplicationWidget"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: VisibilityComplicationProvider()) { entry in
+            BreezyVisibilityWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Visibility")
+        .description("Fog and haze awareness — spikes the Smart Stack when it collapses.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
 @main
 struct BreezyWatchWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -2193,5 +2411,9 @@ struct BreezyWatchWidgetBundle: WidgetBundle {
         BreezySunWidget()
         BreezyMoonWidget()
         BreezyAuroraWidget()
+        BreezyAQIWidget()
+        BreezyFeelsLikeWidget()
+        BreezyCloudCoverWidget()
+        BreezyVisibilityWidget()
     }
 }
