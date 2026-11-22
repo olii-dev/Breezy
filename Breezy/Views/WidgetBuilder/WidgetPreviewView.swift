@@ -308,6 +308,10 @@ struct WidgetPreviewView: View {
                         Image(systemName: "calendar")
                     }
 
+                case .cloudCover:
+                    Text("62%")
+                        .font(font(size: 20, weight: .bold))
+
                 case .aqi:
                     if position == .center {
                         VStack(spacing: 0) {

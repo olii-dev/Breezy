@@ -140,6 +140,8 @@ struct WidgetWeatherData: Codable {
     let maxTemp: String?
     let humidity: String?
     let visibility: String?
+    /// Current cloud cover as a display string, e.g. "62%".
+    let cloudCover: String?
     
     // Astronomy Data
     let sunrise: Date?
@@ -763,6 +765,7 @@ struct Provider: TimelineProvider {
                             maxTemp: data.maxTemp,
                             humidity: data.humidity,
                             visibility: data.visibility,
+                            cloudCover: data.cloudCover,
                             sunrise: data.sunrise,
                             sunset: data.sunset,
                             moonPhase: data.moonPhase,
@@ -983,6 +986,7 @@ struct Provider: TimelineProvider {
 
         let humidityStr = String(format: "%.0f%%", weather.currentWeather.humidity * 100)
         let visStr = String(format: "%.1f %@", visibilityUnit.convert(weather.currentWeather.visibility.converted(to: .meters).value), visibilityUnit.symbol)
+        let cloudStr = String(format: "%.0f%%", weather.currentWeather.cloudCover * 100)
 
         var hourlyForecasts: [WidgetWeatherData.WidgetHourlyForecast] = []
         let todaySunrise = weather.dailyForecast.first?.sun.sunrise
@@ -1053,6 +1057,7 @@ struct Provider: TimelineProvider {
             maxTemp: highStr,
             humidity: humidityStr,
             visibility: visStr,
+            cloudCover: cloudStr,
             sunrise: daily?.sun.sunrise,
             sunset: daily?.sun.sunset,
             moonPhase: daily?.moon.phase.description,
@@ -1777,6 +1782,9 @@ struct CustomWidgetView: View {
             
         case .precipChance:
             metricStack(icon: "umbrella.fill", value: entry.weather.rainChance ?? "0%", label: "", alignment: align)
+
+        case .cloudCover:
+            metricStack(icon: "cloud.fill", value: entry.weather.cloudCover ?? "--", label: "", alignment: align)
 
         case .rainAmount:
             let amountComponents = (entry.weather.rainAmount ?? "0.0 mm").split(separator: " ", maxSplits: 1).map(String.init)
@@ -4387,6 +4395,7 @@ extension WidgetWeatherData {
             maxTemp: "78°",
             humidity: "45%",
             visibility: "10 mi",
+            cloudCover: "20%",
             sunrise: Date(),
             sunset: Date().addingTimeInterval(3600 * 8),
             moonPhase: "Waxing Gibbous",

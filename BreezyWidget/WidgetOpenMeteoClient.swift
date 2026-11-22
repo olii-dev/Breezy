@@ -129,6 +129,7 @@ final class WidgetOpenMeteoClient {
             maxTemp: daily.first?.highTemp,
             humidity: response.current.relativeHumidity2M.map { String(format: "%.0f%%", $0) },
             visibility: formatVisibility(response.current.visibility, unit: visibilityUnit),
+            cloudCover: response.current.cloudCover.map { String(format: "%.0f%%", $0) },
             sunrise: daily.first?.sunriseDate,
             sunset: daily.first?.sunsetDate,
             moonPhase: nil,
@@ -153,7 +154,7 @@ final class WidgetOpenMeteoClient {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,visibility"),
+            URLQueryItem(name: "current", value: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,visibility,cloud_cover"),
             URLQueryItem(name: "hourly", value: "temperature_2m,weather_code,uv_index"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset"),
             URLQueryItem(name: "forecast_days", value: "14")
@@ -471,6 +472,7 @@ private struct CurrentBlock: Decodable {
     let windSpeed10M: Double?
     let windDirection10M: Double?
     let visibility: Double?
+    let cloudCover: Double?
 
     enum CodingKeys: String, CodingKey {
         case time
@@ -482,6 +484,7 @@ private struct CurrentBlock: Decodable {
         case windSpeed10M = "wind_speed_10m"
         case windDirection10M = "wind_direction_10m"
         case visibility
+        case cloudCover = "cloud_cover"
     }
 }
 

@@ -151,6 +151,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
     case highLow
     case dailyForecast // New
     case aqi           // New
+    case cloudCover    // Current cloud cover %
     case temperatureChart // New - Added for Widget Chart
     
     var id: String { rawValue }
@@ -169,6 +170,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
         case .highLow: return "High / Low"
         case .dailyForecast: return "Daily Forecast"
         case .aqi: return "Air Quality"
+        case .cloudCover: return "Cloud Cover"
         case .temperatureChart: return "Temp Chart"
         }
     }
@@ -188,6 +190,7 @@ enum WidgetMetricType: String, CaseIterable, Codable, Identifiable {
         case .highLow: return "arrow.up.arrow.down"
         case .dailyForecast: return "calendar"
         case .aqi: return "aqi.low"
+        case .cloudCover: return "cloud.fill"
         case .temperatureChart: return "chart.xyaxis.line"
         }
     }

@@ -25,6 +25,17 @@ enum LiveActivityHub {
         DailySummaryLiveActivityManager.shared.update(with: weather)
     }
 
+    /// Dismiss every weather Live Activity — used when fresh data is
+    /// unavailable (offline / no location) so restored activities can't
+    /// squat on the Lock Screen asserting saved weather.
+    static func endAll() {
+        RainLiveActivityManager.shared.end()
+        UVLiveActivityManager.shared.end()
+        SevereWeatherLiveActivityManager.shared.end()
+        WindLiveActivityManager.shared.end()
+        AuroraLiveActivityManager.shared.end()
+    }
+
     /// Soonest staleDate across the weather activities — the moment the
     /// Lock Screen would start showing stale data, so background wakes can
     /// land just before it.

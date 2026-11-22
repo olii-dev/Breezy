@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         MainActor.assumeIsolated {
             BackgroundRefreshScheduler.register()
+            // Aim a wake immediately — apps force-quit from the switcher never
+            // reach scenePhase .background, so launch is the only reliable
+            // rescheduling point for them.
+            BackgroundRefreshScheduler.schedule()
             // Re-adopt any Live Activities that outlived the previous process.
             LiveActivityHub.restoreAll()
         }

@@ -926,6 +926,13 @@ class WeatherViewModel: ObservableObject {
                 self.weather = cached
                 self.currentLocation = expectedLocation ?? cached.location
                 self.isUsingCachedFallback = true
+
+                // Saved weather older than two hours can't vouch for what the
+                // Live Activities are asserting — dismiss them instead of
+                // letting a stale SEVERE card squat on the Lock Screen.
+                if age > 2 * 3_600 {
+                    LiveActivityHub.endAll()
+                }
                 
                 // Always save cached data to widget/Watch app
                 let rainChance = cached.dailyForecast.first?.chanceOfRain
@@ -1846,6 +1853,7 @@ class WeatherViewModel: ObservableObject {
             maxTemp: highTemp,
             humidity: metrics.humidity.map { "\($0)%" },
             visibility: metrics.visibility,
+            cloudCover: metrics.cloudCover,
             dailyForecast: dailyForecast.map { day in
                 WidgetWeatherData.WidgetDailyForecast(
                     dayName: day.dayName,

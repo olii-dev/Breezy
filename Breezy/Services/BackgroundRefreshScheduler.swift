@@ -129,7 +129,12 @@ enum BackgroundRefreshScheduler {
 
             guard !BackgroundTaskManager.shared.shouldLimitBackgroundActivity() else { return }
 
-            guard let weather = await fetchWeather() else { return }
+            guard let weather = await fetchWeather() else {
+                // No usable data — dismiss weather activities rather than
+                // leaving them asserting conditions we can't verify.
+                LiveActivityHub.endAll()
+                return
+            }
 
             let notificationManager = NotificationManager.shared
             await notificationManager.checkAuthorizationStatus()
@@ -166,7 +171,15 @@ enum BackgroundRefreshScheduler {
             return cached
         }
 
-        guard let location = cached?.location ?? lastKnownLocation() else { return cached }
+        guard let location = cached?.location ?? lastKnownLocation() else {
+            // No location to fetch for: only trust a reasonably fresh cache,
+            // never an ancient one (that's how "SEVERE showing saved weather"
+            // happened — a days-old storm payload kept the card alive).
+            if let cached, Date().timeIntervalSince1970 - cached.timestamp < 2 * 3_600 {
+                return cached
+            }
+            return nil
+        }
 
         let formatting = WeatherFormattingContext(
             temperatureUnit: temperatureUnit(),

@@ -32,6 +32,8 @@ struct WidgetWeatherData: Codable {
     let maxTemp: String?
     let humidity: String?
     let visibility: String?
+    /// Current cloud cover as a display string, e.g. "62%".
+    let cloudCover: String?
     let dailyForecast: [WidgetDailyForecast]
     
     // Additional fields for widget extension
