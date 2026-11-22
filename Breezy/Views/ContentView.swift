@@ -180,6 +180,30 @@ struct ContentView: View {
                             .fontWeight(.bold)
                         } else {
                             let theme = viewModel.currentTheme(colorScheme: colorScheme)
+                            // Long names crowd the toolbar and iOS collapses the
+                            // buttons behind an unresponsive "…" — when the name
+                            // runs long, WE provide the ellipsis as a real Menu.
+                            if (viewModel.weather?.location.city ?? "").count > 12 {
+                                Menu {
+                                    Button {
+                                        showShareCard = true
+                                    } label: { Label("Share Weather", systemImage: "square.and.arrow.up") }
+                                    Button {
+                                        showingTimeMachine = true
+                                    } label: { Label("Time Machine", systemImage: "clock.arrow.circlepath") }
+                                    Button {
+                                        showingTripMode = true
+                                    } label: { Label("On the Way", systemImage: "road.lanes") }
+                                    Button {
+                                        showingSettings = true
+                                    } label: { Label("Settings", systemImage: "gearshape.fill") }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(theme.textColor)
+                                        .frame(width: 36, height: 36)
+                                }
+                            } else {
                             HStack(spacing: 12) {
                                 Button {
                                     HapticsManager.shared.impact(style: .light)
@@ -224,6 +248,7 @@ struct ContentView: View {
                                         .frame(width: 36, height: 36)
                                 }
                                 .accessibilityLabel("Settings")
+                            }
                             }
                         }
                     }

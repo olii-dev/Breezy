@@ -67,6 +67,7 @@ enum WidgetBackgroundStyle: String, CaseIterable, Codable, Identifiable {
     case gradient
     case blur
     case weatherMatch
+    case sky
     case transparent
     
     var id: String { rawValue }
@@ -76,6 +77,7 @@ enum WidgetBackgroundStyle: String, CaseIterable, Codable, Identifiable {
         case .gradient: return "Gradient"
         case .blur: return "Blur Material"
         case .weatherMatch: return "Match Weather"
+        case .sky: return "Sky (live)"
         case .transparent: return "Transparent"
         }
     }

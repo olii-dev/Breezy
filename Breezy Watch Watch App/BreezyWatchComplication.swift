@@ -2051,6 +2051,135 @@ struct BreezyMoonWidget: Widget {
     }
 }
 
+
+// MARK: - Aurora (Kp) Complication
+
+/// Minimal read of the phone-relayed aurora snapshot (same app-group payload
+/// WatchAuroraStore persists in the watch app target; JSONSerialization keeps
+/// this file independent of that target's types).
+enum ComplicationAurora {
+    struct Reading {
+        let kp: Double
+        let verdict: String
+        let updatedAt: Date
+        var isActive: Bool { verdict == "Aurora possible" }
+    }
+
+    static func read() -> Reading? {
+        guard let defaults = UserDefaults(suiteName: WatchAppStorageKey.appGroup),
+              let data = defaults.data(forKey: "WatchAurora.snapshot"),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let kp = obj["kp"] as? Double else { return nil }
+        let verdict = obj["verdict"] as? String ?? ""
+        let updated = (obj["updatedAt"] as? Double).map { Date(timeIntervalSince1970: $0) } ?? .distantPast
+        return Reading(kp: kp, verdict: verdict, updatedAt: updated)
+    }
+}
+
+/// Aurora spikes the Smart Stack when conditions are actually plausible;
+/// stays quiet otherwise (it's a niche card).
+final class AuroraComplicationProvider: WatchComplicationProvider {
+    override func relevance(for weather: WatchWeatherData, at date: Date) -> TimelineEntryRelevance? {
+        guard let reading = ComplicationAurora.read() else {
+            return TimelineEntryRelevance(score: 0.06, duration: 3600)
+        }
+        if reading.isActive {
+            // Kp above the latitude bar — rank it like imminent rain.
+            return TimelineEntryRelevance(score: Float(min(0.55 + reading.kp / 18, 0.95)), duration: 3600)
+        }
+        if reading.verdict == "Marginal" || reading.verdict == "Building" {
+            return TimelineEntryRelevance(score: 0.35, duration: 3600)
+        }
+        return TimelineEntryRelevance(score: 0.08, duration: 3600)
+    }
+}
+
+struct BreezyAuroraWidgetEntryView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: WatchWeatherEntry
+
+    private static func kpText(_ value: Double) -> String {
+        value >= 9.5 ? "9+" : String(format: "%.0f", value.rounded())
+    }
+
+    var body: some View {
+        if let reading = ComplicationAurora.read() {
+            switch family {
+            case .accessoryInline:
+                Text("Kp \(Self.kpText(reading.kp)) · \(reading.verdict)")
+            case .accessoryCircular:
+                VStack(spacing: 0) {
+                    Image(systemName: "sparkles")
+                        .font(.caption2)
+                        .widgetAccentable()
+                    Text(Self.kpText(reading.kp))
+                        .font(.title3.weight(.bold))
+                        .monospacedDigit()
+                        .widgetAccentable()
+                    Text("Kp")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            case .accessoryCorner:
+                Text(Self.kpText(reading.kp))
+                    .font(.title3.weight(.bold))
+                    .monospacedDigit()
+                    .widgetLabel { Text("Kp \(reading.verdict)") }
+            default:
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.caption2)
+                            .widgetAccentable()
+                        Text("Aurora")
+                            .font(.caption2.weight(.bold))
+                    }
+                    Text("Kp \(Self.kpText(reading.kp))")
+                        .font(.title2.weight(.bold))
+                        .monospacedDigit()
+                        .widgetAccentable()
+                    Text(reading.verdict.isEmpty ? "—" : reading.verdict)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+        } else {
+            switch family {
+            case .accessoryInline:
+                Text("Kp —")
+            default:
+                VStack(spacing: 2) {
+                    Image(systemName: "sparkles")
+                        .font(.caption)
+                        .widgetAccentable()
+                    Text("Open iPhone")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+struct BreezyAuroraWidget: Widget {
+    let kind: String = "BreezyAuroraWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: AuroraComplicationProvider()) { entry in
+            BreezyAuroraWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("Aurora (Kp)")
+        .description("Geomagnetic Kp index — spikes the Smart Stack when aurora is possible.")
+        #if os(watchOS)
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
+        #else
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        #endif
+    }
+}
+
 @main
 struct BreezyWatchWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -2063,5 +2192,6 @@ struct BreezyWatchWidgetBundle: WidgetBundle {
         BreezyTempTrendWidget()
         BreezySunWidget()
         BreezyMoonWidget()
+        BreezyAuroraWidget()
     }
 }

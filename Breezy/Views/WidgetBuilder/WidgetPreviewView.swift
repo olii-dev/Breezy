@@ -58,7 +58,7 @@ struct WidgetPreviewView: View {
         switch config.backgroundStyle {
         case .solid, .blur, .gradient:
             return true
-        case .weatherMatch, .transparent:
+        case .weatherMatch, .sky, .transparent:
             return false
         }
     }
@@ -212,6 +212,13 @@ struct WidgetPreviewView: View {
             // Mock "Sunny" gradient
             LinearGradient(
                 colors: [Color.orange, Color.yellow],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .sky:
+            // Preview approximation of the widget's live sky (clear day).
+            LinearGradient(
+                colors: [Color(red: 0.20, green: 0.47, blue: 0.85), Color(red: 0.35, green: 0.62, blue: 0.92), Color(red: 0.62, green: 0.80, blue: 0.97)],
                 startPoint: .top,
                 endPoint: .bottom
             )

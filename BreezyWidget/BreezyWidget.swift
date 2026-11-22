@@ -1535,6 +1535,69 @@ struct LargeWidgetView: View {
 
 // MARK: - Custom Widget View
 
+/// Condition-dressed sky for the Studio's "Sky (live)" style: a curated
+/// day/night horizon gradient per weather family, plus a soft sun glow on
+/// clear days. Reads the entry's live condition + daylight flag.
+struct SkyBackgroundView: View {
+    let conditionCode: String?
+    let isDaylight: Bool?
+    let condition: String
+
+    private var colors: [Color] {
+        let day = isDaylight ?? true
+        let c = (conditionCode ?? condition).lowercased()
+
+        if c.contains("thunder") || c.contains("storm") {
+            return day
+                ? [Color(red: 0.36, green: 0.40, blue: 0.52), Color(red: 0.24, green: 0.27, blue: 0.38), Color(red: 0.15, green: 0.16, blue: 0.24)]
+                : [Color(red: 0.22, green: 0.23, blue: 0.34), Color(red: 0.13, green: 0.13, blue: 0.21), Color(red: 0.07, green: 0.07, blue: 0.13)]
+        }
+        if c.contains("rain") || c.contains("drizzle") || c.contains("shower") {
+            return day
+                ? [Color(red: 0.38, green: 0.50, blue: 0.64), Color(red: 0.28, green: 0.38, blue: 0.52), Color(red: 0.19, green: 0.27, blue: 0.40)]
+                : [Color(red: 0.16, green: 0.22, blue: 0.33), Color(red: 0.10, green: 0.15, blue: 0.25), Color(red: 0.05, green: 0.08, blue: 0.15)]
+        }
+        if c.contains("snow") || c.contains("blizzard") {
+            return day
+                ? [Color(red: 0.62, green: 0.70, blue: 0.80), Color(red: 0.52, green: 0.60, blue: 0.72), Color(red: 0.42, green: 0.50, blue: 0.63)]
+                : [Color(red: 0.24, green: 0.28, blue: 0.36), Color(red: 0.16, green: 0.19, blue: 0.27), Color(red: 0.09, green: 0.11, blue: 0.17)]
+        }
+        if c.contains("fog") || c.contains("mist") || c.contains("haze") {
+            return day
+                ? [Color(red: 0.66, green: 0.68, blue: 0.70), Color(red: 0.55, green: 0.57, blue: 0.61), Color(red: 0.45, green: 0.47, blue: 0.52)]
+                : [Color(red: 0.25, green: 0.26, blue: 0.29), Color(red: 0.17, green: 0.18, blue: 0.21), Color(red: 0.10, green: 0.11, blue: 0.13)]
+        }
+        if c.contains("cloud") || c.contains("overcast") || c.contains("partly") {
+            return day
+                ? [Color(red: 0.45, green: 0.56, blue: 0.70), Color(red: 0.58, green: 0.67, blue: 0.79), Color(red: 0.72, green: 0.78, blue: 0.86)]
+                : [Color(red: 0.16, green: 0.20, blue: 0.30), Color(red: 0.11, green: 0.14, blue: 0.22), Color(red: 0.06, green: 0.08, blue: 0.14)]
+        }
+        // Clear — the showpiece.
+        return day
+            ? [Color(red: 0.20, green: 0.47, blue: 0.85), Color(red: 0.35, green: 0.62, blue: 0.92), Color(red: 0.62, green: 0.80, blue: 0.97)]
+            : [Color(red: 0.10, green: 0.12, blue: 0.32), Color(red: 0.07, green: 0.09, blue: 0.24), Color(red: 0.04, green: 0.05, blue: 0.15)]
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: colors,
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            // Sun glow on clear days — a soft warm radial near the top.
+            if let day = isDaylight, day, !(condition.lowercased().contains("cloud")) {
+                RadialGradient(
+                    colors: [Color.yellow.opacity(0.35), Color.yellow.opacity(0.0)],
+                    center: UnitPoint(x: 0.75, y: 0.15),
+                    startRadius: 2,
+                    endRadius: 90
+                )
+            }
+        }
+    }
+}
+
 struct CustomWidgetView: View {
     let entry: WeatherEntry
     let config: CustomWidgetConfiguration
@@ -1689,6 +1752,12 @@ struct CustomWidgetView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
+        case .sky:
+            SkyBackgroundView(
+                conditionCode: entry.weather.conditionCode,
+                isDaylight: entry.weather.isDaylight,
+                condition: entry.weather.condition
+            )
         case .transparent:
             Color.clear
         }
