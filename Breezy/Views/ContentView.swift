@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var showingDriverRadar = false
     @State private var showingDriverDayDetail = false
     @State private var showingDriverUnits = false
+    @State private var showingDriverStudio = false
 #endif
     @State private var isButtonBusy = false
     @State private var showingOnboarding = false
@@ -76,6 +77,9 @@ struct ContentView: View {
                     if let day = viewModel.weather?.dailyForecast.first {
                         DailyForecastDetailView(day: day, viewModel: viewModel)
                     }
+                }
+                .sheet(isPresented: $showingDriverStudio) {
+                    WidgetBuilderView(viewModel: viewModel)
                 }
                 .sheet(isPresented: $showingDriverUnits) {
                     DataSettingsView(viewModel: viewModel)
@@ -559,6 +563,7 @@ struct ContentView: View {
             case "daydetail": showingDriverDayDetail = true
             case "location": showingLocationPicker = true
             case "units": showingDriverUnits = true
+            case "studio": showingDriverStudio = true
             default: break
             }
         }

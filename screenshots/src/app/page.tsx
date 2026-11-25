@@ -97,6 +97,22 @@ const COPY = {
         </>
       ),
     },
+    feature8: {
+      label: "WIDGETS",
+      headline: (
+        <>
+          Build widgets<br />that are<br />unmistakably yours.
+        </>
+      ),
+    },
+    feature9: {
+      label: "APPLE WATCH",
+      headline: (
+        <>
+          A full forecast<br />on your wrist.<br />Rain, AQI, aurora.
+        </>
+      ),
+    },
   },
 } as const;
 
@@ -116,6 +132,8 @@ async function preloadAllImages() {
     "/screenshots/apple/iphone/en/04-settings.png",
     "/screenshots/apple/iphone/en/05-radar.png",
     "/screenshots/apple/iphone/en/06-trip.png",
+    "/screenshots/apple/iphone/en/08-widgets.png",
+    "/screenshots/apple/watch/en/watch-hero.png",
   ];
 
   await Promise.all(
@@ -170,6 +188,36 @@ function Phone({ src, alt, style }: { src: string; alt: string; style?: React.CS
           draggable={false}
         />
       </div>
+    </div>
+  );
+}
+
+function WatchFrame({ src, style }: { src: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: 1000,
+        height: 1000,
+        background: "#0b0b10",
+        borderRadius: "22%",
+        padding: 56,
+        boxShadow: "0 40px 80px rgba(0,0,0,0.5)",
+        ...style,
+      }}
+    >
+      <img
+        src={src}
+        alt="watch"
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          borderRadius: "18%",
+        }}
+        draggable={false}
+      />
     </div>
   );
 }
@@ -267,22 +315,25 @@ export default function ScreenshotsPage() {
 
   const exportAll = useCallback(async () => {
     let failedCount = 0;
-    const slideIds = ["hero", "design", "customize", "timemachine", "radar", "trip"];
+    const slideIds = slides.map((s) => s.id);
+    const slideMeta = slides.map((s) => ({ watch: !!s.watch }));
     for (let i = 0; i < slideIds.length; i++) {
       setExporting(`${i + 1}/${slideIds.length}`);
       const el = exportRefs.current[i];
       if (!el) continue;
+      const w = slideMeta[i].watch ? 1242 : size.w;
+      const h = slideMeta[i].watch ? 1242 : size.h;
       
       let dataUrl = "";
       for (let attempt = 0; attempt < 3 && !dataUrl; attempt++) {
-        dataUrl = await captureSlide(el, size.w, size.h);
+        dataUrl = await captureSlide(el, w, h);
         if (!dataUrl) await new Promise(r => setTimeout(r, 500));
       }
       
       if (dataUrl) {
         const a = document.createElement("a");
         a.href = dataUrl;
-        a.download = `${String(i + 1).padStart(2, "0")}-${slideIds[i]}-en-${size.w}x${size.h}.png`;
+        a.download = `${String(i + 1).padStart(2, "0")}-${slideIds[i]}-en-${w}x${h}.png`;
         a.click();
         await new Promise((r) => setTimeout(r, 300));
         if (typeof window !== "undefined") {
@@ -347,6 +398,17 @@ export default function ScreenshotsPage() {
       id: "trip",
       copy: COPY.en.feature7,
       src: "/screenshots/apple/iphone/en/06-trip.png",
+    },
+    {
+      id: "widgets",
+      copy: COPY.en.feature8,
+      src: "/screenshots/apple/iphone/en/08-widgets.png",
+    },
+    {
+      id: "watch",
+      copy: COPY.en.feature9,
+      src: "/screenshots/apple/watch/en/watch-hero.png",
+      watch: true,
     },
   ];
 
@@ -456,7 +518,7 @@ export default function ScreenshotsPage() {
 <div
                   style={{
                     width: "100%",
-                    aspectRatio: `${cW}/${cH}`,
+                    aspectRatio: slide.watch ? "1 / 1" : `${cW}/${cH}`,
                     transformOrigin: "top left",
                     transform: `scale(${Math.min(280 / cW, 200 / cH)})`,
                   }}
@@ -464,24 +526,37 @@ export default function ScreenshotsPage() {
                   <div
                     style={{
                       width: cW,
-                      height: cH,
+                      height: slide.watch ? cW : cH,
                       position: "relative",
                       background: theme.bgGradient,
                       overflow: "hidden",
                     }}
                   >
                     <Caption cW={cW} label={slide.copy.label} headline={slide.copy.headline} />
-                    <Phone
-                      src={img(slide.src)}
-                      alt={slide.id}
-                      style={{
-                        position: "absolute",
-                        bottom: 0,
-                        width: "84%",
-                        left: "50%",
-                        transform: "translateX(-50%) translateY(10%)",
-                      }}
-                    />
+                    {slide.watch ? (
+                      <WatchFrame
+                        src={img(slide.src)}
+                        style={{
+                          position: "absolute",
+                          bottom: 0,
+                          width: "78%",
+                          left: "50%",
+                          transform: "translateX(-50%) translateY(6%)",
+                        }}
+                      />
+                    ) : (
+                      <Phone
+                        src={img(slide.src)}
+                        alt={slide.id}
+                        style={{
+                          position: "absolute",
+                          bottom: 0,
+                          width: "84%",
+                          left: "50%",
+                          transform: "translateX(-50%) translateY(10%)",
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
             </div>
@@ -497,25 +572,38 @@ export default function ScreenshotsPage() {
               exportRefs.current[idx] = el;
             }}
             style={{
-              width: cW,
-              height: cH,
+              width: slide.watch ? 1242 : cW,
+              height: slide.watch ? 1242 : cH,
               position: "relative",
               background: theme.bgGradient,
               overflow: "hidden",
             }}
           >
-            <Caption cW={cW} label={slide.copy.label} headline={slide.copy.headline} />
-            <Phone
-              src={img(slide.src)}
-              alt={slide.id}
-              style={{
-                position: "absolute",
-                bottom: 0,
-                width: "84%",
-                left: "50%",
-                transform: "translateX(-50%) translateY(10%)",
-              }}
-            />
+            <Caption cW={slide.watch ? 1242 : cW} label={slide.copy.label} headline={slide.copy.headline} />
+            {slide.watch ? (
+              <WatchFrame
+                src={img(slide.src)}
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  width: "78%",
+                  left: "50%",
+                  transform: "translateX(-50%) translateY(6%)",
+                }}
+              />
+            ) : (
+              <Phone
+                src={img(slide.src)}
+                alt={slide.id}
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  width: "84%",
+                  left: "50%",
+                  transform: "translateX(-50%) translateY(10%)",
+                }}
+              />
+            )}
           </div>
         ))}
       </div>
