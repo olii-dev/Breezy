@@ -139,6 +139,10 @@ enum BackgroundRefreshScheduler {
     // MARK: - Task Handler
 
     private static func handle(_ task: BGAppRefreshTask) {
+        // Telemetry — makes "did background wakes actually happen" answerable
+        // from Settings instead of vibes. Ring of recent wake timestamps.
+        recordWake()
+
         // Schedule the follow-up wake first — the task may be killed at any time.
         schedule()
 
@@ -182,6 +186,27 @@ enum BackgroundRefreshScheduler {
             work.cancel()
             task.setTaskCompleted(success: false)
         }
+    }
+
+    /// Recent background wakes, newest first (max 12) — surfaced in Settings.
+    static var recentWakes: [Date] {
+        guard let data = UserDefaults.standard.data(forKey: wakeLogKey),
+              let dates = try? JSONDecoder().decode([Date].self, from: data) else { return [] }
+        return dates
+    }
+
+    private static let wakeLogKey = "Breezy.BGWakeLog"
+
+    private static func recordWake() {
+        var log = recentWakes
+        log.insert(Date(), at: 0)
+        if log.count > 12 { log = Array(log.prefix(12)) }
+        if let data = try? JSONEncoder().encode(log) {
+            UserDefaults.standard.set(data, forKey: wakeLogKey)
+        }
+        #if DEBUG
+        logger.debug("BG wake recorded (\(log.count) in log)")
+        #endif
     }
 
     /// Cached-location fetch — no GPS in the background (same pattern as the

@@ -119,6 +119,23 @@ struct SettingsView: View {
                             .accessibilityAddTraits(.isHeader)
                             
                             VStack(alignment: .leading, spacing: 12) {
+                                // Background-wake telemetry — answers "did the app
+                                // actually get CPU time" without needing Console.
+                                VStack(alignment: .leading, spacing: 3) {
+                                    let wakes = BackgroundRefreshScheduler.recentWakes
+                                    let lastGap = wakes.first.map { Date().timeIntervalSince($0) }
+                                    Text(wakes.isEmpty
+                                         ? "Background checks: none recorded yet"
+                                         : "Background checks: \(wakes.count) recorded, last \(wakes[0].formatted(.relative(presentation: .named)))")
+                                        .font(FontScale.caption2)
+                                        .foregroundColor(theme.textColor.opacity(0.55))
+                                    if wakes.isEmpty || (lastGap ?? 0) > 6 * 3600 {
+                                        Text("No recent checks usually means the app was flicked away — iOS pauses Breezy's background time until it's opened again. Keep it in the switcher for independent updates.")
+                                            .font(FontScale.caption2)
+                                            .foregroundColor(theme.textColor.opacity(0.4))
+                                    }
+                                }
+
                                 HStack(spacing: 4) {
                                     Text(Bundle.main.appVersionDisplayString)
                                         .font(FontScale.caption)
