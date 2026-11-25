@@ -183,7 +183,7 @@ struct ContentView: View {
                             // Long names crowd the toolbar and iOS collapses the
                             // buttons behind an unresponsive "…" — when the name
                             // runs long, WE provide the ellipsis as a real Menu.
-                            if (viewModel.weather?.location.city ?? "").count > 12 {
+                            if (viewModel.weather?.location.city ?? "").count > 10 {
                                 Menu {
                                     Button {
                                         showShareCard = true
@@ -198,10 +198,14 @@ struct ContentView: View {
                                         showingSettings = true
                                     } label: { Label("Settings", systemImage: "gearshape.fill") }
                                 } label: {
-                                    Image(systemName: "ellipsis")
-                                        .font(.system(.subheadline).weight(.semibold))
+                                    // Bigger glyph + 44pt target + contentShape — the
+                                    // bare ellipsis with a 36pt frame had hit areas the
+                                    // glass layer could swallow (taps "didn't work").
+                                    Image(systemName: "ellipsis.circle")
+                                        .font(.system(.body).weight(.medium))
                                         .foregroundColor(theme.textColor)
-                                        .frame(width: 36, height: 36)
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
                                 }
                             } else {
                             HStack(spacing: 12) {
