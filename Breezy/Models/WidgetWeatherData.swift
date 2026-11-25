@@ -34,6 +34,9 @@ struct WidgetWeatherData: Codable {
     let visibility: String?
     /// Current cloud cover as a display string, e.g. "62%".
     let cloudCover: String?
+    /// US AQI + category (Open-Meteo only; WeatherKit path passes nil).
+    var aqi: Int? = nil
+    var aqiCategory: String? = nil
     let dailyForecast: [WidgetDailyForecast]
     
     // Additional fields for widget extension

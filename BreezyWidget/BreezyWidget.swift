@@ -142,6 +142,9 @@ struct WidgetWeatherData: Codable {
     let visibility: String?
     /// Current cloud cover as a display string, e.g. "62%".
     let cloudCover: String?
+    /// US AQI + category (Open-Meteo only; WeatherKit path passes nil).
+    var aqi: Int? = nil
+    var aqiCategory: String? = nil
     
     // Astronomy Data
     let sunrise: Date?
@@ -1538,6 +1541,20 @@ struct LargeWidgetView: View {
 /// Condition-dressed sky for the Studio's "Sky (live)" style: a curated
 /// day/night horizon gradient per weather family, plus a soft sun glow on
 /// clear days. Reads the entry's live condition + daylight flag.
+/// US EPA AQI band -> (short category, colour) for studio rendering.
+extension CustomWidgetView {
+    static func aqiCategory(_ index: Int) -> (String, Color) {
+        switch index {
+        case ...50: return ("Good", .green)
+        case ...100: return ("Moderate", .yellow)
+        case ...150: return ("Sensitive", .orange)
+        case ...200: return ("Unhealthy", .red)
+        case ...300: return ("Very Unhealthy", .purple)
+        default: return ("Hazardous", Color(red: 0.55, green: 0.23, blue: 0.23))
+        }
+    }
+}
+
 struct SkyBackgroundView: View {
     let conditionCode: String?
     let isDaylight: Bool?
@@ -1851,8 +1868,7 @@ struct CustomWidgetView: View {
             )
             
         case .feelsLike:
-             // Need to add feels like to data model in future, using temp for now as placeholder or skipping
-             metricStack(icon: "figure.stand", value: entry.weather.temperature, label: "Feels", alignment: align)
+            metricStack(icon: "figure.stand", value: entry.weather.feelsLike ?? entry.weather.temperature, label: "Feels", alignment: align)
             
         case .precipChance:
             metricStack(icon: "umbrella.fill", value: entry.weather.rainChance ?? "0%", label: "", alignment: align)
@@ -1903,19 +1919,25 @@ struct CustomWidgetView: View {
             }
 
         case .aqi:
-            if position == .center {
-                VStack(spacing: 0) {
-                    Text("45")
-                        .font(font(size: 28, weight: .heavy))
-                    Text("Good")
-                        .font(font(size: 10, weight: .medium))
-                        .foregroundColor(.green)
+            if let aqi = entry.weather.aqi {
+                let (category, color) = Self.aqiCategory(aqi)
+                if position == .center {
+                    VStack(spacing: 0) {
+                        Text("\(aqi)")
+                            .font(font(size: 28, weight: .heavy))
+                            .monospacedDigit()
+                        Text(category)
+                            .font(font(size: 10, weight: .medium))
+                            .foregroundColor(color)
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(8)
+                } else {
+                    metricStack(icon: "aqi.low", value: "\(aqi)", label: category, alignment: align)
                 }
-                .padding(8)
-                .background(Color.black.opacity(0.2))
-                .cornerRadius(8)
             } else {
-                metricStack(icon: "aqi.low", value: "45", label: "AQI", alignment: align)
+                metricStack(icon: "aqi.low", value: "--", label: "No data", alignment: align)
             }
             
         case .temperatureChart:

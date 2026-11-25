@@ -132,6 +132,7 @@ final class WidgetOpenMeteoClient {
             humidity: response.current.relativeHumidity2M.map { String(format: "%.0f%%", $0) },
             visibility: formatVisibility(response.current.visibility, unit: visibilityUnit),
             cloudCover: response.current.cloudCover.map { String(format: "%.0f%%", $0) },
+            aqi: pollenResponse?.current?.usAQI,
             sunrise: daily.first?.sunriseDate,
             sunset: daily.first?.sunsetDate,
             moonPhase: nil,
@@ -310,7 +311,7 @@ final class WidgetOpenMeteoClient {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "current", value: "alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen")
+            URLQueryItem(name: "current", value: "alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen,us_aqi")
         ]
 
         guard let url = components?.url else {
@@ -567,6 +568,7 @@ private struct PollenResponse: Decodable {
 }
 
 private struct PollenCurrentBlock: Decodable {
+    let usAQI: Int?
     let alderPollen: Double?
     let birchPollen: Double?
     let grassPollen: Double?
@@ -575,6 +577,7 @@ private struct PollenCurrentBlock: Decodable {
     let ragweedPollen: Double?
 
     enum CodingKeys: String, CodingKey {
+        case usAQI = "us_aqi"
         case alderPollen = "alder_pollen"
         case birchPollen = "birch_pollen"
         case grassPollen = "grass_pollen"

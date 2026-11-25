@@ -1856,6 +1856,8 @@ class WeatherViewModel: ObservableObject {
             humidity: metrics.humidity.map { "\($0)%" },
             visibility: metrics.visibility,
             cloudCover: metrics.cloudCover,
+            aqi: metrics.airQuality?.aqi,
+            aqiCategory: metrics.airQuality?.category,
             dailyForecast: dailyForecast.map { day in
                 WidgetWeatherData.WidgetDailyForecast(
                     dayName: day.dayName,
