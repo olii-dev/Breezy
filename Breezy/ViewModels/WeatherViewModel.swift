@@ -963,7 +963,10 @@ class WeatherViewModel: ObservableObject {
         // Request notification permissions and register categories — but only
         // post-onboarding: the wizard asks contextually on its final step,
         // and a launch-time prompt would fire before any explanation.
-        if UserDefaults.standard.bool(forKey: "Breezy.HasCompletedOnboarding") {
+        // Screenshot runs opt out of the launch-time ask so the OS dialog
+        // never photobombs a capture (DEBUG-only launch argument).
+        let skipPermissionAsk = ProcessInfo.processInfo.arguments.contains("-BreezyShotSkipPermissions")
+        if UserDefaults.standard.bool(forKey: "Breezy.HasCompletedOnboarding"), !skipPermissionAsk {
             Task {
                 _ = await notificationManager.requestAuthorization()
                 notificationManager.registerNotificationCategories()

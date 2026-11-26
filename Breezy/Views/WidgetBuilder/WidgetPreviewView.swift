@@ -79,13 +79,15 @@ struct WidgetPreviewView: View {
     
     var standardLayout: some View {
         VStack {
+            // Spacers carry minLength: 0 so metrics win the space and long
+            // values ("10 km") never truncate to "10...." in small widgets.
             // Top Row
             HStack {
                 metricView(for: .topLeft)
-                Spacer()
+                Spacer(minLength: 0)
                 // Top Center (Medium/Large only effectively, but logic is generic)
                 metricView(for: .topCenter)
-                Spacer()
+                Spacer(minLength: 0)
                 metricView(for: .topRight)
             }
             
@@ -94,9 +96,9 @@ struct WidgetPreviewView: View {
             // Middle Row
             HStack {
                 metricView(for: .middleLeft)
-                Spacer()
+                Spacer(minLength: 0)
                 metricView(for: .center)
-                Spacer()
+                Spacer(minLength: 0)
                 metricView(for: .middleRight)
             }
             
@@ -105,10 +107,10 @@ struct WidgetPreviewView: View {
             // Bottom Row
             HStack {
                 metricView(for: .bottomLeft)
-                Spacer()
+                Spacer(minLength: 0)
                 // Bottom Center
                 metricView(for: .bottomCenter)
-                Spacer()
+                Spacer(minLength: 0)
                 metricView(for: .bottomRight)
             }
         }
@@ -356,6 +358,9 @@ struct WidgetPreviewView: View {
             WidgetIconView(icon: icon, size: 14)
             Text(value)
                 .font(font(size: 14, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .allowsTightening(true)
             if !label.isEmpty {
                 Text(label)
                     .font(font(size: 8, weight: .medium))

@@ -116,6 +116,65 @@ const COPY = {
   },
 } as const;
 
+// The watch slide needs a real capture. No valid one exists yet: the
+// watch simulator's location prompt cannot be dismissed headlessly
+// (`simctl privacy grant` silently no-ops on this watchOS runtime), so
+// drop `watch-hero.png` into public/screenshots/apple/watch/en/ and flip
+// this to re-enable the slide and its square export canvas.
+const HAS_WATCH_SHOT = false;
+
+// Static: no component state involved. Lives at module scope so exportAll
+// (declared earlier in the component) can read it — referencing the old
+// in-component `slides` from the useCallback hit a temporal-dead-zone
+// error and broke Export All.
+const SLIDES = [
+  {
+    id: "hero",
+    copy: COPY.en.hero,
+    src: "/screenshots/apple/iphone/en/01-home.png",
+  },
+  {
+    id: "design",
+    copy: COPY.en.feature2,
+    src: "/screenshots/apple/iphone/en/02-forecast.png",
+  },
+  {
+    id: "customize",
+    copy: COPY.en.feature3,
+    src: "/screenshots/apple/iphone/en/04-settings.png",
+  },
+  {
+    id: "timemachine",
+    copy: COPY.en.feature4,
+    src: "/screenshots/apple/iphone/en/03-charts.png",
+  },
+  {
+    id: "radar",
+    copy: COPY.en.feature6,
+    src: "/screenshots/apple/iphone/en/05-radar.png",
+  },
+  {
+    id: "trip",
+    copy: COPY.en.feature7,
+    src: "/screenshots/apple/iphone/en/06-trip.png",
+  },
+  {
+    id: "widgets",
+    copy: COPY.en.feature8,
+    src: "/screenshots/apple/iphone/en/08-widgets.png",
+  },
+  ...(HAS_WATCH_SHOT
+    ? [
+        {
+          id: "watch",
+          copy: COPY.en.feature9,
+          src: "/screenshots/apple/watch/en/watch-hero.png",
+          watch: true,
+        },
+      ]
+    : []),
+];
+
 const imageCache: Record<string, string> = {};
 
 function img(path: string): string {
@@ -133,8 +192,8 @@ async function preloadAllImages() {
     "/screenshots/apple/iphone/en/05-radar.png",
     "/screenshots/apple/iphone/en/06-trip.png",
     "/screenshots/apple/iphone/en/08-widgets.png",
-    "/screenshots/apple/watch/en/watch-hero.png",
   ];
+
 
   await Promise.all(
     paths.map(async (path) => {
@@ -250,6 +309,9 @@ function Caption({
           fontWeight: 700,
           color: THEMES["breezy-purple"].fg,
           lineHeight: 1.05,
+          // An explicit <br/> line wider than the canvas must wrap, not
+          // overflow ("unmistakably yours" ran off the 6.1" canvas).
+          overflowWrap: "anywhere",
         }}
       >
         {headline}
@@ -266,8 +328,11 @@ export default function ScreenshotsPage() {
 
   const size = IPHONE_SIZES[sizeIdx];
   const theme = THEMES["breezy-purple"];
-  const cW = IPHONE_W;
-  const cH = IPHONE_H;
+  // Canvas tracks the SELECTED size. It was pinned to the 6.9" constants, so
+  // every smaller export rendered at 1320 wide and was cropped from the left
+  // (cutting the mockup's right edge and over-long headlines).
+  const cW = size.w;
+  const cH = size.h;
 
   useEffect(() => {
     preloadAllImages().then(() => setReady(true));
@@ -315,8 +380,11 @@ export default function ScreenshotsPage() {
 
   const exportAll = useCallback(async () => {
     let failedCount = 0;
-    const slideIds = slides.map((s) => s.id);
-    const slideMeta = slides.map((s) => ({ watch: !!s.watch }));
+    // Reference the module-level list directly: the component's `slides`
+    // alias is declared after this useCallback, so closing over it is a
+    // temporal-dead-zone error.
+    const slideIds = SLIDES.map((s) => s.id);
+    const slideMeta = SLIDES.map((s) => ({ watch: !!s.watch }));
     for (let i = 0; i < slideIds.length; i++) {
       setExporting(`${i + 1}/${slideIds.length}`);
       const el = exportRefs.current[i];
@@ -368,49 +436,7 @@ export default function ScreenshotsPage() {
     );
   }
 
-  const slides = [
-    {
-      id: "hero",
-      copy: COPY.en.hero,
-      src: "/screenshots/apple/iphone/en/01-home.png",
-    },
-    {
-      id: "design",
-      copy: COPY.en.feature2,
-      src: "/screenshots/apple/iphone/en/02-forecast.png",
-    },
-    {
-      id: "customize",
-      copy: COPY.en.feature3,
-      src: "/screenshots/apple/iphone/en/04-settings.png",
-    },
-    {
-      id: "timemachine",
-      copy: COPY.en.feature4,
-      src: "/screenshots/apple/iphone/en/03-charts.png",
-    },
-    {
-      id: "radar",
-      copy: COPY.en.feature6,
-      src: "/screenshots/apple/iphone/en/05-radar.png",
-    },
-    {
-      id: "trip",
-      copy: COPY.en.feature7,
-      src: "/screenshots/apple/iphone/en/06-trip.png",
-    },
-    {
-      id: "widgets",
-      copy: COPY.en.feature8,
-      src: "/screenshots/apple/iphone/en/08-widgets.png",
-    },
-    {
-      id: "watch",
-      copy: COPY.en.feature9,
-      src: "/screenshots/apple/watch/en/watch-hero.png",
-      watch: true,
-    },
-  ];
+  const slides = SLIDES;
 
   return (
     <div
